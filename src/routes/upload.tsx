@@ -1,4 +1,4 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, Link } from "@tanstack/react-router";
 import { useMemo, useRef, useState } from "react";
 import {
   AlertTriangle,
@@ -7,9 +7,11 @@ import {
   Copy,
   FolderUp,
   RotateCw,
+  ScanLine,
   UploadCloud,
 } from "lucide-react";
-import { useAppState, type UploadStage } from "@/lib/app-state";
+import { useAppState } from "@/lib/app-state";
+import { PROCESSING_STAGES, type ResumeRecord, type UploadStage } from "@/lib/types";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
@@ -35,6 +37,7 @@ export const Route = createFileRoute("/upload")({
 const STAGE_LABEL: Record<UploadStage, string> = {
   queued: "Queued",
   uploading: "Uploading",
+  extracting: "Reading text",
   ocr: "OCR",
   parsing: "AI Parsing",
   complete: "Complete",
@@ -46,6 +49,7 @@ const STAGE_LABEL: Record<UploadStage, string> = {
 const STAGE_CLASS: Record<UploadStage, string> = {
   queued: "bg-secondary text-muted-foreground",
   uploading: "bg-primary-soft text-primary-soft-foreground",
+  extracting: "bg-primary-soft text-primary-soft-foreground",
   ocr: "bg-primary-soft text-primary-soft-foreground",
   parsing: "bg-primary-soft text-primary-soft-foreground",
   complete: "bg-success/15 text-success",
@@ -56,6 +60,25 @@ const STAGE_CLASS: Record<UploadStage, string> = {
 
 const FILTERS = ["all", "queued", "processing", "complete", "failed", "duplicate"] as const;
 const PAGE_SIZE = 25;
+
+function formatSize(bytes: number) {
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${Math.round(bytes / 1024)} KB`;
+  return `${(bytes / 1024 / 1024).toFixed(1)} MB`;
+}
+
+function summarize(file: ResumeRecord) {
+  const parts: string[] = [formatSize(file.fileSize)];
+  if (file.pageCount) parts.push(`${file.pageCount} page${file.pageCount === 1 ? "" : "s"}`);
+  if (file.parsed) {
+    const skills = file.parsed.skills.length;
+    const roles = file.parsed.experience.length;
+    parts.push(`${skills} skill${skills === 1 ? "" : "s"}`, `${roles} role${roles === 1 ? "" : "s"}`);
+    if (file.parsed.totalYearsExperience) parts.push(`${file.parsed.totalYearsExperience} yrs`);
+  }
+  if (file.parseEngine === "heuristic") parts.push("offline parser");
+  return parts.join(" · ");
+}
 
 export function UploadPage() {
   const {
@@ -68,6 +91,8 @@ export function UploadPage() {
     clearAll,
     counts,
     overallProgress,
+    uploadProgress,
+    capabilities,
   } = useAppState();
   const [filter, setFilter] = useState<(typeof FILTERS)[number]>("all");
   const [page, setPage] = useState(1);
@@ -77,14 +102,15 @@ export function UploadPage() {
 
   function ingest(list: FileList | null) {
     if (!list) return;
-    addFiles(Array.from(list).map((f) => ({ name: f.name, size: f.size })));
+    const accepted = Array.from(list).filter((f) => f.size > 0);
+    if (accepted.length) void addFiles(accepted);
   }
 
   const filtered = useMemo(
     () =>
       files.filter((f) => {
         if (filter === "all") return true;
-        if (filter === "processing") return ["uploading", "ocr", "parsing"].includes(f.stage);
+        if (filter === "processing") return PROCESSING_STAGES.includes(f.stage);
         return f.stage === filter;
       }),
     [files, filter],
@@ -93,6 +119,7 @@ export function UploadPage() {
   const pageCount = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
   const current = Math.min(page, pageCount);
   const rows = filtered.slice((current - 1) * PAGE_SIZE, current * PAGE_SIZE);
+  const ocrReady = capabilities.documentIntelligence;
 
   return (
     <div className="mx-auto max-w-6xl space-y-6">
@@ -102,6 +129,20 @@ export function UploadPage() {
           Drop entire folders of PDFs — scanned documents are routed through OCR automatically.
         </p>
       </header>
+
+      {!ocrReady && (
+        <div className="card-surface flex items-start gap-3 border-warning/40 p-4">
+          <ScanLine className="mt-0.5 h-4 w-4 shrink-0 text-warning" />
+          <p className="text-sm text-muted-foreground">
+            <strong className="text-foreground">Azure Document Intelligence is not configured.</strong>{" "}
+            PDFs with a text layer are read locally, but scanned documents, images and DOCX files
+            need OCR. Set <code className="rounded bg-secondary px-1">AZURE_DOCUMENT_INTELLIGENCE_ENDPOINT</code>{" "}
+            and <code className="rounded bg-secondary px-1">AZURE_DOCUMENT_INTELLIGENCE_KEY</code>{" "}
+            in <code className="rounded bg-secondary px-1">.env</code>.
+            {!capabilities.chat && " Azure OpenAI is also unset, so resumes fall back to the offline keyword parser."}
+          </p>
+        </div>
+      )}
 
       <div
         onDragOver={(e) => {
@@ -125,7 +166,7 @@ export function UploadPage() {
         <div>
           <p className="text-lg font-bold">Drop resumes here</p>
           <p className="mt-1 text-sm text-muted-foreground">
-            PDF, DOCX or scanned images · up to 500 files per batch
+            PDF, DOCX, TXT or scanned images · uploaded and processed in batches
           </p>
         </div>
         <div className="flex flex-wrap justify-center gap-2">
@@ -140,13 +181,21 @@ export function UploadPage() {
             <FolderUp className="mr-2 h-4 w-4" /> Select folder
           </Button>
         </div>
+        {uploadProgress && (
+          <p className="text-xs font-medium text-primary">
+            Uploading {uploadProgress.sent} of {uploadProgress.total} files…
+          </p>
+        )}
         <input
           ref={fileRef}
           type="file"
           multiple
-          accept=".pdf,.docx,.png,.jpg"
+          accept=".pdf,.docx,.doc,.png,.jpg,.jpeg,.tif,.tiff,.txt,.md"
           className="hidden"
-          onChange={(e) => ingest(e.target.files)}
+          onChange={(e) => {
+            ingest(e.target.files);
+            e.target.value = "";
+          }}
         />
         <input
           ref={folderRef}
@@ -156,7 +205,10 @@ export function UploadPage() {
           // @ts-expect-error non-standard directory picker attributes
           webkitdirectory=""
           directory=""
-          onChange={(e) => ingest(e.target.files)}
+          onChange={(e) => {
+            ingest(e.target.files);
+            e.target.value = "";
+          }}
         />
       </div>
 
@@ -194,9 +246,9 @@ export function UploadPage() {
                   variant="outline"
                   className="rounded-xl"
                   onClick={cancelRemaining}
-                  disabled={!counts.queued && !counts.processing}
+                  disabled={!counts.queued}
                 >
-                  <Ban className="mr-1.5 h-3.5 w-3.5" /> Cancel remaining
+                  <Ban className="mr-1.5 h-3.5 w-3.5" /> Cancel queued
                 </Button>
                 <Button size="sm" variant="ghost" className="rounded-xl" onClick={clearAll}>
                   Clear
@@ -209,9 +261,14 @@ export function UploadPage() {
                 style={{ width: `${overallProgress}%` }}
               />
             </div>
-            <p className="mt-2 text-xs text-muted-foreground">
-              {overallProgress}% of batch resolved
-            </p>
+            <div className="mt-2 flex flex-wrap items-center justify-between gap-2">
+              <p className="text-xs text-muted-foreground">{overallProgress}% of batch resolved</p>
+              {counts.completed > 0 && (
+                <Link to="/job-analysis" className="text-xs font-semibold text-primary">
+                  Next: analyze a job description →
+                </Link>
+              )}
+            </div>
           </div>
 
           <div className="flex flex-wrap gap-2">
@@ -238,8 +295,8 @@ export function UploadPage() {
             {rows.map((f) => (
               <div key={f.id} className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-4 px-5 py-3">
                 <div className="min-w-0">
-                  <div className="flex min-w-0 items-center gap-2">
-                    <p className="truncate text-sm font-semibold">{f.name}</p>
+                  <div className="flex min-w-0 flex-wrap items-center gap-2">
+                    <p className="truncate text-sm font-semibold">{f.fileName}</p>
                     <span
                       className={cn(
                         "shrink-0 rounded-full px-2 py-0.5 text-[11px] font-semibold",
@@ -248,21 +305,28 @@ export function UploadPage() {
                     >
                       {STAGE_LABEL[f.stage]}
                     </span>
+                    {f.scanned && (
+                      <span className="inline-flex shrink-0 items-center gap-1 rounded-full bg-secondary px-2 py-0.5 text-[11px] font-semibold text-muted-foreground">
+                        <ScanLine className="h-3 w-3" /> Scanned
+                      </span>
+                    )}
                   </div>
                   {f.stage === "failed" ? (
-                    <p className="mt-1 flex items-center gap-1.5 text-xs text-destructive">
-                      <AlertTriangle className="h-3.5 w-3.5 shrink-0" /> {f.error}
+                    <p className="mt-1 flex items-start gap-1.5 text-xs text-destructive">
+                      <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" /> {f.error}
                     </p>
                   ) : f.stage === "duplicate" ? (
                     <p className="mt-1 flex items-center gap-1.5 text-xs text-muted-foreground">
-                      <Copy className="h-3.5 w-3.5 shrink-0" /> Duplicate of an earlier file in this
-                      batch
+                      <Copy className="h-3.5 w-3.5 shrink-0" /> Identical to{" "}
+                      {f.duplicateOf ?? "an earlier upload"}
                     </p>
+                  ) : f.stage === "complete" ? (
+                    <p className="mt-1 truncate text-xs text-muted-foreground">{summarize(f)}</p>
                   ) : (
                     <div className="mt-2 h-1.5 w-full max-w-sm overflow-hidden rounded-full bg-muted">
                       <div
                         className="h-full rounded-full bg-primary transition-[width] duration-500"
-                        style={{ width: `${f.stage === "complete" ? 100 : f.progress}%` }}
+                        style={{ width: `${f.progress}%` }}
                       />
                     </div>
                   )}
@@ -289,7 +353,7 @@ export function UploadPage() {
                         className="rounded-xl"
                         onClick={() => resolveDuplicate(f.id, "replace")}
                       >
-                        Replace
+                        Process anyway
                       </Button>
                     </>
                   )}

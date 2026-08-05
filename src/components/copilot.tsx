@@ -1,14 +1,14 @@
 import { useMemo, useState } from "react";
 import { Bot, Send, X } from "lucide-react";
 import { useAppState } from "@/lib/app-state";
-import { CANDIDATES, rankCandidates } from "@/lib/mock-data";
+import { rankCandidates } from "@/lib/types";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
 
 const SUGGESTIONS = [
-  "Who has the most cloud experience?",
   "Compare the top 3 candidates",
+  "Who meets every must-have?",
   "Which candidates lack certifications?",
   "Summarise the qualification gaps in this pool",
 ];
@@ -16,8 +16,8 @@ const SUGGESTIONS = [
 type Msg = { role: "user" | "assistant"; text: string };
 
 export function CopilotPanel() {
-  const { copilotOpen, setCopilotOpen, weights } = useAppState();
-  const ranked = useMemo(() => rankCandidates(CANDIDATES, weights), [weights]);
+  const { copilotOpen, setCopilotOpen, weights, candidates } = useAppState();
+  const ranked = useMemo(() => rankCandidates(candidates, weights), [candidates, weights]);
   const [messages, setMessages] = useState<Msg[]>([
     {
       role: "assistant",
@@ -27,38 +27,69 @@ export function CopilotPanel() {
   const [input, setInput] = useState("");
 
   function answer(q: string): string {
+    if (ranked.length === 0) {
+      return "There is no ranked pool yet. Upload resumes, analyze a job description, then run screening — I answer from the real scored candidates.";
+    }
+
     const lower = q.toLowerCase();
     const top = ranked.slice(0, 3);
-    if (lower.includes("cloud")) {
-      const cloud = ranked
-        .filter((c) => c.skills.some((s) => ["AWS", "Azure", "Kubernetes", "Terraform"].includes(s)))
-        .slice(0, 3);
-      return `**${cloud.length ? cloud[0]!.name : "No one"}** leads on cloud depth. Strongest cloud profiles:\n\n${cloud
-        .map((c) => `- ${c.name} — score ${c.score}, ${c.years} yrs, ${c.skills.join(", ")}`)
-        .join("\n")}`;
-    }
+
     if (lower.includes("compare") || lower.includes("top 3")) {
-      return `Top 3 by current weighting:\n\n${top
+      return `Top ${top.length} by current weighting:\n\n${top
         .map(
           (c) =>
             `- **#${c.rank} ${c.name}** (${c.score}) — skills ${c.categories.skills}, experience ${c.categories.experience}, education ${c.categories.education}`,
         )
-        .join(
-          "\n",
-        )}\n\n${top[0]!.name} edges ahead on skills coverage; ${top[1]!.name} has broader project evidence.`;
+        .join("\n")}`;
     }
+
     if (lower.includes("certification")) {
       const weak = ranked.filter((c) => c.categories.certifications < 45).length;
       return `${weak} of ${ranked.length} candidates score under 45 on certifications. Consider lowering that weight or treating it as a nice-to-have.`;
     }
+
+    if (lower.includes("must") || lower.includes("requirement")) {
+      const full = ranked.filter((c) => c.mustHavesTotal > 0 && c.mustHavesMet === c.mustHavesTotal);
+      return full.length
+        ? `${full.length} candidate${full.length === 1 ? "" : "s"} meet every must-have:\n\n${full
+            .slice(0, 5)
+            .map((c) => `- **${c.name}** (${c.score})`)
+            .join("\n")}`
+        : "No candidate currently meets every must-have requirement. Loosening a must-have on the job description page will widen the shortlist.";
+    }
+
     if (lower.includes("gap")) {
-      return `Across ${ranked.length} candidates the most common gaps are: limited Kubernetes depth, thin certification evidence, and few examples of regulated-industry work. Skills coverage is strongest for Python, SQL and TypeScript.`;
+      const counts = new Map<string, number>();
+      for (const c of ranked) for (const g of c.gaps) counts.set(g, (counts.get(g) ?? 0) + 1);
+      const commonGaps = [...counts.entries()].sort((a, b) => b[1] - a[1]).slice(0, 3);
+      return commonGaps.length
+        ? `Most common gaps across ${ranked.length} candidates:\n\n${commonGaps
+            .map(([gap, n]) => `- ${gap} (${n})`)
+            .join("\n")}`
+        : `No gaps were recorded for the current pool of ${ranked.length} candidates.`;
     }
-    const match = ranked.find((c) => lower.includes(c.name.split(" ")[0]!.toLowerCase()));
-    if (match) {
-      return `**${match.name}** ranks #${match.rank} with a score of ${match.score}. Strengths: ${match.strengths[0]}. Gap: ${match.gaps[0]}.`;
+
+    const byName = ranked.find((c) => lower.includes(c.name.split(" ")[0]!.toLowerCase()));
+    if (byName) {
+      return `**${byName.name}** ranks #${byName.rank} with a score of ${byName.score}.${
+        byName.strengths[0] ? ` Strength: ${byName.strengths[0]}.` : ""
+      }${byName.gaps[0] ? ` Gap: ${byName.gaps[0]}.` : ""}`;
     }
-    return `Based on the current pool of ${ranked.length} candidates, the highest match is ${top[0]!.name} at ${top[0]!.score}. Try asking about a specific skill, candidate, or gap.`;
+
+    // Fall back to treating the question as a skill lookup.
+    const term = lower.match(/[a-z][a-z0-9+#.]{2,}/g)?.find((t) =>
+      ranked.some((c) => c.skills.some((s) => s.toLowerCase().includes(t))),
+    );
+    if (term) {
+      const withSkill = ranked
+        .filter((c) => c.skills.some((s) => s.toLowerCase().includes(term)))
+        .slice(0, 5);
+      return `${withSkill.length} candidate${withSkill.length === 1 ? "" : "s"} show ${term}:\n\n${withSkill
+        .map((c) => `- **${c.name}** — score ${c.score}, ${c.years} yrs`)
+        .join("\n")}`;
+    }
+
+    return `Across ${ranked.length} scored candidates the highest match is **${top[0]!.name}** at ${top[0]!.score}. Ask about a specific skill, candidate, must-haves or gaps.`;
   }
 
   function send(text: string) {
@@ -90,7 +121,9 @@ export function CopilotPanel() {
           <div className="min-w-0">
             <p className="truncate font-bold">Recruiter Copilot</p>
             <p className="truncate text-xs text-muted-foreground">
-              Ask about the {ranked.length}-candidate pool
+              {ranked.length
+                ? `Ask about the ${ranked.length}-candidate pool`
+                : "No screened candidates yet"}
             </p>
           </div>
         </div>

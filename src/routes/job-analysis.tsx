@@ -1,10 +1,14 @@
-import { createFileRoute } from "@tanstack/react-router";
-import { useState } from "react";
-import { Plus, Sparkle, Trash2, Wand2 } from "lucide-react";
+import { createFileRoute, useNavigate } from "@tanstack/react-router";
+import { useEffect, useState } from "react";
+import { useQueryClient } from "@tanstack/react-query";
+import { Info, Plus, Sparkle, Trash2, Wand2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
 import { toast } from "sonner";
+import { analyzeJob, saveJobRequirements, startScreening } from "@/lib/api/jobs";
+import { useAppState } from "@/lib/app-state";
+import { REQUIREMENT_CATEGORIES, type Requirement, type RequirementCategory } from "@/lib/types";
 
 export const Route = createFileRoute("/job-analysis")({
   head: () => ({
@@ -25,50 +29,87 @@ export const Route = createFileRoute("/job-analysis")({
   component: JobAnalysis,
 });
 
-type Category = "Skills" | "Experience" | "Education" | "Certifications";
-type Req = { id: string; category: Category; text: string; must: boolean };
-
-const CATEGORIES: Category[] = ["Skills", "Experience", "Education", "Certifications"];
-
-const SAMPLE: Req[] = [
-  { id: "r1", category: "Skills", text: "Python (production services)", must: true },
-  { id: "r2", category: "Skills", text: "AWS or Azure cloud deployment", must: true },
-  { id: "r3", category: "Skills", text: "Kubernetes & container orchestration", must: false },
-  { id: "r4", category: "Skills", text: "SQL and data modelling", must: true },
-  { id: "r5", category: "Experience", text: "5+ years backend engineering", must: true },
-  { id: "r6", category: "Experience", text: "Owned a service end-to-end in production", must: true },
-  { id: "r7", category: "Experience", text: "Mentored junior engineers", must: false },
-  { id: "r8", category: "Education", text: "BSc in Computer Science or equivalent", must: false },
-  { id: "r9", category: "Certifications", text: "AWS Solutions Architect (nice to have)", must: false },
-];
-
 const PLACEHOLDER = `Paste the full job description here…
 
 e.g. We're hiring a Senior Backend Engineer to own our data platform. You'll design Python services on AWS, work with Kubernetes…`;
 
-function JobAnalysis() {
-  const [jd, setJd] = useState("");
-  const [reqs, setReqs] = useState<Req[]>([]);
-  const [analyzing, setAnalyzing] = useState(false);
-  const [draft, setDraft] = useState<Record<Category, string>>({
-    Skills: "",
-    Experience: "",
-    Education: "",
-    Certifications: "",
-  });
+type Draft = Record<RequirementCategory, string>;
 
-  function analyze() {
+const EMPTY_DRAFT: Draft = { Skills: "", Experience: "", Education: "", Certifications: "" };
+
+function JobAnalysis() {
+  const navigate = useNavigate();
+  const queryClient = useQueryClient();
+  const { job, poolSize, capabilities, refreshCandidates } = useAppState();
+
+  const [jd, setJd] = useState("");
+  const [title, setTitle] = useState("");
+  const [summary, setSummary] = useState("");
+  const [reqs, setReqs] = useState<Requirement[]>([]);
+  const [jobId, setJobId] = useState<string | null>(null);
+  const [analyzing, setAnalyzing] = useState(false);
+  const [screening, setScreening] = useState(false);
+  const [draft, setDraft] = useState<Draft>(EMPTY_DRAFT);
+
+  // Load whatever job is already saved so edits survive navigation.
+  useEffect(() => {
+    if (!job || jobId === job.id) return;
+    setJobId(job.id);
+    setJd(job.description);
+    setTitle(job.title);
+    setSummary(job.summary);
+    setReqs(job.requirements);
+  }, [job, jobId]);
+
+  async function analyze() {
     if (!jd.trim()) {
       toast.error("Paste a job description first");
       return;
     }
     setAnalyzing(true);
-    window.setTimeout(() => {
-      setReqs(SAMPLE);
+    try {
+      const snapshot = await analyzeJob({ data: { description: jd } });
+      if (!snapshot.job) throw new Error("No requirements could be extracted");
+      setJobId(snapshot.job.id);
+      setTitle(snapshot.job.title);
+      setSummary(snapshot.job.summary);
+      setReqs(snapshot.job.requirements);
+      await queryClient.invalidateQueries({ queryKey: ["candidates"] });
+      toast.success(
+        `Extracted ${snapshot.job.requirements.length} requirements across ${
+          new Set(snapshot.job.requirements.map((r) => r.category)).size
+        } categories`,
+      );
+    } catch (error) {
+      toast.error("Analysis failed", {
+        description: error instanceof Error ? error.message : String(error),
+      });
+    } finally {
       setAnalyzing(false);
-      toast.success("Extracted 9 requirements across 4 categories");
-    }, 1200);
+    }
   }
+
+  async function saveAndScreen() {
+    if (!jobId) return;
+    setScreening(true);
+    try {
+      await saveJobRequirements({ data: { jobId, title, requirements: reqs } });
+      await startScreening({ data: { jobId } });
+      refreshCandidates();
+      toast.success(`Screening ${poolSize} candidates…`, {
+        description: "Ranking updates live on the candidates page.",
+      });
+      void navigate({ to: "/candidates" });
+    } catch (error) {
+      toast.error("Could not start screening", {
+        description: error instanceof Error ? error.message : String(error),
+      });
+    } finally {
+      setScreening(false);
+    }
+  }
+
+  const mustCount = reqs.filter((r) => r.must).length;
 
   return (
     <div className="mx-auto max-w-6xl space-y-6">
@@ -78,6 +119,20 @@ function JobAnalysis() {
           Extract screening criteria, then refine them before ranking candidates.
         </p>
       </header>
+
+      {!capabilities.chat && (
+        <div className="card-surface flex items-start gap-3 border-warning/40 p-4">
+          <Info className="mt-0.5 h-4 w-4 shrink-0 text-warning" />
+          <p className="text-sm text-muted-foreground">
+            <strong className="text-foreground">Azure OpenAI is not configured.</strong> Requirements
+            are extracted with the offline keyword parser, which is noticeably rougher. Set{" "}
+            <code className="rounded bg-secondary px-1">AZURE_OPENAI_ENDPOINT</code>,{" "}
+            <code className="rounded bg-secondary px-1">AZURE_OPENAI_API_KEY</code> and{" "}
+            <code className="rounded bg-secondary px-1">AZURE_OPENAI_DEPLOYMENT</code> in{" "}
+            <code className="rounded bg-secondary px-1">.env</code>.
+          </p>
+        </div>
+      )}
 
       <div className="card-surface p-5">
         <Textarea
@@ -89,7 +144,7 @@ function JobAnalysis() {
         <div className="mt-4 flex flex-wrap items-center gap-3">
           <Button className="rounded-xl" onClick={analyze} disabled={analyzing}>
             <Wand2 className="mr-2 h-4 w-4" />
-            {analyzing ? "Analyzing…" : "Analyze"}
+            {analyzing ? "Analyzing…" : reqs.length ? "Re-analyze" : "Analyze"}
           </Button>
           <p className="text-xs text-muted-foreground">
             {jd.trim().split(/\s+/).filter(Boolean).length} words
@@ -99,16 +154,42 @@ function JobAnalysis() {
 
       {reqs.length > 0 && (
         <>
-          <div className="card-surface flex items-start gap-3 p-5">
-            <Sparkle className="mt-0.5 h-4 w-4 shrink-0 text-primary" />
-            <p className="text-sm text-muted-foreground">
-              This role leans heavily on cloud-native backend delivery. Six requirements were marked
-              as must-haves; certifications were detected as optional signals only.
-            </p>
+          <div className="card-surface space-y-4 p-5">
+            <div className="flex items-start gap-3">
+              <Sparkle className="mt-0.5 h-4 w-4 shrink-0 text-primary" />
+              <div className="min-w-0 flex-1 space-y-3">
+                <Input
+                  value={title}
+                  onChange={(e) => setTitle(e.target.value)}
+                  aria-label="Role title"
+                  className="rounded-xl text-sm font-semibold"
+                />
+                <p className="text-sm text-muted-foreground">{summary}</p>
+                <p className="text-xs text-muted-foreground">
+                  {reqs.length} requirements · {mustCount} must-have ·{" "}
+                  {poolSize} parsed resume{poolSize === 1 ? "" : "s"} ready to screen
+                </p>
+              </div>
+            </div>
+
+            <div className="flex flex-wrap items-center gap-3 border-t pt-4">
+              <Button
+                className="rounded-xl"
+                onClick={saveAndScreen}
+                disabled={screening || poolSize === 0}
+              >
+                {screening ? "Starting…" : `Screen ${poolSize} candidates`}
+              </Button>
+              {poolSize === 0 && (
+                <p className="text-xs text-muted-foreground">
+                  Upload and parse some resumes first — the ranking runs against parsed resumes.
+                </p>
+              )}
+            </div>
           </div>
 
           <div className="grid gap-4 lg:grid-cols-2">
-            {CATEGORIES.map((cat) => (
+            {REQUIREMENT_CATEGORIES.map((cat) => (
               <div key={cat} className="card-surface p-5">
                 <div className="flex items-center justify-between gap-3">
                   <h2 className="text-base font-bold">{cat}</h2>
@@ -125,15 +206,23 @@ function JobAnalysis() {
                         key={r.id}
                         className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-2 rounded-xl bg-secondary/60 px-3 py-2"
                       >
-                        <input
-                          value={r.text}
-                          onChange={(e) =>
-                            setReqs((prev) =>
-                              prev.map((x) => (x.id === r.id ? { ...x, text: e.target.value } : x)),
-                            )
-                          }
-                          className="min-w-0 bg-transparent text-sm outline-none"
-                        />
+                        <div className="min-w-0">
+                          <input
+                            value={r.text}
+                            onChange={(e) =>
+                              setReqs((prev) =>
+                                prev.map((x) => (x.id === r.id ? { ...x, text: e.target.value } : x)),
+                              )
+                            }
+                            className="w-full min-w-0 bg-transparent text-sm outline-none"
+                          />
+                          {r.keywords.length > 0 && (
+                            <p className="truncate text-[11px] text-muted-foreground">
+                              matches: {r.keywords.join(", ")}
+                              {r.minYears ? ` · ${r.minYears}+ yrs` : ""}
+                            </p>
+                          )}
+                        </div>
                         <div className="flex shrink-0 items-center gap-1">
                           <button
                             onClick={() =>
@@ -169,7 +258,14 @@ function JobAnalysis() {
                     if (!text) return;
                     setReqs((prev) => [
                       ...prev,
-                      { id: `${cat}-${Date.now()}`, category: cat, text, must: false },
+                      {
+                        id: `${cat}-${Date.now()}`,
+                        category: cat,
+                        text,
+                        must: false,
+                        // Left empty so the server derives the search terms on save.
+                        keywords: [],
+                      },
                     ]);
                     setDraft((d) => ({ ...d, [cat]: "" }));
                   }}

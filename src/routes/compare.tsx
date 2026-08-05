@@ -2,7 +2,7 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { useMemo } from "react";
 import { Sparkle, X } from "lucide-react";
 import { useAppState } from "@/lib/app-state";
-import { CANDIDATES, rankCandidates } from "@/lib/mock-data";
+import { rankCandidates } from "@/lib/types";
 import { MiniBar, ScoreRing } from "@/components/score-ring";
 import { Button } from "@/components/ui/button";
 
@@ -26,8 +26,8 @@ export const Route = createFileRoute("/compare")({
 });
 
 function Compare() {
-  const { compareIds, toggleCompare, clearCompare, weights, blindMode } = useAppState();
-  const ranked = useMemo(() => rankCandidates(CANDIDATES, weights), [weights]);
+  const { candidates, compareIds, toggleCompare, clearCompare, weights, blindMode } = useAppState();
+  const ranked = useMemo(() => rankCandidates(candidates, weights), [candidates, weights]);
   const selected = ranked.filter((c) => compareIds.includes(c.id));
 
   if (selected.length === 0) {
@@ -125,21 +125,26 @@ function Compare() {
                 Strengths
               </p>
               <ul className="mt-1 space-y-1 text-sm text-muted-foreground">
-                {c.strengths.map((s) => (
-                  <li key={s}>• {s}</li>
-                ))}
+                {c.strengths.length ? c.strengths.map((s) => <li key={s}>• {s}</li>) : <li>—</li>}
               </ul>
             </div>
 
             <div>
               <p className="text-xs font-bold uppercase tracking-wide text-muted-foreground">
-                Weaknesses
+                Gaps
               </p>
               <ul className="mt-1 space-y-1 text-sm text-muted-foreground">
-                {c.gaps.map((s) => (
-                  <li key={s}>• {s}</li>
-                ))}
+                {c.gaps.length ? c.gaps.map((s) => <li key={s}>• {s}</li>) : <li>—</li>}
               </ul>
+            </div>
+
+            <div>
+              <p className="text-xs font-bold uppercase tracking-wide text-muted-foreground">
+                Must-haves met
+              </p>
+              <p className="mt-1 text-sm">
+                {c.mustHavesTotal > 0 ? `${c.mustHavesMet} of ${c.mustHavesTotal}` : "No must-haves set"}
+              </p>
             </div>
           </div>
         ))}
@@ -155,9 +160,13 @@ function Compare() {
             {blindMode ? `Candidate #${best.rank}` : best.name}
           </strong>{" "}
           is the strongest overall fit at {best.score}, driven by a {best.categories.skills} skills
-          match and {best.years} years of relevant delivery. The main trade-off is{" "}
-          {best.gaps[0]!.toLowerCase()} — worth probing in a technical screen. If certification
-          evidence is a hard requirement, re-weight the panel and re-check this shortlist.
+          match and {best.years} years of stated experience
+          {best.mustHavesTotal > 0 &&
+            `, meeting ${best.mustHavesMet} of ${best.mustHavesTotal} must-have requirements`}
+          .{" "}
+          {best.gaps[0]
+            ? `The main trade-off is ${best.gaps[0].toLowerCase().replace(/\.$/, "")} — worth probing in a technical screen.`
+            : "No significant gaps were detected against the current requirements."}
         </p>
       </div>
     </div>
