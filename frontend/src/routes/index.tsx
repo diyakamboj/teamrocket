@@ -92,20 +92,38 @@ const tooltipStyle = {
   fontSize: 12,
 };
 
+function mostCommon(values: string[]): string {
+  const counts = new Map<string, number>();
+  for (const v of values) counts.set(v, (counts.get(v) ?? 0) + 1);
+  let best = values[0] ?? "";
+  let bestCount = 0;
+  for (const [v, c] of counts) {
+    if (c > bestCount) {
+      best = v;
+      bestCount = c;
+    }
+  }
+  return best;
+}
+
 function Dashboard() {
   const { weights } = useAppState();
   const ranked = useMemo(() => rankCandidates(CANDIDATES, weights), [weights]);
   const avg = Math.round(ranked.reduce((s, c) => s + c.score, 0) / ranked.length);
   const buckets = useMemo(() => scoreBuckets(ranked), [ranked]);
+  const roleTitle = useMemo(() => mostCommon(ranked.map((c) => c.title)), [ranked]);
+  const seniorPlus = EXPERIENCE_BREAKDOWN[2]!.count + EXPERIENCE_BREAKDOWN[3]!.count;
+  const scarceSkill = useMemo(
+    () => SKILL_DISTRIBUTION.slice(0, 10).reduce((min, s) => (s.count < min.count ? s : min)),
+    [],
+  );
 
   return (
     <div className="mx-auto max-w-7xl space-y-6">
       <header className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-4">
         <div className="min-w-0">
           <h1 className="truncate text-2xl font-extrabold sm:text-3xl">Hiring Insights</h1>
-          <p className="mt-1 text-sm text-muted-foreground">
-            Senior Backend Engineer · pipeline snapshot
-          </p>
+          <p className="mt-1 text-sm text-muted-foreground">{roleTitle} · pipeline snapshot</p>
         </div>
         <Link
           to="/candidates"
@@ -183,17 +201,15 @@ function Dashboard() {
           </div>
           <h2 className="mt-3 text-lg font-bold">Qualification gaps</h2>
           <p className="mt-3 text-sm leading-relaxed text-muted-foreground">
-            The pool is strong on core engineering fundamentals — {SKILL_DISTRIBUTION[0]!.count}{" "}
-            candidates show {SKILL_DISTRIBUTION[0]!.skill} evidence and{" "}
-            {EXPERIENCE_BREAKDOWN[2]!.count + EXPERIENCE_BREAKDOWN[3]!.count} are senior or above.
-            The recurring shortfall is production-grade cloud infrastructure: only{" "}
-            {SKILL_DISTRIBUTION.find((s) => s.skill === "Kubernetes")?.count ?? 0} candidates show
-            Kubernetes ownership, and certification evidence is sparse across the board.
+            The pool is strong on core fundamentals — {SKILL_DISTRIBUTION[0]!.count} candidates
+            show {SKILL_DISTRIBUTION[0]!.skill} evidence and {seniorPlus} are senior or above. The
+            recurring shortfall is {scarceSkill.skill}: only {scarceSkill.count} candidates show
+            evidence of it, and certification evidence is sparse across the board.
           </p>
           <ul className="mt-4 space-y-2 text-sm">
             {[
               "Consider lowering the certification weight — it is filtering out otherwise strong profiles.",
-              "Terraform and Kafka appear mostly as transferable, not primary, experience.",
+              `${scarceSkill.skill} appears mostly as transferable, not primary, experience.`,
               "Mid-level candidates outperform seniors on projects evidence.",
             ].map((t) => (
               <li key={t} className="flex gap-2 text-muted-foreground">
