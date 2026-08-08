@@ -1,0 +1,50 @@
+{
+	"name": "Chat with your data",
+	"build": {
+		"dockerfile": "Dockerfile"
+	},
+	"features": {
+		"ghcr.io/devcontainers/features/azure-cli:1": {
+			"extensions": "ml",
+			"installBicep": true,
+            "version": "latest",
+            "bicepVersion": "latest"
+		},
+		"ghcr.io/devcontainers/features/docker-outside-of-docker:1": {},
+		"ghcr.io/devcontainers/features/node:1": {},
+		"ghcr.io/jlaundry/devcontainer-features/azure-functions-core-tools:1": {},
+		"ghcr.io/azure/azure-dev/azd:latest": {}
+	},
+
+	"postCreateCommand": "./.devcontainer/setupEnv.sh",
+
+	"customizations": {
+		"vscode": {
+			"extensions": [
+				"github.vscode-pull-request-github",
+				"github.vscode-github-actions",
+				"ms-azuretools.azure-dev",
+				"ms-azuretools.vscode-azurefunctions",
+				"ms-azuretools.vscode-bicep",
+				"ms-azuretools.vscode-docker",
+				"ms-python.python",
+				"ms-python.black-formatter",
+				"ms-python.vscode-pylance",
+				"ms-python.pylint",
+				"ms-toolsai.jupyter",
+				"ms-vscode.vscode-node-azure-pack",
+				"dbaeumer.vscode-eslint"
+			],
+			"settings": {
+                "python.defaultInterpreterPath": "${workspaceFolder}/.venv/bin/python",
+				"remote.autoForwardPortsFallback": 0,
+				"remote.autoForwardPortsSource": "process"
+            }
+		}
+	},
+
+	"remoteEnv": {
+		// the original host directory which is needed for volume mount commands from inside the container (Docker in Docker)
+		"HOST_DOCKER_FOLDER": "${localWorkspaceFolder}/docker"
+	}
+}

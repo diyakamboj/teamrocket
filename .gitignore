@@ -1,0 +1,23 @@
+node_modules/
+.DS_Store
+.env
+.env.local
+*.log
+
+# python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.pytest_cache/
+.mypy_cache/
+.coverage
+htmlcov/
+
+# backend runtime
+backend/uploads/
+*.db
+
+# frontend build
+dist/
+.tanstack/

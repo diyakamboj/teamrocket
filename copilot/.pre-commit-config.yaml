@@ -1,0 +1,39 @@
+repos:
+  - repo: https://github.com/psf/black
+    rev: 24.2.0
+    hooks:
+      - id: black
+        language_version: python3
+
+  - repo: https://github.com/pycqa/flake8
+    rev: 7.0.0
+    hooks:
+      - id: flake8
+        args: [--extend-ignore=E501]
+
+  - repo: local
+    hooks:
+      - id: bicep-main
+        name: bicep-main
+        description: Build ARM template from the orchestrator Bicep entrypoint
+        entry: az bicep build --file infra/main.bicep
+        language: system
+        files: \.bicep$
+        pass_filenames: false
+        require_serial: true
+      - id: bicep-flavor
+        name: bicep-flavor
+        description: Build ARM template from the Bicep (non-AVM) flavor entrypoint
+        entry: az bicep build --file infra/bicep/main.bicep
+        language: system
+        files: \.bicep$
+        pass_filenames: false
+        require_serial: true
+      - id: bicep-avm
+        name: bicep-avm
+        description: Build ARM template from the AVM flavor entrypoint
+        entry: az bicep build --file infra/avm/main.bicep
+        language: system
+        files: \.bicep$
+        pass_filenames: false
+        require_serial: true

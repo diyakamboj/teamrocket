@@ -1,0 +1,94 @@
+name: Build Docker and Optional Push
+
+on:
+  push:
+    branches:
+      - main
+      - dev
+      - demo
+    paths:
+      - 'src/**'
+      - 'docker/**'
+      - 'package.json'
+      - 'pyproject.toml'
+      - '.github/workflows/build-docker-images.yml'
+      - '.github/workflows/build-docker.yml'
+  pull_request:
+    branches:
+      - main
+      - dev
+      - demo
+    paths:
+      - 'src/**'
+      - 'docker/**'
+      - 'package.json'
+      - 'pyproject.toml'
+      - '.github/workflows/build-docker-images.yml'
+      - '.github/workflows/build-docker.yml'
+    types:
+      - opened
+      - ready_for_review
+      - reopened
+      - synchronize
+  merge_group:
+  workflow_dispatch:
+
+permissions:
+  id-token: write
+  contents: read
+  packages: write
+
+jobs:
+  check-changes:
+    runs-on: ubuntu-latest
+    outputs:
+      should_build: ${{ steps.filter.outputs.docker_related }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Check for relevant changes
+        id: filter
+        uses: dorny/paths-filter@v3
+        with:
+          filters: |
+            docker_related:
+              - 'src/**'
+              - 'docker/**'
+              - 'package.json'
+              - 'pyproject.toml'
+              - '.github/workflows/build-docker-images.yml'
+              - '.github/workflows/build-docker.yml'
+
+      - name: Skip - No Relevant Changes
+        if: steps.filter.outputs.docker_related != 'true' && github.event_name != 'workflow_dispatch'
+        run: echo "No relevant changes detected. Skipping docker build."
+
+  docker-build:
+    needs: check-changes
+    strategy:
+      matrix:
+        include:
+          # Legacy entries required by branch protection (old check names)
+          - app_name: rag-adminwebapp
+            dockerfile: docker/Admin.Dockerfile
+          - app_name: rag-backend
+            dockerfile: docker/Backend.Dockerfile
+          - app_name: rag-webapp
+            dockerfile: docker/Frontend.Dockerfile
+          # Current entries
+          - app_name: rag-frontend
+            dockerfile: docker/Dockerfile.frontend
+          - app_name: rag-backend-v2
+            dockerfile: docker/Dockerfile.backend
+          - app_name: rag-functions
+            dockerfile: docker/Dockerfile.functions
+    uses: ./.github/workflows/build-docker.yml
+    with:
+      new_registry: 'cwydcontainerreg.azurecr.io'
+      app_name: ${{ matrix.app_name }}
+      dockerfile: ${{ matrix.dockerfile }}
+      push: false
+    secrets: inherit

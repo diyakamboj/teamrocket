@@ -1,0 +1,34 @@
+version: "3.9"
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: resume_assistant_db
+    environment:
+      POSTGRES_USER: resume
+      POSTGRES_PASSWORD: resume
+      POSTGRES_DB: resume_assistant
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U resume -d resume_assistant"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  azurite:
+    image: mcr.microsoft.com/azure-storage/azurite
+    container_name: resume_assistant_azurite
+    command: azurite --blobHost 0.0.0.0 --queueHost 0.0.0.0 --tableHost 0.0.0.0 --loose
+    ports:
+      - "10000:10000"
+      - "10001:10001"
+      - "10002:10002"
+    volumes:
+      - azurite_data:/data
+
+volumes:
+  postgres_data:
+  azurite_data:

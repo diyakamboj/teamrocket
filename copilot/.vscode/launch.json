@@ -1,0 +1,82 @@
+{
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "Attach to Python Functions",
+            "type": "python",
+            "request": "attach",
+            "port": 9091,
+            "preLaunchTask": "func: host start"
+        },
+        {
+            "name": "Launch Backend (FastAPI)",
+            "type": "debugpy",
+            "request": "launch",
+            "module": "uvicorn",
+            "args": [
+                "backend.app:app",
+                "--reload",
+                "--app-dir",
+                "src",
+                "--host",
+                "127.0.0.1",
+                "--port",
+                "8000"
+            ],
+            "cwd": "${workspaceFolder}",
+            "preLaunchTask": "uv sync",
+            "envFile": "${input:dotEnvFilePath}",
+        },
+        {
+            "name": "Launch Frontend (UI)",
+            "type": "node",
+            "request": "launch",
+            "cwd": "${workspaceFolder}/src/frontend",
+            "preLaunchTask": "npm install frontend",
+            "runtimeExecutable": "npm",
+            "runtimeArgs": [
+                "run",
+                "dev"
+            ],
+            "skipFiles": [
+                "node_modules/**"
+            ],
+            "envFile": "${input:dotEnvFilePath}",
+        },
+        {
+            "name": "Debug tests",
+            "type": "debugpy",
+            "request": "launch",
+            "module": "pytest",
+            "cwd": "${workspaceFolder}",
+            "envFile": "${input:dotEnvFilePath}",
+        },
+        {
+            "name": "Python: Current File",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "${file}",
+            "justMyCode": true,
+            "envFile": "${input:dotEnvFilePath}",
+        }
+    ],
+    "compounds": [
+        {
+            "name": "Launch Frontend",
+            "configurations": [ "Launch Frontend (UI)", "Launch Backend (FastAPI)" ],
+            "stopAll": true
+        },
+        {
+            "name": "Run all (backend + functions + frontend)",
+            "configurations": [ "Launch Backend (FastAPI)", "Attach to Python Functions", "Launch Frontend (UI)" ],
+            "stopAll": true
+        }
+    ],
+    "inputs": [
+        {
+            "id": "dotEnvFilePath",
+            "type": "command",
+            "command": "azure-dev.commands.getDotEnvFilePath"
+        }
+    ]
+}
