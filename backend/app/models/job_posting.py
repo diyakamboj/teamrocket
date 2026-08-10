@@ -23,6 +23,8 @@ class JobPosting(Base):
     required_experience_years: Mapped[Optional[int]] = mapped_column(Integer)
     education_requirements: Mapped[Optional[str]] = mapped_column(String(255))
     nice_to_have_skills: Mapped[Optional[list[Any]]] = mapped_column(JSONType, default=list)
+    # "open" | "paused" | "closed" — drives the "active job listings" dashboard filter.
+    status: Mapped[str] = mapped_column(String(20), default="open", server_default="open", index=True)
     created_by: Mapped[Optional[str]] = mapped_column(String(255), index=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=False), server_default=func.now()

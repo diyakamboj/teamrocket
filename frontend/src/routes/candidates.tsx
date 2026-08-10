@@ -58,10 +58,14 @@ function DecisionControls({
   candidate,
   state,
   onDecide,
+  blindMode,
+  displayName,
 }: {
   candidate: Candidate;
   state: DecisionState | undefined;
   onDecide: (decision: "approved" | "rejected") => void;
+  blindMode: boolean;
+  displayName: string;
 }) {
   const [pending, setPending] = useState<"approved" | "rejected" | null>(null);
 
@@ -95,7 +99,8 @@ function DecisionControls({
     return (
       <div className="flex items-center gap-2 text-xs">
         <span className="text-muted-foreground">
-          {isApproved ? "Send selection" : "Send rejection"} email to {candidate.email}?
+          {isApproved ? "Send selection" : "Send rejection"} email to{" "}
+          {blindMode ? displayName : candidate.email}?
         </span>
         <Button
           size="sm"
@@ -173,10 +178,11 @@ function Candidates() {
         },
       }));
       if (result.email_sent) {
+        const label = blindMode ? `Candidate #${candidate.rank}` : candidate.name;
         toast.success(
           decision === "approved"
-            ? `Selection email sent to ${candidate.name}${result.email_source === "mock" ? " (mock — configure SMTP to send for real)" : ""}`
-            : `Rejection email sent to ${candidate.name}${result.email_source === "mock" ? " (mock — configure SMTP to send for real)" : ""}`,
+            ? `Selection email sent to ${label}${result.email_source === "mock" ? " (mock — configure SMTP to send for real)" : ""}`
+            : `Rejection email sent to ${label}${result.email_source === "mock" ? " (mock — configure SMTP to send for real)" : ""}`,
         );
       } else {
         toast.error(`Email failed to send: ${result.email_error ?? "unknown error"}`);
@@ -357,6 +363,8 @@ function Candidates() {
                         candidate={c}
                         state={decisions[c.id]}
                         onDecide={(decision) => void handleDecision(c, decision)}
+                        blindMode={blindMode}
+                        displayName={displayName}
                       />
                     </div>
                   </div>

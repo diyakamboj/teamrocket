@@ -9,10 +9,11 @@ from app.models.candidate import Candidate
 from app.models.evaluation import Evaluation
 from app.models.job_posting import JobPosting
 from app.models.schemas import WeightConfig
+from app.services import handoff_service
 from app.services.azure_services import openai_service, search_service
 from app.services.evidence_tracker import evidence_tracker
 from app.utils.error_handlers import NotFoundError
-from app.utils.validators import normalize_skill, redact_pii
+from app.utils.validators import normalize_skill, redact_name, redact_pii
 
 
 DEFAULT_WEIGHTS = WeightConfig()
@@ -41,8 +42,7 @@ class CandidateMatcher:
                 evaluation = self._upsert_evaluation(db, candidate, job, score, blind_mode)
                 score["evaluation_id"] = evaluation.id
             if blind_mode:
-                score["name"] = f"Candidate-{str(candidate.id)[:8]}"
-                score["email"] = None
+                self._redact_identity(score, candidate)
             scores.append(score)
 
         if persist:
@@ -125,6 +125,7 @@ class CandidateMatcher:
         job_id: UUID,
         weight_config: Optional[WeightConfig] = None,
         persist: bool = True,
+        blind_mode: bool = False,
     ) -> dict[str, Any]:
         candidate = db.get(Candidate, candidate_id)
         job = db.get(JobPosting, job_id)
@@ -135,10 +136,31 @@ class CandidateMatcher:
 
         score = await self.score_candidate(candidate, job, weight_config or DEFAULT_WEIGHTS)
         if persist:
-            evaluation = self._upsert_evaluation(db, candidate, job, score, False)
+            evaluation = self._upsert_evaluation(db, candidate, job, score, blind_mode)
             score["evaluation_id"] = evaluation.id
             db.commit()
+        if blind_mode:
+            self._redact_identity(score, candidate)
         return score
+
+    @staticmethod
+    def _redact_identity(score: dict[str, Any], candidate: Candidate) -> None:
+        """Blind review mode: strip real name/email from a score payload before
+        it can reach a UI or an LLM prompt (comparison narratives, agent chat).
+
+        Evidence snippets and free-text explanations quote the resume verbatim,
+        which usually opens with the candidate's name, so name/email alone
+        isn't enough — scrub the name out of every text field too.
+        """
+        name = candidate.name
+        score["name"] = f"Candidate-{str(candidate.id)[:8]}"
+        score["email"] = None
+        for field in ("strengths", "weaknesses", "transferable_skills"):
+            if score.get(field):
+                score[field] = redact_name(score[field], name)
+        for item in score.get("evidence") or []:
+            if isinstance(item, dict) and item.get("resume_text_snippet"):
+                item["resume_text_snippet"] = redact_name(item["resume_text_snippet"], name)
 
     async def _match_skills(self, candidate: Candidate, job: JobPosting) -> float:
         candidate_skills = [str(s) for s in (candidate.skills or [])]
@@ -277,10 +299,22 @@ evidence (list of {{skill_name, resume_text_snippet, source_section, confidence_
         strengths = score.get("strengths")
         weaknesses = score.get("weaknesses")
         transferable = score.get("transferable_skills")
+        evidence = score.get("evidence") or []
         if blind_mode:
-            strengths = redact_pii(strengths or "")
-            weaknesses = redact_pii(weaknesses or "")
-            transferable = redact_pii(transferable or "")
+            strengths = redact_name(redact_pii(strengths or ""), candidate.name)
+            weaknesses = redact_name(redact_pii(weaknesses or ""), candidate.name)
+            transferable = redact_name(redact_pii(transferable or ""), candidate.name)
+            evidence = [
+                {
+                    **item,
+                    "resume_text_snippet": redact_name(
+                        item.get("resume_text_snippet") or "", candidate.name
+                    ),
+                }
+                if isinstance(item, dict) and item.get("resume_text_snippet")
+                else item
+                for item in evidence
+            ]
 
         payload = dict(
             overall_score=Decimal(str(score["overall_score"])),
@@ -297,6 +331,7 @@ evidence (list of {{skill_name, resume_text_snippet, source_section, confidence_
             blind_review_mode=blind_mode,
         )
 
+        is_rescore = evaluation is not None
         if evaluation:
             for key, value in payload.items():
                 setattr(evaluation, key, value)
@@ -307,7 +342,30 @@ evidence (list of {{skill_name, resume_text_snippet, source_section, confidence_
             db.add(evaluation)
         db.flush()
 
-        evidence_tracker.persist(db, evaluation.id, score.get("evidence") or [])
+        evidence_tracker.persist(db, evaluation.id, evidence)
+
+        handoff_service.log_history_event(
+            db,
+            candidate_id=str(candidate.id),
+            candidate_name=candidate.name,
+            job_id=str(job.id),
+            job_title=job.title,
+            event_type="evaluation_updated" if is_rescore else "evaluation_created",
+            summary=(
+                f"{'Re-scored' if is_rescore else 'Scored'} against {job.title} — "
+                f"overall {score['overall_score']}/100"
+            ),
+            details={
+                "evaluation_id": str(evaluation.id),
+                "overall_score": score["overall_score"],
+                "skill_score": score["skill_score"],
+                "experience_score": score["experience_score"],
+                "education_score": score["education_score"],
+                "certification_score": score["certification_score"],
+                "project_score": score["project_score"],
+                "blind_review_mode": blind_mode,
+            },
+        )
         return evaluation
 
     @staticmethod

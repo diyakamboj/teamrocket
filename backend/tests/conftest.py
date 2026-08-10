@@ -8,10 +8,16 @@ from sqlalchemy import create_engine, event
 from sqlalchemy.orm import Session, sessionmaker
 from sqlalchemy.pool import StaticPool
 
-# Force mock Azure before app imports
+# Force mock Azure before app imports. Search and embeddings are
+# deliberately decoupled from USE_MOCK_AZURE (see azure_services.py) so they
+# can go live independently of the chat deployment — which means they need
+# to be muted here explicitly, or tests would make real network calls.
 os.environ["USE_MOCK_AZURE"] = "true"
 os.environ["DATABASE_URL"] = "sqlite://"
 os.environ["DEBUG"] = "true"
+os.environ["AZURE_SEARCH_ENDPOINT"] = ""
+os.environ["AZURE_SEARCH_ADMIN_KEY"] = ""
+os.environ["AZURE_OPENAI_EMBEDDING_DEPLOYMENT_NAME"] = ""
 
 from app.database import Base, get_db
 from app.main import app

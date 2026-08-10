@@ -28,6 +28,18 @@ def redact_pii(text: str) -> str:
     return text
 
 
+def redact_name(text: str, name: str) -> str:
+    """Strip a specific candidate's name out of free text for blind review mode.
+
+    Resume excerpts (evidence snippets, strengths/weaknesses summaries) often
+    quote the source text verbatim, which usually opens with the candidate's
+    name — redact_pii's email/phone patterns don't catch that.
+    """
+    if not text or not name:
+        return text
+    return re.sub(re.escape(name), "[REDACTED_NAME]", text, flags=re.IGNORECASE)
+
+
 def normalize_skill(skill: str) -> str:
     return re.sub(r"\s+", " ", skill.strip().lower())
 

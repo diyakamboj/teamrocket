@@ -6,6 +6,7 @@ export type AgentAskPayload = {
   job_id?: string | null;
   session_id?: string | null;
   chatbot_conversation_id?: string | null;
+  blind_mode?: boolean;
 };
 
 export type AgentCitation = {
@@ -38,12 +39,15 @@ export type AgentStatus = {
   };
 };
 
+export type JobStatus = "open" | "paused" | "closed";
+
 export type JobResponse = {
   id: string;
   title: string;
   description: string;
   required_skills?: string[];
   required_experience_years?: number | null;
+  status?: JobStatus;
 };
 
 function recruiterHeaders(): HeadersInit {
@@ -226,6 +230,223 @@ export async function submitCandidateDecision(input: {
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(input),
   });
+}
+
+// ---------- Interview handoff & historical data ----------
+
+export type HistoryEvent = {
+  id: string;
+  candidate_id: string;
+  candidate_name?: string | null;
+  job_id?: string | null;
+  job_title?: string | null;
+  event_type: string;
+  actor_email?: string | null;
+  summary?: string | null;
+  details: Record<string, unknown>;
+  created_at: string;
+};
+
+export async function getCandidateHistory(
+  candidateId: string,
+  jobId?: string | null,
+): Promise<HistoryEvent[]> {
+  const qs = jobId ? `?job_id=${encodeURIComponent(jobId)}` : "";
+  return request<HistoryEvent[]>(`/api/handoff/history/${encodeURIComponent(candidateId)}${qs}`);
+}
+
+export type BriefingScorecard = {
+  overall_score?: number | null;
+  skill_score?: number | null;
+  experience_score?: number | null;
+  education_score?: number | null;
+  certification_score?: number | null;
+  project_score?: number | null;
+};
+
+export type CandidateBriefing = {
+  candidate_id: string;
+  candidate_name: string;
+  candidate_email?: string | null;
+  job_id?: string | null;
+  job_title?: string | null;
+  generated_at: string;
+  scorecard: BriefingScorecard;
+  matched_skills: unknown[];
+  missing_skills: unknown[];
+  strengths?: string | null;
+  weaknesses?: string | null;
+  transferable_skills?: string | null;
+  evidence_highlights: unknown[];
+  interview_focus_areas: string[];
+  recruiter_notes?: string | null;
+};
+
+export type HandoffStatus = "pending" | "viewed" | "acknowledged";
+
+export type InterviewHandoffRecord = {
+  id: string;
+  candidate_id: string;
+  candidate_name: string;
+  candidate_email?: string | null;
+  job_id?: string | null;
+  job_title?: string | null;
+  interviewer_name: string;
+  interviewer_email: string;
+  created_by?: string | null;
+  briefing: CandidateBriefing;
+  status: HandoffStatus;
+  interviewer_notes?: string | null;
+  email_sent: boolean;
+  email_source?: string | null;
+  created_at: string;
+  viewed_at?: string | null;
+  acknowledged_at?: string | null;
+};
+
+export async function createHandoff(input: {
+  candidate_id: string;
+  candidate_name: string;
+  candidate_email?: string | null;
+  job_id?: string | null;
+  job_title?: string | null;
+  interviewer_name: string;
+  interviewer_email: string;
+  recruiter_notes?: string | undefined;
+  scorecard?: BriefingScorecard;
+  matched_skills?: unknown[];
+  missing_skills?: unknown[];
+  strengths?: string | null;
+  weaknesses?: string | null;
+  transferable_skills?: string | null;
+  evidence_highlights?: unknown[];
+}): Promise<InterviewHandoffRecord> {
+  return request<InterviewHandoffRecord>("/api/handoff", {
+    method: "POST",
+    body: JSON.stringify(input),
+  });
+}
+
+export async function getHandoff(id: string): Promise<InterviewHandoffRecord> {
+  return request<InterviewHandoffRecord>(`/api/handoff/${id}`);
+}
+
+export async function markHandoffViewed(id: string): Promise<InterviewHandoffRecord> {
+  return request<InterviewHandoffRecord>(`/api/handoff/${id}/view`, { method: "POST" });
+}
+
+export async function acknowledgeHandoff(
+  id: string,
+  interviewerNotes?: string,
+): Promise<InterviewHandoffRecord> {
+  return request<InterviewHandoffRecord>(`/api/handoff/${id}/acknowledge`, {
+    method: "POST",
+    body: JSON.stringify({ interviewer_notes: interviewerNotes ?? null }),
+  });
+}
+
+export async function listHandoffsForCandidate(
+  candidateId: string,
+): Promise<InterviewHandoffRecord[]> {
+  return request<InterviewHandoffRecord[]>(
+    `/api/handoff/candidate/${encodeURIComponent(candidateId)}/list`,
+  );
+}
+
+// ---------- Top-level recruiter dashboard: job listings & pipeline ----------
+
+export type PipelineStage = "screened" | "interviewing" | "interviewed" | "selected" | "rejected";
+
+export type JobPipelineSummary = {
+  job_id: string;
+  title: string;
+  status: JobStatus;
+  created_at: string;
+  total_candidates: number;
+  internal_candidates: number;
+  external_candidates: number;
+  average_score: number;
+  stage_counts: Record<PipelineStage, number>;
+};
+
+export type PipelineCandidate = {
+  candidate_id: string;
+  candidate_name: string;
+  candidate_email?: string | null;
+  source: "internal" | "external";
+  overall_score?: number | null;
+  stage: PipelineStage;
+  updated_at: string;
+};
+
+export async function listJobPipelines(): Promise<JobPipelineSummary[]> {
+  return request<JobPipelineSummary[]>("/api/dashboard/jobs");
+}
+
+export async function getJobPipeline(
+  jobId: string,
+  source?: "internal" | "external" | "all",
+): Promise<PipelineCandidate[]> {
+  const qs = source ? `?source=${source}` : "";
+  return request<PipelineCandidate[]>(`/api/dashboard/jobs/${jobId}/pipeline${qs}`);
+}
+
+export async function updateJobStatus(jobId: string, status: JobStatus): Promise<JobResponse> {
+  return request<JobResponse>(`/api/jobs/${jobId}`, {
+    method: "PUT",
+    body: JSON.stringify({ status }),
+  });
+}
+
+export async function updateCandidateSource(
+  candidateId: string,
+  source: "internal" | "external",
+): Promise<unknown> {
+  return request(`/api/candidates/${candidateId}`, {
+    method: "PUT",
+    body: JSON.stringify({ source }),
+  });
+}
+
+// ---------- ATS Benchmark Baseline Scoring ----------
+
+export type AtsVerdict = "semantic_stronger" | "keyword_stronger" | "aligned";
+
+export type EquivalentTerm = { resume_term: string; jd_keyword: string };
+
+export type AtsBenchmark = {
+  id: string;
+  evaluation_id: string;
+  candidate_id: string;
+  job_id: string;
+  // Decimal fields serialize as JSON strings — parse with Number() to display.
+  keyword_score: string;
+  matched_keywords: string[];
+  missing_keywords: string[];
+  semantic_score: string;
+  semantic_rationale?: string | null;
+  equivalent_terms: EquivalentTerm[];
+  score_delta: string;
+  verdict: AtsVerdict;
+  created_at: string;
+  updated_at: string;
+};
+
+export async function runAtsBenchmark(candidateId: string, jobId: string): Promise<AtsBenchmark> {
+  return request<AtsBenchmark>(`/api/evaluation/${candidateId}/${jobId}/ats-benchmark`, {
+    method: "POST",
+  });
+}
+
+export async function getAtsBenchmark(
+  candidateId: string,
+  jobId: string,
+): Promise<AtsBenchmark | null> {
+  try {
+    return await request<AtsBenchmark>(`/api/evaluation/${candidateId}/${jobId}/ats-benchmark`);
+  } catch {
+    return null;
+  }
 }
 
 export { API_BASE };

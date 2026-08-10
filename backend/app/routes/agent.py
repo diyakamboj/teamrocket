@@ -35,6 +35,7 @@ async def ask_agent(
         job_id=payload.job_id,
         session_id=payload.session_id,
         chatbot_conversation_id=payload.chatbot_conversation_id,
+        blind_mode=payload.blind_mode,
     )
     db.add(
         AuditLog(

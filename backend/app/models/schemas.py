@@ -25,6 +25,7 @@ class CandidateBase(BaseModel):
     github_url: Optional[str] = None
     linkedin_url: Optional[str] = None
     portfolio_url: Optional[str] = None
+    source: str = "external"  # "internal" | "external"
 
 
 class CandidateCreate(CandidateBase):
@@ -43,6 +44,7 @@ class CandidateUpdate(BaseModel):
     linkedin_url: Optional[str] = None
     portfolio_url: Optional[str] = None
     enriched_profile: Optional[dict[str, Any]] = None
+    source: Optional[str] = None
 
 
 class CandidateResponse(CandidateBase, ORMModel):
@@ -101,6 +103,7 @@ class JobUpdate(BaseModel):
     required_experience_years: Optional[int] = None
     education_requirements: Optional[str] = None
     nice_to_have_skills: Optional[list[str]] = None
+    status: Optional[str] = None  # "open" | "paused" | "closed"
 
 
 class JobResponse(ORMModel):
@@ -111,6 +114,7 @@ class JobResponse(ORMModel):
     required_experience_years: Optional[int] = None
     education_requirements: Optional[str] = None
     nice_to_have_skills: Optional[list[Any]] = None
+    status: str = "open"
     created_by: Optional[str] = None
     created_at: datetime
     updated_at: datetime
@@ -162,6 +166,7 @@ class EvaluationResponse(ORMModel):
 class CompareRequest(BaseModel):
     job_id: UUID
     candidate_ids: list[UUID] = Field(min_length=2, max_length=10)
+    blind_mode: bool = False
 
 
 class CompareResponse(BaseModel):
@@ -173,6 +178,31 @@ class CompareResponse(BaseModel):
 
 class BlindReviewRequest(BaseModel):
     enabled: bool = True
+
+
+# ---------- ATS Benchmark Baseline Scoring ----------
+
+
+class EquivalentTerm(BaseModel):
+    resume_term: str
+    jd_keyword: str
+
+
+class AtsBenchmarkResponse(ORMModel):
+    id: UUID
+    evaluation_id: UUID
+    candidate_id: UUID
+    job_id: UUID
+    keyword_score: Decimal
+    matched_keywords: list[Any] = Field(default_factory=list)
+    missing_keywords: list[Any] = Field(default_factory=list)
+    semantic_score: Decimal
+    semantic_rationale: Optional[str] = None
+    equivalent_terms: list[EquivalentTerm] = Field(default_factory=list)
+    score_delta: Decimal
+    verdict: str  # "semantic_stronger" | "keyword_stronger" | "aligned"
+    created_at: datetime
+    updated_at: datetime
 
 
 # ---------- Resumes ----------
@@ -235,6 +265,31 @@ class DashboardDistribution(BaseModel):
     experience_levels: dict[str, int]
 
 
+# ---------- Top-level recruiter dashboard: job listings & pipeline ----------
+
+
+class JobPipelineSummary(BaseModel):
+    job_id: UUID
+    title: str
+    status: str
+    created_at: datetime
+    total_candidates: int
+    internal_candidates: int
+    external_candidates: int
+    average_score: float
+    stage_counts: dict[str, int]
+
+
+class PipelineCandidate(BaseModel):
+    candidate_id: UUID
+    candidate_name: str
+    candidate_email: Optional[str] = None
+    source: str
+    overall_score: Optional[float] = None
+    stage: str
+    updated_at: datetime
+
+
 # ---------- Agent ----------
 
 
@@ -244,6 +299,7 @@ class AgentAskRequest(BaseModel):
     session_id: Optional[UUID] = None
     # External CWYD conversation id (string) when using the RAG chatbot service
     chatbot_conversation_id: Optional[str] = None
+    blind_mode: bool = False
 
 
 class AgentAskResponse(BaseModel):
@@ -312,6 +368,93 @@ class FraudScreenBatchItem(FraudScreenResponse):
 
 class FraudScreenBatchResponse(BaseModel):
     results: list[FraudScreenBatchItem]
+
+
+# ---------- Interview handoff & historical data ----------
+
+
+class CandidateHistoryEventResponse(ORMModel):
+    id: UUID
+    candidate_id: str
+    candidate_name: Optional[str] = None
+    job_id: Optional[str] = None
+    job_title: Optional[str] = None
+    event_type: str
+    actor_email: Optional[str] = None
+    summary: Optional[str] = None
+    details: dict[str, Any] = Field(default_factory=dict)
+    created_at: datetime
+
+
+class BriefingScorecard(BaseModel):
+    overall_score: Optional[float] = None
+    skill_score: Optional[float] = None
+    experience_score: Optional[float] = None
+    education_score: Optional[float] = None
+    certification_score: Optional[float] = None
+    project_score: Optional[float] = None
+
+
+class CandidateBriefing(BaseModel):
+    candidate_id: str
+    candidate_name: str
+    candidate_email: Optional[str] = None
+    job_id: Optional[str] = None
+    job_title: Optional[str] = None
+    generated_at: datetime
+    scorecard: BriefingScorecard = Field(default_factory=BriefingScorecard)
+    matched_skills: list[Any] = Field(default_factory=list)
+    missing_skills: list[Any] = Field(default_factory=list)
+    strengths: Optional[str] = None
+    weaknesses: Optional[str] = None
+    transferable_skills: Optional[str] = None
+    evidence_highlights: list[Any] = Field(default_factory=list)
+    interview_focus_areas: list[str] = Field(default_factory=list)
+    recruiter_notes: Optional[str] = None
+
+
+class HandoffCreateRequest(BaseModel):
+    candidate_id: str
+    candidate_name: str
+    candidate_email: Optional[str] = None
+    job_id: Optional[str] = None
+    job_title: Optional[str] = None
+    interviewer_name: str
+    interviewer_email: EmailStr
+    recruiter_notes: Optional[str] = None
+    # Inline score snapshot — the ranking UI can show candidates that only
+    # exist client-side, so we can't always look this up from an Evaluation row.
+    scorecard: Optional[BriefingScorecard] = None
+    matched_skills: list[Any] = Field(default_factory=list)
+    missing_skills: list[Any] = Field(default_factory=list)
+    strengths: Optional[str] = None
+    weaknesses: Optional[str] = None
+    transferable_skills: Optional[str] = None
+    evidence_highlights: list[Any] = Field(default_factory=list)
+
+
+class HandoffResponse(ORMModel):
+    id: UUID
+    candidate_id: str
+    candidate_name: str
+    candidate_email: Optional[str] = None
+    job_id: Optional[str] = None
+    job_title: Optional[str] = None
+    interviewer_name: str
+    interviewer_email: str
+    created_by: Optional[str] = None
+    briefing: CandidateBriefing
+    status: str
+    interviewer_notes: Optional[str] = None
+    email_sent: bool = False
+    email_source: Optional[str] = None
+    created_at: datetime
+    viewed_at: Optional[datetime] = None
+    acknowledged_at: Optional[datetime] = None
+
+
+class HandoffAcknowledgeRequest(BaseModel):
+    interviewer_notes: Optional[str] = None
 
 
 # ---------- Candidate decisions (approve / reject) ----------

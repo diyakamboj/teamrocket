@@ -62,6 +62,7 @@ class RecruiterCopilot:
         job_id: Optional[UUID] = None,
         session_id: Optional[UUID] = None,
         chatbot_conversation_id: Optional[str] = None,
+        blind_mode: bool = False,
     ) -> dict[str, Any]:
         if job_id:
             job = db.get(JobPosting, job_id)
@@ -70,7 +71,9 @@ class RecruiterCopilot:
         else:
             job = await self.ensure_default_job(db, recruiter_email)
 
-        ranked = await candidate_matcher.rank_candidates(db, job.id, persist=True)
+        ranked = await candidate_matcher.rank_candidates(
+            db, job.id, persist=True, blind_mode=blind_mode
+        )
         top = ranked[:10]
 
         session = None
@@ -86,7 +89,7 @@ class RecruiterCopilot:
             db.flush()
 
         history = list(session.messages or [])
-        context_block = self._build_context(job, ranked, top, user_query)
+        context_block = self._build_context(job, ranked, top, user_query, blind_mode)
 
         # Prefer Chat-with-Your-Data accelerator when available
         source = "local"
@@ -96,7 +99,9 @@ class RecruiterCopilot:
 
         compare_ids = self._extract_compare_ids(user_query, ranked)
         if compare_ids and len(compare_ids) >= 2:
-            comparison = await candidate_comparison.compare(db, job.id, compare_ids)
+            comparison = await candidate_comparison.compare(
+                db, job.id, compare_ids, blind_mode=blind_mode
+            )
             assistant_response = comparison["comparison"]
             source = "local"
         elif chatbot_client.enabled:
@@ -167,7 +172,15 @@ class RecruiterCopilot:
         ranked: list[dict[str, Any]],
         top: list[dict[str, Any]],
         user_query: str,
+        blind_mode: bool = False,
     ) -> str:
+        identity_instruction = (
+            "Blind review is ON: candidates below are already identified only by "
+            "anonymized labels (e.g. 'Candidate-abcd1234'). Use those labels exactly "
+            "as given — never invent, infer, or ask for a real name or contact detail."
+            if blind_mode
+            else "Mention candidate names and overall scores when relevant."
+        )
         return f"""
 You are a recruiter assistant for ResumeIQ. Use the candidate pool and job requirements below.
 Prefer grounded answers. If using retrieved documents, cite them.
@@ -185,7 +198,7 @@ Top 10 ranked candidates:
 User question: {user_query}
 
 Respond with specific candidate recommendations, insights, and explanations.
-Mention candidate names and overall scores when relevant.
+{identity_instruction}
 """.strip()
 
     def _to_cwyd_messages(

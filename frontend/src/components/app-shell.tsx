@@ -6,8 +6,11 @@ import {
   Columns3,
   FileText,
   LayoutDashboard,
+  LineChart,
   Moon,
+  Scale,
   Search,
+  Send,
   ShieldAlert,
   Sun,
   Trophy,
@@ -20,12 +23,15 @@ import { cn } from "@/lib/utils";
 import { Input } from "@/components/ui/input";
 
 const NAV = [
+  { to: "/insights", label: "Hiring Insights", icon: LineChart },
   { to: "/", label: "Dashboard", icon: LayoutDashboard },
   { to: "/fraud-detection", label: "Fraud Detection", icon: ShieldAlert },
   { to: "/upload", label: "Resume Upload", icon: UploadCloud },
   { to: "/job-analysis", label: "Job Description", icon: FileText },
   { to: "/candidates", label: "Candidate Ranking", icon: Trophy },
   { to: "/compare", label: "Comparison", icon: Columns3 },
+  { to: "/handoff", label: "Interview Handoff", icon: Send },
+  { to: "/ats-benchmark", label: "ATS Benchmark", icon: Scale },
 ] as const;
 
 export function AppShell({ children }: { children: ReactNode }) {

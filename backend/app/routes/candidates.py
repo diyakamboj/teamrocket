@@ -10,9 +10,11 @@ from app.models.schemas import (
     CandidateDecisionRequest,
     CandidateDecisionResponse,
     CandidateResponse,
+    CandidateUpdate,
     RankedCandidate,
     WeightConfig,
 )
+from app.services import handoff_service
 from app.services.candidate_matcher import candidate_matcher
 from app.services.decision_service import process_decision
 from app.services.resume_parser import resume_parser
@@ -66,6 +68,40 @@ def get_candidate(candidate_id: uuid.UUID, db: DbSession):
     candidate = db.get(Candidate, candidate_id)
     if not candidate:
         raise NotFoundError("Candidate not found", {"candidate_id": str(candidate_id)})
+    return candidate
+
+
+@router.put("/{candidate_id}", response_model=CandidateResponse)
+def update_candidate(
+    candidate_id: uuid.UUID,
+    payload: CandidateUpdate,
+    db: DbSession,
+    recruiter_email: RecruiterEmail,
+):
+    candidate = db.get(Candidate, candidate_id)
+    if not candidate:
+        raise NotFoundError("Candidate not found", {"candidate_id": str(candidate_id)})
+
+    updates = payload.model_dump(exclude_unset=True)
+    if "source" in updates and updates["source"] not in ("internal", "external"):
+        raise ValidationAppError(
+            "source must be 'internal' or 'external'", {"source": updates["source"]}
+        )
+
+    for field, value in updates.items():
+        setattr(candidate, field, value)
+
+    db.add(
+        AuditLog(
+            recruiter_email=recruiter_email,
+            action="update_candidate",
+            resource_type="candidate",
+            resource_id=candidate.id,
+            details={"fields": list(updates.keys())},
+        )
+    )
+    db.commit()
+    db.refresh(candidate)
     return candidate
 
 
@@ -165,6 +201,16 @@ async def submit_candidate_decision(
             resource_type="candidate",
             details={"candidate_id": payload.candidate_id, "email": payload.email},
         )
+    )
+    handoff_service.log_history_event(
+        db,
+        candidate_id=payload.candidate_id,
+        candidate_name=payload.name,
+        job_title=payload.job_title,
+        event_type=f"decision_{payload.decision}",
+        actor_email=recruiter_email,
+        summary=f"Recruiter {payload.decision} the candidate for {payload.job_title or 'this role'}",
+        details={"email_sent": outcome.email_result.sent},
     )
     db.commit()
 

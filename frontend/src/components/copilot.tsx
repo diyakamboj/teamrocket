@@ -258,6 +258,7 @@ If asked who is strongest overall, pick the highest overall_score.
         job_id: activeJobId,
         session_id: sessionId,
         chatbot_conversation_id: chatbotConversationId,
+        blind_mode: blindMode,
       });
 
       setSessionId(result.session_id);

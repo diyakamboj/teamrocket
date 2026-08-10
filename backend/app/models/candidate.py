@@ -31,6 +31,8 @@ class Candidate(Base):
     linkedin_url: Mapped[Optional[str]] = mapped_column(String(255))
     portfolio_url: Mapped[Optional[str]] = mapped_column(String(255))
     enriched_profile: Mapped[Optional[dict[str, Any]]] = mapped_column(JSONType, default=dict)
+    # "internal" (existing employee applying/referred) vs "external" (outside applicant).
+    source: Mapped[str] = mapped_column(String(20), default="external", server_default="external")
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=False), server_default=func.now()
     )

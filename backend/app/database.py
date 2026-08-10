@@ -46,6 +46,12 @@ def init_db() -> None:
         with engine.begin() as conn:
             conn.execute(text('CREATE EXTENSION IF NOT EXISTS "pgcrypto"'))
     # Import models so metadata is populated
-    from app.models import candidate, evaluation, job_posting  # noqa: F401
+    from app.models import (  # noqa: F401
+        ats_benchmark,
+        candidate,
+        evaluation,
+        handoff,
+        job_posting,
+    )
 
     Base.metadata.create_all(bind=engine)
