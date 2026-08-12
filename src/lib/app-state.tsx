@@ -21,7 +21,11 @@ import {
   type ResumeCounts,
   type ResumesSnapshot,
 } from "@/lib/api/resumes";
-import { listCandidates, type CandidatesSnapshot } from "@/lib/api/jobs";
+import {
+  listCandidates,
+  loadDemo,
+  type CandidatesSnapshot,
+} from "@/lib/api/jobs";
 import {
   DEFAULT_WEIGHTS,
   type AzureCapabilities,
@@ -74,6 +78,7 @@ type Ctx = {
   candidates: Candidate[];
   candidatesLoading: boolean;
   refreshCandidates: () => void;
+  loadDemoData: () => Promise<void>;
 
   weights: Weights;
   setWeights: (w: Weights) => void;
@@ -94,7 +99,10 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
   const [blindMode, setBlindMode] = useState(false);
   const [compareIds, setCompareIds] = useState<string[]>([]);
   const [copilotOpen, setCopilotOpen] = useState(false);
-  const [uploadProgress, setUploadProgress] = useState<{ sent: number; total: number } | null>(null);
+  const [uploadProgress, setUploadProgress] = useState<{
+    sent: number;
+    total: number;
+  } | null>(null);
   const wasActive = useRef(false);
 
   const resumesQuery = useQuery<ResumesSnapshot>({
@@ -116,8 +124,14 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
 
   // Memoised so the context value isn't rebuilt on every render by a fresh `[]`.
   const resumesData = resumesQuery.data;
-  const files = useMemo(() => resumesData?.resumes ?? EMPTY_RESUMES, [resumesData]);
-  const counts = useMemo(() => resumesData?.counts ?? EMPTY_COUNTS, [resumesData]);
+  const files = useMemo(
+    () => resumesData?.resumes ?? EMPTY_RESUMES,
+    [resumesData],
+  );
+  const counts = useMemo(
+    () => resumesData?.counts ?? EMPTY_COUNTS,
+    [resumesData],
+  );
   const capabilities = useMemo(
     () => resumesData?.capabilities ?? NO_CAPABILITIES,
     [resumesData],
@@ -146,7 +160,10 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
           const batch = incoming.slice(i, i + UPLOAD_BATCH);
           const snapshot = await uploadMutation.mutateAsync(batch);
           queryClient.setQueryData(["resumes"], snapshot);
-          setUploadProgress({ sent: Math.min(i + batch.length, incoming.length), total: incoming.length });
+          setUploadProgress({
+            sent: Math.min(i + batch.length, incoming.length),
+            total: incoming.length,
+          });
         }
       } catch (error) {
         toast.error("Upload failed", {
@@ -186,7 +203,12 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
 
   const overallProgress = counts.total
     ? Math.round(
-        ((counts.completed + counts.failed + counts.duplicate + counts.skipped) / counts.total) * 100,
+        ((counts.completed +
+          counts.failed +
+          counts.duplicate +
+          counts.skipped) /
+          counts.total) *
+          100,
       )
     : 0;
 
@@ -203,7 +225,8 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
       retry: (id) => action(() => retryResume({ data: { id } })),
       retryAllFailed: () => action(() => retryFailedResumes()),
       cancelRemaining: () => action(() => cancelQueuedResumes()),
-      resolveDuplicate: (id, act) => action(() => resolveDuplicateResume({ data: { id, action: act } })),
+      resolveDuplicate: (id, act) =>
+        action(() => resolveDuplicateResume({ data: { id, action: act } })),
       clearAll: () =>
         action(async () => {
           await clearResumes();
@@ -219,6 +242,26 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
       refreshCandidates: () => {
         void queryClient.invalidateQueries({ queryKey: ["candidates"] });
       },
+      // Seeds the demo batch server-side, then refreshes everything so the whole
+      // app snaps to a populated state. Toast lands on the counts that actually
+      // persisted, not assumed ones.
+      loadDemoData: async () => {
+        try {
+          const result = await loadDemo();
+          setCompareIds([]);
+          await Promise.all([
+            queryClient.invalidateQueries({ queryKey: ["candidates"] }),
+            queryClient.invalidateQueries({ queryKey: ["resumes"] }),
+          ]);
+          toast.success(`Demo loaded — ${result.resumes} resumes screened`, {
+            description: `Ranked against “${result.jobTitle}” (${result.screened} candidates).`,
+          });
+        } catch (error) {
+          toast.error(
+            error instanceof Error ? error.message : "Could not load demo data",
+          );
+        }
+      },
 
       weights,
       setWeights,
@@ -227,7 +270,11 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
       compareIds,
       toggleCompare: (id) =>
         setCompareIds((prev) =>
-          prev.includes(id) ? prev.filter((x) => x !== id) : prev.length >= 3 ? prev : [...prev, id],
+          prev.includes(id)
+            ? prev.filter((x) => x !== id)
+            : prev.length >= 3
+              ? prev
+              : [...prev, id],
         ),
       clearCompare: () => setCompareIds([]),
       copilotOpen,

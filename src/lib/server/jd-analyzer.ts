@@ -1,5 +1,6 @@
 import { capabilities } from "./config";
-import { chatJson } from "./openai";
+import { chatJson } from "./ai";
+import { jobRecordSchema, requirementSchema } from "@/lib/validation";
 import {
   REQUIREMENT_CATEGORIES,
   type JobRecord,
@@ -57,10 +58,13 @@ export async function analyzeJobDescription(
     const raw = await chatJson({
       system: SYSTEM_PROMPT,
       user: `Job description:\n"""\n${description.slice(0, 30_000)}\n"""`,
-      schema: { name: "job_requirements", schema: JOB_SCHEMA as unknown as Record<string, unknown> },
+      schema: {
+        name: "job_requirements",
+        schema: JOB_SCHEMA as unknown as Record<string, unknown>,
+      },
       maxTokens: 2500,
     });
-    const parsed = coerce(raw, id);
+    const parsed = coerceJobAnalysis(raw, id);
     if (parsed.requirements.length) {
       title = parsed.title;
       summary = parsed.summary;
@@ -77,7 +81,7 @@ export async function analyzeJobDescription(
   }
 
   const now = new Date().toISOString();
-  return {
+  const record: JobRecord = {
     id,
     title: title || "Untitled role",
     description,
@@ -88,6 +92,11 @@ export async function analyzeJobDescription(
     updatedAt: now,
     analyzedBy,
   };
+  // Contract gate before the record crosses into the store. The pieces above are
+  // already contract-clean by construction, so this is drift insurance: return
+  // the schema-validated form (which strips unknown keys) when it passes.
+  const validated = jobRecordSchema.safeParse(record);
+  return validated.success ? validated.data : record;
 }
 
 type LooseJob = { [K in "title" | "summary" | "requirements"]?: unknown };
@@ -95,7 +104,7 @@ type LooseRequirement = {
   [K in "category" | "text" | "must" | "keywords" | "minYears"]?: unknown;
 };
 
-function coerce(raw: unknown, jobId: string) {
+function coerceShape(raw: unknown, jobId: string) {
   const o = (typeof raw === "object" && raw !== null ? raw : {}) as LooseJob;
   const list = Array.isArray(o.requirements) ? o.requirements : [];
   const seen = new Set<string>();
@@ -111,7 +120,9 @@ function coerce(raw: unknown, jobId: string) {
     if (seen.has(key)) continue;
     seen.add(key);
 
-    const category = REQUIREMENT_CATEGORIES.includes(r.category as RequirementCategory)
+    const category = REQUIREMENT_CATEGORIES.includes(
+      r.category as RequirementCategory,
+    )
       ? (r.category as RequirementCategory)
       : "Skills";
     const keywords = Array.isArray(r.keywords)
@@ -128,7 +139,10 @@ function coerce(raw: unknown, jobId: string) {
       text,
       must: r.must === true,
       keywords: keywords.length ? [...new Set(keywords)] : deriveKeywords(text),
-      minYears: category === "Experience" && Number.isFinite(minYears) && minYears > 0 ? minYears : undefined,
+      minYears:
+        category === "Experience" && Number.isFinite(minYears) && minYears > 0
+          ? minYears
+          : undefined,
     });
   }
 
@@ -139,15 +153,48 @@ function coerce(raw: unknown, jobId: string) {
   };
 }
 
+/**
+ * Coerce + validate untrusted model output against the frozen contract
+ * (`validation.ts`). `coerceShape` normalises the shape; only requirements that
+ * then satisfy `requirementSchema` enter the domain — malformed ones are dropped
+ * rather than risking a bad record in the store.
+ */
+export function coerceJobAnalysis(
+  raw: unknown,
+  jobId: string,
+): {
+  title: string;
+  summary: string;
+  requirements: Requirement[];
+} {
+  const coerced = coerceShape(raw, jobId);
+  const requirements = coerced.requirements.flatMap((r) => {
+    const result = requirementSchema.safeParse(r);
+    return result.success ? [result.data] : [];
+  });
+  return { ...coerced, requirements };
+}
+
 /* ------------------------------- fallback -------------------------------- */
 
-const MUST_MARKERS = /\b(required|must have|must|essential|minimum|at least|proven|strong)\b/i;
-const NICE_MARKERS = /\b(nice to have|preferred|plus|bonus|desirable|advantage|ideally)\b/i;
+const MUST_MARKERS =
+  /\b(required|must have|must|essential|minimum|at least|proven|strong)\b/i;
+const NICE_MARKERS =
+  /\b(nice to have|preferred|plus|bonus|desirable|advantage|ideally)\b/i;
 
 const CATEGORY_MARKERS: [RequirementCategory, RegExp][] = [
-  ["Certifications", /\b(certified|certification|certificate|licence|license|pmp|cissp|cka|ckad)\b/i],
-  ["Education", /\b(degree|bachelor|master|b\.?sc|m\.?sc|phd|diploma|university|graduate)\b/i],
-  ["Experience", /\b(\d+\+?\s*years?|experience|track record|background in|worked on|led|owned|mentor)\b/i],
+  [
+    "Certifications",
+    /\b(certified|certification|certificate|licence|license|pmp|cissp|cka|ckad)\b/i,
+  ],
+  [
+    "Education",
+    /\b(degree|bachelor|master|b\.?sc|m\.?sc|phd|diploma|university|graduate)\b/i,
+  ],
+  [
+    "Experience",
+    /\b(\d+\+?\s*years?|experience|track record|background in|worked on|led|owned|mentor)\b/i,
+  ],
 ];
 
 /** Bullet/line based extraction, used when Azure OpenAI is not configured. */
@@ -166,8 +213,15 @@ export function heuristicRequirements(description: string, jobId: string) {
     if (line.length < 8 || line.length > 200) continue;
     if (!/[a-z]/.test(line)) continue;
     // Skip prose that is describing the company rather than the candidate.
-    if (/^(we are|we're|about us|our team|the company|join us)/i.test(line)) continue;
-    if (!MUST_MARKERS.test(line) && !NICE_MARKERS.test(line) && !/\b(knowledge|proficien|familiar|skills?|expertise|ability)\b/i.test(line)) {
+    if (/^(we are|we're|about us|our team|the company|join us)/i.test(line))
+      continue;
+    if (
+      !MUST_MARKERS.test(line) &&
+      !NICE_MARKERS.test(line) &&
+      !/\b(knowledge|proficien|familiar|skills?|expertise|ability)\b/i.test(
+        line,
+      )
+    ) {
       continue;
     }
 
@@ -177,7 +231,8 @@ export function heuristicRequirements(description: string, jobId: string) {
     seen.add(key);
 
     const category =
-      CATEGORY_MARKERS.find(([, pattern]) => pattern.test(line))?.[0] ?? "Skills";
+      CATEGORY_MARKERS.find(([, pattern]) => pattern.test(line))?.[0] ??
+      "Skills";
     const years = Number(line.match(/(\d{1,2})\+?\s*years?/i)?.[1]);
 
     requirements.push({
@@ -186,7 +241,8 @@ export function heuristicRequirements(description: string, jobId: string) {
       text,
       must: MUST_MARKERS.test(line) && !NICE_MARKERS.test(line),
       keywords: deriveKeywords(line),
-      minYears: category === "Experience" && Number.isFinite(years) ? years : undefined,
+      minYears:
+        category === "Experience" && Number.isFinite(years) ? years : undefined,
     });
 
     if (requirements.length >= 30) break;
@@ -201,14 +257,73 @@ export function heuristicRequirements(description: string, jobId: string) {
 }
 
 const STOP_WORDS = new Set([
-  "and","the","with","for","you","your","our","are","have","has","will","this","that","from","into","using","use","used","must","should","strong","proven","experience","years","year","plus","nice","good","excellent","ability","able","work","working","knowledge","understanding","familiarity","familiar","proficiency","proficient","required","preferred","essential","minimum","least","skills","skill","including","such","etc","across","within","other","more","than","who","can","new","all","any",
+  "and",
+  "the",
+  "with",
+  "for",
+  "you",
+  "your",
+  "our",
+  "are",
+  "have",
+  "has",
+  "will",
+  "this",
+  "that",
+  "from",
+  "into",
+  "using",
+  "use",
+  "used",
+  "must",
+  "should",
+  "strong",
+  "proven",
+  "experience",
+  "years",
+  "year",
+  "plus",
+  "nice",
+  "good",
+  "excellent",
+  "ability",
+  "able",
+  "work",
+  "working",
+  "knowledge",
+  "understanding",
+  "familiarity",
+  "familiar",
+  "proficiency",
+  "proficient",
+  "required",
+  "preferred",
+  "essential",
+  "minimum",
+  "least",
+  "skills",
+  "skill",
+  "including",
+  "such",
+  "etc",
+  "across",
+  "within",
+  "other",
+  "more",
+  "than",
+  "who",
+  "can",
+  "new",
+  "all",
+  "any",
 ]);
 
 /** Content words from a requirement line, used as the keyword-match terms. */
 export function deriveKeywords(text: string): string[] {
-  const tokens = text
-    .toLowerCase()
-    .match(/[a-z][a-z0-9+#./-]{1,}/g)
-    ?.filter((token) => token.length > 2 && !STOP_WORDS.has(token)) ?? [];
+  const tokens =
+    text
+      .toLowerCase()
+      .match(/[a-z][a-z0-9+#./-]{1,}/g)
+      ?.filter((token) => token.length > 2 && !STOP_WORDS.has(token)) ?? [];
   return [...new Set(tokens)].slice(0, 8);
 }

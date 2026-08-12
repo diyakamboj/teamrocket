@@ -10,7 +10,14 @@ import {
   XAxis,
   YAxis,
 } from "recharts";
-import { ArrowUpRight, Brain, FileCheck2, Gauge, Sparkle, Users } from "lucide-react";
+import {
+  ArrowUpRight,
+  Brain,
+  FileCheck2,
+  Gauge,
+  Sparkle,
+  Users,
+} from "lucide-react";
 import { rankCandidates, scoreBuckets, type Candidate } from "@/lib/types";
 import { useAppState } from "@/lib/app-state";
 
@@ -26,7 +33,8 @@ export const Route = createFileRoute("/")({
       { property: "og:title", content: "Hiring Insights — ResumeIQ" },
       {
         property: "og:description",
-        content: "Candidate volume, match scores, skill distribution and AI qualification gaps.",
+        content:
+          "Candidate volume, match scores, skill distribution and AI qualification gaps.",
       },
     ],
   }),
@@ -56,7 +64,9 @@ function StatCard({
           </span>
         )}
       </div>
-      <p className="mt-4 text-3xl font-extrabold tabular-nums tracking-tight">{value}</p>
+      <p className="mt-4 text-3xl font-extrabold tabular-nums tracking-tight">
+        {value}
+      </p>
       <p className="mt-1 text-sm text-muted-foreground">{label}</p>
     </div>
   );
@@ -108,40 +118,64 @@ function experienceBreakdown(candidates: Candidate[]) {
 }
 
 function Dashboard() {
-  const { weights, candidates, job, counts, poolSize } = useAppState();
-  const ranked = useMemo(() => rankCandidates(candidates, weights), [candidates, weights]);
+  const { weights, candidates, job, counts, poolSize, loadDemoData } =
+    useAppState();
+  const ranked = useMemo(
+    () => rankCandidates(candidates, weights),
+    [candidates, weights],
+  );
   const buckets = useMemo(() => scoreBuckets(ranked), [ranked]);
   const skills = useMemo(() => skillDistribution(ranked), [ranked]);
   const levels = useMemo(() => experienceBreakdown(ranked), [ranked]);
 
   const avg = ranked.length
-    ? Math.round(ranked.reduce((sum, c) => sum + c.score, 0) / ranked.length)
+    ? Math.round(
+        ranked.reduce((sum, c) => sum + c.score.overall, 0) / ranked.length,
+      )
     : 0;
   const fullMustHaves = ranked.filter(
-    (c) => c.mustHavesTotal > 0 && c.mustHavesMet === c.mustHavesTotal,
+    (c) => c.mustHaves.total > 0 && c.mustHaves.met === c.mustHaves.total,
   ).length;
 
   if (ranked.length === 0) {
     return (
       <div className="mx-auto max-w-3xl space-y-6">
         <header>
-          <h1 className="text-2xl font-extrabold sm:text-3xl">Hiring Insights</h1>
+          <h1 className="text-2xl font-extrabold sm:text-3xl">
+            Hiring Insights
+          </h1>
           <p className="mt-1 text-sm text-muted-foreground">
-            Insights appear once a batch has been parsed and screened against a job description.
+            Insights appear once a batch has been parsed and screened against a
+            job description.
           </p>
         </header>
         <div className="grid gap-4 sm:grid-cols-3">
-          <StatCard icon={FileCheck2} label="Resumes uploaded" value={String(counts.total)} />
-          <StatCard icon={Users} label="Parsed & ready" value={String(poolSize)} />
-          <StatCard icon={Brain} label="Requirements set" value={String(job?.requirements.length ?? 0)} />
+          <StatCard
+            icon={FileCheck2}
+            label="Resumes uploaded"
+            value={String(counts.total)}
+          />
+          <StatCard
+            icon={Users}
+            label="Parsed & ready"
+            value={String(poolSize)}
+          />
+          <StatCard
+            icon={Brain}
+            label="Requirements set"
+            value={String(job?.requirements.length ?? 0)}
+          />
         </div>
         <div className="card-surface p-6 text-sm text-muted-foreground">
           <p>
-            Start by uploading resumes, then paste a job description and run screening to populate
-            this dashboard.
+            Start by uploading resumes, then paste a job description and run
+            screening to populate this dashboard.
           </p>
           <div className="mt-4 flex flex-wrap gap-2">
-            <Link to="/upload" className="rounded-xl border px-4 py-2.5 text-sm font-semibold">
+            <Link
+              to="/upload"
+              className="rounded-xl border px-4 py-2.5 text-sm font-semibold"
+            >
               Upload resumes
             </Link>
             <Link
@@ -150,6 +184,13 @@ function Dashboard() {
             >
               Job description
             </Link>
+            <button
+              onClick={() => void loadDemoData()}
+              aria-label="Load demo data"
+              className="rounded-xl border border-primary/40 px-4 py-2.5 text-sm font-semibold text-foreground transition-colors hover:bg-primary-soft"
+            >
+              Try the demo
+            </button>
           </div>
         </div>
       </div>
@@ -158,14 +199,18 @@ function Dashboard() {
 
   const topSkill = skills[0];
   const seniorPlus = levels[2]!.count + levels[3]!.count;
-  const thinCertifications = ranked.filter((c) => c.categories.certifications < 45).length;
+  const thinCertifications = ranked.filter(
+    (c) => c.categories.certifications < 45,
+  ).length;
   const commonGap = mostCommonGap(ranked);
 
   return (
     <div className="mx-auto max-w-7xl space-y-6">
       <header className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-4">
         <div className="min-w-0">
-          <h1 className="truncate text-2xl font-extrabold sm:text-3xl">Hiring Insights</h1>
+          <h1 className="truncate text-2xl font-extrabold sm:text-3xl">
+            Hiring Insights
+          </h1>
           <p className="mt-1 text-sm text-muted-foreground">
             {job?.title ?? "Current role"} · pipeline snapshot
           </p>
@@ -179,8 +224,16 @@ function Dashboard() {
       </header>
 
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        <StatCard icon={Users} label="Ranked candidates" value={String(ranked.length)} />
-        <StatCard icon={Gauge} label="Average match score" value={String(avg)} />
+        <StatCard
+          icon={Users}
+          label="Ranked candidates"
+          value={String(ranked.length)}
+        />
+        <StatCard
+          icon={Gauge}
+          label="Average match score"
+          value={String(avg)}
+        />
         <StatCard
           icon={Brain}
           label={topSkill ? `Top skill · ${topSkill.skill}` : "Top skill"}
@@ -194,28 +247,71 @@ function Dashboard() {
       </div>
 
       <div className="grid gap-4 lg:grid-cols-2">
-        <ChartCard title="Skill distribution" subtitle="Candidates per detected skill">
+        <ChartCard
+          title="Skill distribution"
+          subtitle="Candidates per detected skill"
+        >
           <ResponsiveContainer width="100%" height="100%">
             <BarChart data={skills.slice(0, 10)}>
-              <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="var(--border)" />
-              <XAxis dataKey="skill" tick={{ fontSize: 11 }} stroke="var(--muted-foreground)" />
-              <YAxis tick={{ fontSize: 11 }} stroke="var(--muted-foreground)" allowDecimals={false} />
-              <Tooltip contentStyle={tooltipStyle} cursor={{ fill: "var(--muted)" }} />
-              <Bar dataKey="count" radius={[8, 8, 0, 0]} fill="var(--chart-1)" />
+              <CartesianGrid
+                strokeDasharray="3 3"
+                vertical={false}
+                stroke="var(--border)"
+              />
+              <XAxis
+                dataKey="skill"
+                tick={{ fontSize: 11 }}
+                stroke="var(--muted-foreground)"
+              />
+              <YAxis
+                tick={{ fontSize: 11 }}
+                stroke="var(--muted-foreground)"
+                allowDecimals={false}
+              />
+              <Tooltip
+                contentStyle={tooltipStyle}
+                cursor={{ fill: "var(--muted)" }}
+              />
+              <Bar
+                dataKey="count"
+                radius={[8, 8, 0, 0]}
+                fill="var(--chart-1)"
+              />
             </BarChart>
           </ResponsiveContainer>
         </ChartCard>
 
-        <ChartCard title="Score distribution" subtitle="Candidates per match-score band">
+        <ChartCard
+          title="Score distribution"
+          subtitle="Candidates per match-score band"
+        >
           <ResponsiveContainer width="100%" height="100%">
             <BarChart data={buckets}>
-              <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="var(--border)" />
-              <XAxis dataKey="bucket" tick={{ fontSize: 11 }} stroke="var(--muted-foreground)" />
-              <YAxis tick={{ fontSize: 11 }} stroke="var(--muted-foreground)" allowDecimals={false} />
-              <Tooltip contentStyle={tooltipStyle} cursor={{ fill: "var(--muted)" }} />
+              <CartesianGrid
+                strokeDasharray="3 3"
+                vertical={false}
+                stroke="var(--border)"
+              />
+              <XAxis
+                dataKey="bucket"
+                tick={{ fontSize: 11 }}
+                stroke="var(--muted-foreground)"
+              />
+              <YAxis
+                tick={{ fontSize: 11 }}
+                stroke="var(--muted-foreground)"
+                allowDecimals={false}
+              />
+              <Tooltip
+                contentStyle={tooltipStyle}
+                cursor={{ fill: "var(--muted)" }}
+              />
               <Bar dataKey="count" radius={[8, 8, 0, 0]}>
                 {buckets.map((_, i) => (
-                  <Cell key={i} fill={i >= 3 ? "var(--chart-1)" : "var(--chart-2)"} />
+                  <Cell
+                    key={i}
+                    fill={i >= 3 ? "var(--chart-1)" : "var(--chart-2)"}
+                  />
                 ))}
               </Bar>
             </BarChart>
@@ -224,11 +320,23 @@ function Dashboard() {
       </div>
 
       <div className="grid gap-4 lg:grid-cols-[1fr_1.2fr]">
-        <ChartCard title="Experience levels" subtitle="Seniority breakdown of the pool">
+        <ChartCard
+          title="Experience levels"
+          subtitle="Seniority breakdown of the pool"
+        >
           <ResponsiveContainer width="100%" height="100%">
             <BarChart data={levels} layout="vertical">
-              <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="var(--border)" />
-              <XAxis type="number" tick={{ fontSize: 11 }} stroke="var(--muted-foreground)" allowDecimals={false} />
+              <CartesianGrid
+                strokeDasharray="3 3"
+                horizontal={false}
+                stroke="var(--border)"
+              />
+              <XAxis
+                type="number"
+                tick={{ fontSize: 11 }}
+                stroke="var(--muted-foreground)"
+                allowDecimals={false}
+              />
               <YAxis
                 type="category"
                 dataKey="level"
@@ -236,8 +344,15 @@ function Dashboard() {
                 tick={{ fontSize: 11 }}
                 stroke="var(--muted-foreground)"
               />
-              <Tooltip contentStyle={tooltipStyle} cursor={{ fill: "var(--muted)" }} />
-              <Bar dataKey="count" radius={[0, 8, 8, 0]} fill="var(--chart-1)" />
+              <Tooltip
+                contentStyle={tooltipStyle}
+                cursor={{ fill: "var(--muted)" }}
+              />
+              <Bar
+                dataKey="count"
+                radius={[0, 8, 8, 0]}
+                fill="var(--chart-1)"
+              />
             </BarChart>
           </ResponsiveContainer>
         </ChartCard>
@@ -245,14 +360,17 @@ function Dashboard() {
         <div className="card-surface p-6">
           <div className="flex items-center gap-2 text-primary-soft-foreground">
             <Sparkle className="h-4 w-4" />
-            <span className="text-xs font-bold uppercase tracking-wide">AI insight</span>
+            <span className="text-xs font-bold uppercase tracking-wide">
+              AI insight
+            </span>
           </div>
           <h2 className="mt-3 text-lg font-bold">Qualification gaps</h2>
           <p className="mt-3 text-sm leading-relaxed text-muted-foreground">
             {topSkill
               ? `${topSkill.count} of ${ranked.length} candidates show ${topSkill.skill} evidence`
               : "No skills were detected in this pool"}
-            , and {seniorPlus} {seniorPlus === 1 ? "is" : "are"} senior or above.{" "}
+            , and {seniorPlus} {seniorPlus === 1 ? "is" : "are"} senior or
+            above.{" "}
             {fullMustHaves === 0
               ? "No candidate currently meets every must-have requirement."
               : `${fullMustHaves} candidate${fullMustHaves === 1 ? "" : "s"} meet every must-have requirement.`}
@@ -281,7 +399,8 @@ function Dashboard() {
 function mostCommonGap(candidates: Candidate[]): string | undefined {
   const counts = new Map<string, number>();
   for (const candidate of candidates) {
-    for (const gap of candidate.gaps) counts.set(gap, (counts.get(gap) ?? 0) + 1);
+    for (const gap of candidate.gaps)
+      counts.set(gap, (counts.get(gap) ?? 0) + 1);
   }
   const top = [...counts.entries()].sort((a, b) => b[1] - a[1])[0];
   return top && top[1] > 1 ? `${top[0]} (${top[1]} candidates)` : top?.[0];

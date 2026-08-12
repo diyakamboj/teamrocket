@@ -1,4 +1,4 @@
-import { Link, useRouterState } from "@tanstack/react-router";
+import { Link, useRouter, useRouterState } from "@tanstack/react-router";
 import {
   Bell,
   ChevronsLeft,
@@ -29,9 +29,11 @@ const NAV = [
 
 export function AppShell({ children }: { children: ReactNode }) {
   const [collapsed, setCollapsed] = useState(false);
+  const [search, setSearch] = useState("");
   const { theme, toggle } = useTheme();
   const { active, counts, overallProgress } = useAppState();
   const pathname = useRouterState({ select: (s) => s.location.pathname });
+  const router = useRouter();
 
   return (
     <div className="flex min-h-screen bg-background">
@@ -47,15 +49,20 @@ export function AppShell({ children }: { children: ReactNode }) {
           </span>
           {!collapsed && (
             <div className="min-w-0">
-              <p className="truncate text-base font-extrabold tracking-tight">ResumeIQ</p>
-              <p className="truncate text-[11px] text-muted-foreground">Screening assistant</p>
+              <p className="truncate text-base font-extrabold tracking-tight">
+                ResumeIQ
+              </p>
+              <p className="truncate text-[11px] text-muted-foreground">
+                Screening assistant
+              </p>
             </div>
           )}
         </div>
 
         <nav className="flex-1 space-y-1 px-3">
           {NAV.map((item) => {
-            const isActive = item.to === "/" ? pathname === "/" : pathname.startsWith(item.to);
+            const isActive =
+              item.to === "/" ? pathname === "/" : pathname.startsWith(item.to);
             return (
               <Link
                 key={item.to}
@@ -113,21 +120,37 @@ export function AppShell({ children }: { children: ReactNode }) {
 
       <div className="flex min-w-0 flex-1 flex-col">
         <header className="sticky top-0 z-30 grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3 border-b bg-background/80 px-4 py-3 backdrop-blur sm:px-6">
-          <div className="relative min-w-0 max-w-sm">
+          <form
+            className="relative min-w-0 max-w-sm"
+            role="search"
+            onSubmit={(e) => {
+              e.preventDefault();
+              void router.navigate({
+                to: "/candidates",
+                search: { q: search.trim() },
+              });
+            }}
+          >
             <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
             <Input
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
               placeholder="Search candidates, skills, roles…"
               className="rounded-xl pl-9"
               aria-label="Search"
             />
-          </div>
+          </form>
           <div className="flex shrink-0 items-center gap-1.5">
             <button
               onClick={toggle}
               aria-label="Toggle theme"
               className="grid h-9 w-9 place-items-center rounded-xl text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground"
             >
-              {theme === "dark" ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
+              {theme === "dark" ? (
+                <Sun className="h-4 w-4" />
+              ) : (
+                <Moon className="h-4 w-4" />
+              )}
             </button>
             <button
               aria-label="Notifications"

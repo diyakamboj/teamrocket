@@ -4,6 +4,8 @@
  * bodies from the client build, so none of this reaches the browser.
  */
 export { capabilities, config } from "./config";
+export { copilotAnswer } from "./copilot";
+export { demoData, loadDemoData } from "./demo";
 export { analyzeJobDescription } from "./jd-analyzer";
 export { candidatesFor, runScreening } from "./screening";
 export { store } from "./store";

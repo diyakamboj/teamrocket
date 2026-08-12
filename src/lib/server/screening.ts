@@ -16,7 +16,9 @@ export async function runScreening(job: JobRecord): Promise<ScreeningRun> {
   const existing = store.run(job.id);
   if (existing?.running && inFlight.has(job.id)) return existing;
 
-  const eligible = store.resumes().filter((r) => r.stage === "complete" && r.parsed);
+  const eligible = store
+    .resumes()
+    .filter((r) => r.stage === "complete" && r.parsed);
   const run: ScreeningRun = {
     jobId: job.id,
     startedAt: new Date().toISOString(),
@@ -62,7 +64,8 @@ function initialsOf(name: string) {
   const parts = name.split(/\s+/).filter(Boolean);
   if (!parts.length) return "??";
   const first = parts[0]![0] ?? "";
-  const last = parts.length > 1 ? parts.at(-1)![0] ?? "" : parts[0]![1] ?? "";
+  const last =
+    parts.length > 1 ? (parts.at(-1)![0] ?? "") : (parts[0]![1] ?? "");
   return `${first}${last}`.toUpperCase();
 }
 
@@ -75,13 +78,17 @@ function toCandidate(resume: ResumeRecord, match: MatchRecord): Candidate {
   return {
     id: resume.id,
     rank: 0,
-    score: 0,
-    name,
+    // Contact is always populated here; blind mode hides it client-side. The AI
+    // pass never sees it — matching feeds the LLM the PII-stripped projection.
+    contact: {
+      name,
+      email: parsed.email ?? "—",
+      phone: parsed.phone ?? "—",
+      location: parsed.location ?? "—",
+      links: parsed.links,
+    },
     initials: initialsOf(name),
-    email: parsed.email ?? "—",
-    phone: parsed.phone ?? "—",
     title: parsed.title || parsed.experience[0]?.title || "Not stated",
-    location: parsed.location ?? "—",
     years: Math.round(years * 10) / 10,
     level: levelFromYears(years),
     // The heuristic parser can put the same line in degree and institution when
@@ -96,6 +103,7 @@ function toCandidate(resume: ResumeRecord, match: MatchRecord): Candidate {
         ].join(", ")
       : "Not stated",
     fileName: resume.fileName,
+    score: match.score,
     categories: match.categories,
     signals: match.signals,
     skills: parsed.skills.map((s) => s.name),
@@ -104,10 +112,9 @@ function toCandidate(resume: ResumeRecord, match: MatchRecord): Candidate {
     transferable: match.transferable,
     evidence: match.evidence,
     requirements: match.requirements,
+    mustHaves: match.mustHaves,
     summary: match.summary,
     aiAnalyzed: match.aiAnalyzed,
-    mustHavesMet: match.mustHavesMet,
-    mustHavesTotal: match.mustHavesTotal,
   };
 }
 

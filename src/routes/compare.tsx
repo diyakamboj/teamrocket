@@ -18,7 +18,8 @@ export const Route = createFileRoute("/compare")({
       { property: "og:title", content: "Candidate Comparison — ResumeIQ" },
       {
         property: "og:description",
-        content: "Side-by-side comparison of shortlisted candidates with an AI recommendation.",
+        content:
+          "Side-by-side comparison of shortlisted candidates with an AI recommendation.",
       },
     ],
   }),
@@ -26,8 +27,18 @@ export const Route = createFileRoute("/compare")({
 });
 
 function Compare() {
-  const { candidates, compareIds, toggleCompare, clearCompare, weights, blindMode } = useAppState();
-  const ranked = useMemo(() => rankCandidates(candidates, weights), [candidates, weights]);
+  const {
+    candidates,
+    compareIds,
+    toggleCompare,
+    clearCompare,
+    weights,
+    blindMode,
+  } = useAppState();
+  const ranked = useMemo(
+    () => rankCandidates(candidates, weights),
+    [candidates, weights],
+  );
   const selected = ranked.filter((c) => compareIds.includes(c.id));
 
   if (selected.length === 0) {
@@ -49,18 +60,26 @@ function Compare() {
     );
   }
 
-  const best = selected.reduce((a, b) => (b.score > a.score ? b : a));
+  const best = selected.reduce((a, b) =>
+    b.score.overall > a.score.overall ? b : a,
+  );
 
   return (
     <div className="mx-auto max-w-7xl space-y-6">
       <header className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-4">
         <div className="min-w-0">
-          <h1 className="truncate text-2xl font-extrabold sm:text-3xl">Candidate Comparison</h1>
+          <h1 className="truncate text-2xl font-extrabold sm:text-3xl">
+            Candidate Comparison
+          </h1>
           <p className="mt-1 text-sm text-muted-foreground">
             {selected.length} candidates side by side
           </p>
         </div>
-        <Button variant="outline" className="shrink-0 rounded-xl" onClick={clearCompare}>
+        <Button
+          variant="outline"
+          className="shrink-0 rounded-xl"
+          onClick={clearCompare}
+        >
           Clear selection
         </Button>
       </header>
@@ -70,10 +89,10 @@ function Compare() {
           <div key={c.id} className="card-surface flex flex-col gap-5 p-5">
             <div className="grid grid-cols-[minmax(0,1fr)_auto] items-start gap-3">
               <div className="flex min-w-0 items-center gap-3">
-                <ScoreRing value={c.score} size={56} />
+                <ScoreRing value={c.score.overall} size={56} />
                 <div className="min-w-0">
                   <p className="truncate font-bold">
-                    {blindMode ? `Candidate #${c.rank}` : c.name}
+                    {blindMode ? `Candidate #${c.rank}` : c.contact.name}
                   </p>
                   <p className="truncate text-xs text-muted-foreground">
                     {c.title} · {c.years} yrs
@@ -93,7 +112,10 @@ function Compare() {
               <MiniBar label="Skills" value={c.categories.skills} />
               <MiniBar label="Experience" value={c.categories.experience} />
               <MiniBar label="Education" value={c.categories.education} />
-              <MiniBar label="Certifications" value={c.categories.certifications} />
+              <MiniBar
+                label="Certifications"
+                value={c.categories.certifications}
+              />
               <MiniBar label="Projects" value={c.categories.projects} />
             </div>
 
@@ -125,7 +147,11 @@ function Compare() {
                 Strengths
               </p>
               <ul className="mt-1 space-y-1 text-sm text-muted-foreground">
-                {c.strengths.length ? c.strengths.map((s) => <li key={s}>• {s}</li>) : <li>—</li>}
+                {c.strengths.length ? (
+                  c.strengths.map((s) => <li key={s}>• {s}</li>)
+                ) : (
+                  <li>—</li>
+                )}
               </ul>
             </div>
 
@@ -134,7 +160,11 @@ function Compare() {
                 Gaps
               </p>
               <ul className="mt-1 space-y-1 text-sm text-muted-foreground">
-                {c.gaps.length ? c.gaps.map((s) => <li key={s}>• {s}</li>) : <li>—</li>}
+                {c.gaps.length ? (
+                  c.gaps.map((s) => <li key={s}>• {s}</li>)
+                ) : (
+                  <li>—</li>
+                )}
               </ul>
             </div>
 
@@ -143,7 +173,9 @@ function Compare() {
                 Must-haves met
               </p>
               <p className="mt-1 text-sm">
-                {c.mustHavesTotal > 0 ? `${c.mustHavesMet} of ${c.mustHavesTotal}` : "No must-haves set"}
+                {c.mustHaves.total > 0
+                  ? `${c.mustHaves.met} of ${c.mustHaves.total}`
+                  : "No must-haves set"}
               </p>
             </div>
           </div>
@@ -153,16 +185,19 @@ function Compare() {
       <div className="card-surface p-6">
         <div className="flex items-center gap-2 text-primary-soft-foreground">
           <Sparkle className="h-4 w-4" />
-          <span className="text-xs font-bold uppercase tracking-wide">AI recommendation</span>
+          <span className="text-xs font-bold uppercase tracking-wide">
+            AI recommendation
+          </span>
         </div>
         <p className="mt-3 text-sm leading-relaxed text-muted-foreground">
           <strong className="text-foreground">
-            {blindMode ? `Candidate #${best.rank}` : best.name}
+            {blindMode ? `Candidate #${best.rank}` : best.contact.name}
           </strong>{" "}
-          is the strongest overall fit at {best.score}, driven by a {best.categories.skills} skills
-          match and {best.years} years of stated experience
-          {best.mustHavesTotal > 0 &&
-            `, meeting ${best.mustHavesMet} of ${best.mustHavesTotal} must-have requirements`}
+          is the strongest overall fit at {best.score.overall}, driven by a{" "}
+          {best.categories.skills} skills match and {best.years} years of stated
+          experience
+          {best.mustHaves.total > 0 &&
+            `, meeting ${best.mustHaves.met} of ${best.mustHaves.total} must-have requirements`}
           .{" "}
           {best.gaps[0]
             ? `The main trade-off is ${best.gaps[0].toLowerCase().replace(/\.$/, "")} — worth probing in a technical screen.`

@@ -1,8 +1,20 @@
+import { useQuery } from "@tanstack/react-query";
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { useMemo, useState } from "react";
-import { ChevronDown, EyeOff, Search, SlidersHorizontal, Sparkle } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
+import {
+  ChevronDown,
+  EyeOff,
+  Search,
+  SlidersHorizontal,
+  Sparkle,
+} from "lucide-react";
 import { useAppState } from "@/lib/app-state";
-import { DEFAULT_WEIGHTS, rankCandidates, type ScoreCategory } from "@/lib/types";
+import { explainCandidate } from "@/lib/api/jobs";
+import {
+  DEFAULT_WEIGHTS,
+  rankCandidates,
+  type ScoreCategory,
+} from "@/lib/types";
 import { MiniBar, ScoreRing } from "@/components/score-ring";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -11,6 +23,12 @@ import { Switch } from "@/components/ui/switch";
 import { cn } from "@/lib/utils";
 
 export const Route = createFileRoute("/candidates")({
+  // The header search navigates here with ?q= — surface it so the filter below
+  // can initialise from it (and any other query key is quietly dropped). `q` is
+  // optional so pre-existing `to="/candidates"` links don't need a search param.
+  validateSearch: (search: Record<string, unknown>): { q?: string } => ({
+    q: typeof search["q"] === "string" ? search["q"] : "",
+  }),
   head: () => ({
     meta: [
       { title: "Candidate Ranking — ResumeIQ" },
@@ -22,7 +40,8 @@ export const Route = createFileRoute("/candidates")({
       { property: "og:title", content: "Candidate Ranking — ResumeIQ" },
       {
         property: "og:description",
-        content: "Weighted candidate ranking with blind review and evidence-backed explanations.",
+        content:
+          "Weighted candidate ranking with blind review and evidence-backed explanations.",
       },
     ],
   }),
@@ -52,20 +71,31 @@ function Candidates() {
     setBlindMode,
     compareIds,
     toggleCompare,
+    loadDemoData,
   } = useAppState();
-  const [query, setQuery] = useState("");
+  const { q } = Route.useSearch();
+  const [query, setQuery] = useState(q ?? "");
+  // Keep the filter in sync with the header's /candidates?q= navigation.
+  useEffect(() => setQuery(q ?? ""), [q]);
   const [level, setLevel] = useState<(typeof LEVELS)[number]>("All");
   const [skill, setSkill] = useState("All");
   const [minScore, setMinScore] = useState(0);
   const [mustOnly, setMustOnly] = useState(false);
   const [page, setPage] = useState(1);
   const [expanded, setExpanded] = useState<string | null>(null);
+  const [explainId, setExplainId] = useState<string | null>(null);
   const [panelOpen, setPanelOpen] = useState(true);
 
-  const ranked = useMemo(() => rankCandidates(candidates, weights), [candidates, weights]);
+  const ranked = useMemo(
+    () => rankCandidates(candidates, weights),
+    [candidates, weights],
+  );
 
   const allSkills = useMemo(
-    () => [...new Set(candidates.flatMap((c) => c.skills))].sort((a, b) => a.localeCompare(b)),
+    () =>
+      [...new Set(candidates.flatMap((c) => c.skills))].sort((a, b) =>
+        a.localeCompare(b),
+      ),
     [candidates],
   );
 
@@ -73,14 +103,17 @@ function Candidates() {
     () =>
       ranked.filter(
         (c) =>
-          c.score >= minScore &&
+          c.score.overall >= minScore &&
           (level === "All" || c.level === level) &&
           (skill === "All" || c.skills.includes(skill)) &&
-          (!mustOnly || (c.mustHavesTotal > 0 && c.mustHavesMet === c.mustHavesTotal)) &&
+          (!mustOnly ||
+            (c.mustHaves.total > 0 && c.mustHaves.met === c.mustHaves.total)) &&
           (query === "" ||
-            c.name.toLowerCase().includes(query.toLowerCase()) ||
+            c.contact.name.toLowerCase().includes(query.toLowerCase()) ||
             c.title.toLowerCase().includes(query.toLowerCase()) ||
-            c.skills.some((s) => s.toLowerCase().includes(query.toLowerCase()))),
+            c.skills.some((s) =>
+              s.toLowerCase().includes(query.toLowerCase()),
+            )),
       ),
     [ranked, minScore, level, skill, mustOnly, query],
   );
@@ -90,17 +123,26 @@ function Candidates() {
   const rows = filtered.slice((current - 1) * PAGE_SIZE, current * PAGE_SIZE);
 
   if (!job || (candidates.length === 0 && !run?.running)) {
-    return <EmptyState hasJob={Boolean(job)} poolSize={poolSize} loading={candidatesLoading} />;
+    return (
+      <EmptyState
+        hasJob={Boolean(job)}
+        poolSize={poolSize}
+        loading={candidatesLoading}
+        onDemo={loadDemoData}
+      />
+    );
   }
 
   return (
     <div className="mx-auto max-w-7xl space-y-6">
       <header className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-4">
         <div className="min-w-0">
-          <h1 className="truncate text-2xl font-extrabold sm:text-3xl">Candidate Ranking</h1>
+          <h1 className="truncate text-2xl font-extrabold sm:text-3xl">
+            Candidate Ranking
+          </h1>
           <p className="mt-1 text-sm text-muted-foreground">
-            {filtered.length} of {candidates.length} candidates match your filters · scored against{" "}
-            {job.title}
+            {filtered.length} of {candidates.length} candidates match your
+            filters · scored against {job.title}
           </p>
         </div>
         <div className="flex shrink-0 items-center gap-2">
@@ -112,7 +154,11 @@ function Candidates() {
               Compare ({compareIds.length})
             </Link>
           )}
-          <Button variant="outline" className="rounded-xl" onClick={() => setPanelOpen((p) => !p)}>
+          <Button
+            variant="outline"
+            className="rounded-xl"
+            onClick={() => setPanelOpen((p) => !p)}
+          >
             <SlidersHorizontal className="mr-2 h-4 w-4" /> Weights
           </Button>
         </div>
@@ -122,8 +168,8 @@ function Candidates() {
         <div className="card-surface flex items-center gap-3 p-4">
           <span className="h-2 w-2 animate-pulse rounded-full bg-primary" />
           <p className="text-sm text-muted-foreground">
-            Screening in progress — {run.scored} of {run.total} scored, {run.aiAnalyzed} with full AI
-            analysis. Results appear as they land.
+            Screening in progress — {run.scored} of {run.total} scored,{" "}
+            {run.aiAnalyzed} with full AI analysis. Results appear as they land.
           </p>
         </div>
       )}
@@ -178,7 +224,9 @@ function Candidates() {
               ))}
             </select>
             <div className="min-w-0">
-              <p className="mb-1 text-[11px] text-muted-foreground">Min score: {minScore}</p>
+              <p className="mb-1 text-[11px] text-muted-foreground">
+                Min score: {minScore}
+              </p>
               <Slider
                 value={[minScore]}
                 max={100}
@@ -215,9 +263,14 @@ function Candidates() {
 
             {rows.map((c) => {
               const isOpen = expanded === c.id;
-              const displayName = blindMode ? `Candidate #${c.rank}` : c.name;
+              const displayName = blindMode
+                ? `Candidate #${c.rank}`
+                : c.contact.name;
               return (
-                <div key={c.id} className="transition-colors hover:bg-secondary/40">
+                <div
+                  key={c.id}
+                  className="transition-colors hover:bg-secondary/40"
+                >
                   <div className="grid grid-cols-[52px_minmax(0,1fr)_92px] items-center gap-4 px-5 py-4 md:grid-cols-[52px_minmax(0,1fr)_92px_minmax(0,1.3fr)_44px]">
                     <span className="text-sm font-extrabold tabular-nums text-muted-foreground">
                       #{c.rank}
@@ -227,33 +280,45 @@ function Candidates() {
                         {blindMode ? "??" : c.initials}
                       </span>
                       <div className="min-w-0">
-                        <p className="truncate text-sm font-bold">{displayName}</p>
+                        <p className="truncate text-sm font-bold">
+                          {displayName}
+                        </p>
                         <p className="truncate text-xs text-muted-foreground">
-                          {c.title} · {c.years} yrs · {blindMode ? c.level : c.location}
-                          {c.mustHavesTotal > 0 && (
+                          {c.title} · {c.years} yrs ·{" "}
+                          {blindMode ? c.level : c.contact.location}
+                          {c.mustHaves.total > 0 && (
                             <>
                               {" · "}
                               <span
                                 className={cn(
                                   "font-semibold",
-                                  c.mustHavesMet === c.mustHavesTotal
+                                  c.mustHaves.met === c.mustHaves.total
                                     ? "text-success"
                                     : "text-muted-foreground",
                                 )}
                               >
-                                {c.mustHavesMet}/{c.mustHavesTotal} must-haves
+                                {c.mustHaves.met}/{c.mustHaves.total} must-haves
                               </span>
                             </>
                           )}
                         </p>
                       </div>
                     </div>
-                    <ScoreRing value={c.score} />
+                    <ScoreRing value={c.score.overall} />
                     <div className="hidden grid-cols-2 gap-x-4 gap-y-1.5 md:grid">
                       <MiniBar label="Skills" value={c.categories.skills} />
-                      <MiniBar label="Experience" value={c.categories.experience} />
-                      <MiniBar label="Education" value={c.categories.education} />
-                      <MiniBar label="Certs" value={c.categories.certifications} />
+                      <MiniBar
+                        label="Experience"
+                        value={c.categories.experience}
+                      />
+                      <MiniBar
+                        label="Education"
+                        value={c.categories.education}
+                      />
+                      <MiniBar
+                        label="Certs"
+                        value={c.categories.certifications}
+                      />
                     </div>
                     <button
                       onClick={() => setExpanded(isOpen ? null : c.id)}
@@ -261,7 +326,10 @@ function Candidates() {
                       className="hidden h-9 w-9 place-items-center rounded-xl text-muted-foreground transition-colors hover:bg-secondary md:grid"
                     >
                       <ChevronDown
-                        className={cn("h-4 w-4 transition-transform", isOpen && "rotate-180")}
+                        className={cn(
+                          "h-4 w-4 transition-transform",
+                          isOpen && "rotate-180",
+                        )}
                       />
                     </button>
                   </div>
@@ -301,7 +369,10 @@ function Candidates() {
                             <ul className="mt-2 space-y-1.5 text-sm">
                               {items.length ? (
                                 items.map((t) => (
-                                  <li key={t} className="flex gap-2 text-muted-foreground">
+                                  <li
+                                    key={t}
+                                    className="flex gap-2 text-muted-foreground"
+                                  >
                                     <span className="mt-2 h-1.5 w-1.5 shrink-0 rounded-full bg-primary" />
                                     {t}
                                   </li>
@@ -314,6 +385,37 @@ function Candidates() {
                         ))}
                       </div>
 
+                      {/* Per-category signal breakdown — how keyword/semantic/AI contributed */}
+                      <div>
+                        <p className="text-xs font-bold uppercase tracking-wide text-muted-foreground">
+                          Score breakdown
+                        </p>
+                        <div className="mt-2 grid gap-1.5 sm:grid-cols-2">
+                          {c.score.categories.map(
+                            ({ category, value, signals }) => (
+                              <div
+                                key={category}
+                                className="rounded-lg bg-background/60 px-2.5 py-2 text-xs"
+                              >
+                                <div className="flex items-center justify-between">
+                                  <span className="font-semibold capitalize">
+                                    {category}
+                                  </span>
+                                  <span className="tabular-nums font-bold">
+                                    {value}
+                                  </span>
+                                </div>
+                                <div className="mt-0.5 flex flex-wrap gap-x-3 text-muted-foreground">
+                                  <span>keyword {signals.keyword}</span>
+                                  <span>semantic {signals.semantic}</span>
+                                  <span>ai {signals.ai ?? "—"}</span>
+                                </div>
+                              </div>
+                            ),
+                          )}
+                        </div>
+                      </div>
+
                       {job.requirements.length > 0 && (
                         <div>
                           <p className="text-xs font-bold uppercase tracking-wide text-muted-foreground">
@@ -321,7 +423,9 @@ function Candidates() {
                           </p>
                           <div className="mt-2 grid gap-1.5 sm:grid-cols-2">
                             {job.requirements.map((r) => {
-                              const verdict = c.requirements.find((v) => v.requirementId === r.id);
+                              const verdict = c.requirements.find(
+                                (v) => v.requirementId === r.id,
+                              );
                               const status = verdict?.status ?? "missing";
                               return (
                                 <div
@@ -340,7 +444,9 @@ function Candidates() {
                                     )}
                                   />
                                   <span className="min-w-0">
-                                    <span className="font-medium">{r.text}</span>
+                                    <span className="font-medium">
+                                      {r.text}
+                                    </span>
                                     {r.must && (
                                       <span className="ml-1 text-[10px] font-bold text-primary">
                                         MUST
@@ -360,22 +466,46 @@ function Candidates() {
                       )}
 
                       {c.evidence.length > 0 && (
-                        <div className="flex flex-wrap gap-2">
-                          {c.evidence.map((e, i) => (
-                            <span
-                              key={i}
-                              className="rounded-full bg-primary-soft px-3 py-1 text-[11px] font-medium text-primary-soft-foreground"
-                            >
-                              {e.skill} — {e.detail} | Source: {e.source}
-                            </span>
-                          ))}
+                        <div>
+                          <p className="text-xs font-bold uppercase tracking-wide text-muted-foreground">
+                            Evidence
+                          </p>
+                          <div className="mt-2 flex flex-wrap gap-2">
+                            {c.evidence.map((e) => (
+                              <span
+                                key={e.id}
+                                title={`“${e.quote}” · Source: ${e.source}`}
+                                className="rounded-full bg-primary-soft px-3 py-1 text-[11px] font-medium text-primary-soft-foreground"
+                              >
+                                {e.claim}
+                                <span className="ml-1.5 text-[10px] font-bold uppercase opacity-70">
+                                  {e.provenance}
+                                </span>
+                              </span>
+                            ))}
+                          </div>
                         </div>
                       )}
 
                       <div className="flex flex-wrap items-center gap-3">
                         <Button
                           size="sm"
-                          variant={compareIds.includes(c.id) ? "default" : "outline"}
+                          variant={explainId === c.id ? "default" : "outline"}
+                          className="rounded-xl"
+                          onClick={() =>
+                            setExplainId(explainId === c.id ? null : c.id)
+                          }
+                        >
+                          <Sparkle className="mr-1.5 h-3.5 w-3.5" />
+                          {explainId === c.id
+                            ? "Hide evidence trace"
+                            : "Explain score"}
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant={
+                            compareIds.includes(c.id) ? "default" : "outline"
+                          }
                           className="rounded-xl"
                           onClick={() => toggleCompare(c.id)}
                         >
@@ -390,6 +520,10 @@ function Candidates() {
                           · source: {c.fileName}
                         </p>
                       </div>
+
+                      {explainId === c.id && (
+                        <ExplainTrace candidateId={c.id} jobId={job.id} />
+                      )}
                     </div>
                   )}
                 </div>
@@ -434,20 +568,26 @@ function Candidates() {
           <aside className="card-surface h-fit space-y-5 p-5 lg:sticky lg:top-24">
             <div>
               <h2 className="text-base font-bold">Score weights</h2>
-              <p className="text-xs text-muted-foreground">Re-ranks the list instantly</p>
+              <p className="text-xs text-muted-foreground">
+                Re-ranks the list instantly
+              </p>
             </div>
 
             {WEIGHT_KEYS.map((key) => (
               <div key={key}>
                 <div className="mb-2 flex items-center justify-between text-xs">
                   <span className="font-semibold capitalize">{key}</span>
-                  <span className="tabular-nums text-muted-foreground">{weights[key]}%</span>
+                  <span className="tabular-nums text-muted-foreground">
+                    {weights[key]}%
+                  </span>
                 </div>
                 <Slider
                   value={[weights[key]]}
                   max={100}
                   step={5}
-                  onValueChange={(v) => setWeights({ ...weights, [key]: v[0] ?? 0 })}
+                  onValueChange={(v) =>
+                    setWeights({ ...weights, [key]: v[0] ?? 0 })
+                  }
                 />
               </div>
             ))}
@@ -480,14 +620,79 @@ function Candidates() {
   );
 }
 
+/** Evidence trace served by the per-candidate explain endpoint (P4/P5). */
+function ExplainTrace({
+  candidateId,
+  jobId,
+}: {
+  candidateId: string;
+  jobId: string;
+}) {
+  const query = useQuery({
+    queryKey: ["explain", candidateId],
+    queryFn: () => explainCandidate({ data: { candidateId, jobId } }),
+  });
+
+  if (query.isLoading) {
+    return (
+      <p className="text-xs text-muted-foreground">Loading evidence trace…</p>
+    );
+  }
+  if (query.isError) {
+    return <p className="text-xs text-destructive">{String(query.error)}</p>;
+  }
+  const data = query.data;
+  if (!data) return null;
+
+  return (
+    <div className="space-y-4 rounded-xl bg-background/60 p-4">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <p className="text-xs font-bold uppercase tracking-wide text-muted-foreground">
+          Evidence trace
+        </p>
+        <p className="text-xs text-muted-foreground">
+          Overall{" "}
+          <span className="font-bold text-foreground">
+            {data.score.overall}
+          </span>
+          {data.score.aiAnalyzed ? " · AI-influenced" : ""}
+        </p>
+      </div>
+      {data.evidence.length > 0 ? (
+        <div className="space-y-2">
+          {data.evidence.map((e) => (
+            <div
+              key={e.id}
+              className="rounded-lg border border-border/60 bg-background px-3 py-2 text-xs"
+            >
+              <p className="font-semibold">{e.claim}</p>
+              <p className="mt-0.5 text-muted-foreground">“{e.quote}”</p>
+              <p className="mt-1 text-[10px] uppercase tracking-wide text-muted-foreground">
+                {e.provenance} · {e.source} · confidence{" "}
+                {Math.round(e.confidence * 100)}%
+              </p>
+            </div>
+          ))}
+        </div>
+      ) : (
+        <p className="text-xs text-muted-foreground">
+          No citable evidence was captured for this candidate.
+        </p>
+      )}
+    </div>
+  );
+}
+
 function EmptyState({
   hasJob,
   poolSize,
   loading,
+  onDemo,
 }: {
   hasJob: boolean;
   poolSize: number;
   loading: boolean;
+  onDemo: () => void;
 }) {
   return (
     <div className="mx-auto max-w-2xl">
@@ -515,6 +720,13 @@ function EmptyState({
           >
             Job description
           </Link>
+          <button
+            onClick={onDemo}
+            aria-label="Load demo data"
+            className="inline-flex rounded-xl border border-primary/40 px-4 py-2.5 text-sm font-semibold text-foreground transition-colors hover:bg-primary-soft"
+          >
+            Try the demo
+          </button>
         </div>
       </div>
     </div>

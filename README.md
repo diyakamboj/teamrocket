@@ -74,6 +74,16 @@ engine produced a result:
   "offline parser" in the UI).
 - Matching runs on the keyword signal alone when embeddings and chat are unavailable.
 
+## Try it without uploading
+
+When the pool is empty, the dashboard and candidate-ranking pages offer a **"Try the
+demo"** button. It loads eight synthetic resumes plus a sample backend-engineer job
+description and runs them through the real offline pipeline — heuristic parsing, JD
+analysis and keyword-only screening — so you can explore ranking, category weights,
+must-have coverage and the explain view before uploading anything. Demo results are
+stored like any real batch and keep the engine labels, so it is honest pipeline output
+rather than mock data.
+
 ## Architecture
 
 - `src/lib/server/*` — server-only: Azure clients, ingestion pipeline, parsers, matching

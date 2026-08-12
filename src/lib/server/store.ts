@@ -1,7 +1,20 @@
-import { mkdirSync, readFileSync, renameSync, writeFileSync, existsSync, rmSync } from "node:fs";
+import {
+  mkdirSync,
+  readFileSync,
+  renameSync,
+  writeFileSync,
+  existsSync,
+  rmSync,
+} from "node:fs";
 import { join, resolve } from "node:path";
 import { config } from "./config";
-import type { JobRecord, MatchRecord, ResumeRecord, ScreeningRun } from "@/lib/types";
+import type {
+  JobRecord,
+  MatchRecord,
+  ResumeRecord,
+  ScreeningRun,
+} from "@/lib/types";
+import type { Store } from "./store-types";
 
 type Database = {
   resumes: ResumeRecord[];
@@ -13,7 +26,13 @@ type Database = {
   seq: number;
 };
 
-const EMPTY: Database = { resumes: [], jobs: [], matches: {}, runs: {}, seq: 0 };
+const EMPTY: Database = {
+  resumes: [],
+  jobs: [],
+  matches: {},
+  runs: {},
+  seq: 0,
+};
 
 const dataDir = resolve(process.cwd(), config.dataDir);
 const dbPath = join(dataDir, "store.json");
@@ -23,8 +42,14 @@ const embeddingsPath = join(dataDir, "embeddings.json");
 // Vite reloads server modules on edit; keep one store instance across reloads so
 // in-flight uploads and the write timer aren't duplicated.
 const globalKey = Symbol.for("resumeiq.store");
-type Holder = { db: Database; embeddings: Map<string, number[]>; timer?: NodeJS.Timeout | undefined };
-const holder: Holder = ((globalThis as Record<symbol, unknown>)[globalKey] as Holder) ?? {
+type Holder = {
+  db: Database;
+  embeddings: Map<string, number[]>;
+  timer?: NodeJS.Timeout | undefined;
+};
+const holder: Holder = ((globalThis as Record<symbol, unknown>)[
+  globalKey
+] as Holder) ?? {
   db: load(),
   embeddings: loadEmbeddings(),
 };
@@ -33,7 +58,9 @@ const holder: Holder = ((globalThis as Record<symbol, unknown>)[globalKey] as Ho
 function load(): Database {
   try {
     mkdirSync(uploadsDir, { recursive: true });
-    const parsed = JSON.parse(readFileSync(dbPath, "utf8")) as Partial<Database>;
+    const parsed = JSON.parse(
+      readFileSync(dbPath, "utf8"),
+    ) as Partial<Database>;
     return {
       ...EMPTY,
       ...parsed,
@@ -49,7 +76,10 @@ function load(): Database {
 
 function loadEmbeddings(): Map<string, number[]> {
   try {
-    const parsed = JSON.parse(readFileSync(embeddingsPath, "utf8")) as Record<string, number[]>;
+    const parsed = JSON.parse(readFileSync(embeddingsPath, "utf8")) as Record<
+      string,
+      number[]
+    >;
     return new Map(Object.entries(parsed));
   } catch {
     return new Map();
@@ -70,7 +100,10 @@ function schedulePersist() {
     holder.timer = undefined;
     try {
       writeAtomic(dbPath, JSON.stringify(holder.db));
-      writeAtomic(embeddingsPath, JSON.stringify(Object.fromEntries(holder.embeddings)));
+      writeAtomic(
+        embeddingsPath,
+        JSON.stringify(Object.fromEntries(holder.embeddings)),
+      );
     } catch (error) {
       console.error("[store] failed to persist:", error);
     }
@@ -78,7 +111,7 @@ function schedulePersist() {
   holder.timer.unref?.();
 }
 
-export const store = {
+export const store: Store = {
   nextId(prefix: string) {
     holder.db.seq += 1;
     schedulePersist();
@@ -108,7 +141,8 @@ export const store = {
 
   removeResume(id: string) {
     holder.db.resumes = holder.db.resumes.filter((r) => r.id !== id);
-    for (const byResume of Object.values(holder.db.matches)) delete byResume[id];
+    for (const byResume of Object.values(holder.db.matches))
+      delete byResume[id];
     try {
       rmSync(uploadPath(id), { force: true });
     } catch {
@@ -124,6 +158,15 @@ export const store = {
     schedulePersist();
   },
 
+  resetAll() {
+    store.clearResumes();
+    holder.db.jobs = [];
+    // `delete` rather than assigning `undefined` — exactOptionalPropertyTypes
+    // forbids the latter on the optional `activeJobId?: string` field.
+    delete holder.db.activeJobId;
+    schedulePersist();
+  },
+
   jobs(): JobRecord[] {
     return holder.db.jobs;
   },
@@ -133,7 +176,9 @@ export const store = {
   },
 
   activeJob(): JobRecord | undefined {
-    const active = holder.db.activeJobId ? store.job(holder.db.activeJobId) : undefined;
+    const active = holder.db.activeJobId
+      ? store.job(holder.db.activeJobId)
+      : undefined;
     return active ?? holder.db.jobs.at(-1);
   },
 
@@ -177,18 +222,19 @@ export const store = {
     holder.embeddings.set(key, vector);
     schedulePersist();
   },
+
+  saveUpload(id: string, bytes: Uint8Array) {
+    mkdirSync(uploadsDir, { recursive: true });
+    writeFileSync(uploadPath(id), bytes);
+  },
+
+  readUpload(id: string): Uint8Array | undefined {
+    const path = uploadPath(id);
+    return existsSync(path) ? new Uint8Array(readFileSync(path)) : undefined;
+  },
 };
 
+/** Local-file path for a resume's bytes. Filesystem-specific — not in the `Store` interface. */
 export function uploadPath(id: string) {
   return join(uploadsDir, `${id}.bin`);
-}
-
-export function saveUpload(id: string, bytes: Uint8Array) {
-  mkdirSync(uploadsDir, { recursive: true });
-  writeFileSync(uploadPath(id), bytes);
-}
-
-export function readUpload(id: string): Uint8Array | undefined {
-  const path = uploadPath(id);
-  return existsSync(path) ? new Uint8Array(readFileSync(path)) : undefined;
 }

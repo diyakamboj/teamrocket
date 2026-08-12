@@ -3,7 +3,7 @@ import { capabilities, config } from "./config";
 import { analyzeDocument } from "./document-intelligence";
 import { extractPdfText, looksLikeUsableText } from "./pdf-text";
 import { parseResume } from "./resume-parser";
-import { readUpload, saveUpload, store } from "./store";
+import { store } from "./store";
 import { PROCESSING_STAGES, type ResumeRecord, type TextSource } from "@/lib/types";
 
 /** Content hashes of files already ingested, so re-uploads are flagged. */
@@ -53,7 +53,7 @@ export function ingest(files: IncomingFile[]): ResumeRecord[] {
         : undefined,
     };
 
-    saveUpload(id, file.bytes);
+    store.saveUpload(id, file.bytes);
     store.addResume(record);
     if (!existing && !oversized) hashes.set(digest, id);
     created.push(record);
@@ -129,7 +129,7 @@ async function drain() {
 
 async function process(id: string) {
   try {
-    const bytes = readUpload(id);
+    const bytes = store.readUpload(id);
     if (!bytes) throw new Error("Uploaded file is no longer available on disk");
 
     const record = store.resume(id);
@@ -250,7 +250,7 @@ export function counts() {
 export function rehydrateHashes() {
   if (hashes.size > 0) return;
   for (const record of store.resumes()) {
-    const bytes = readUpload(record.id);
+    const bytes = store.readUpload(record.id);
     if (!bytes) continue;
     const digest = createHash("sha256").update(bytes).digest("hex");
     if (!hashes.has(digest) && record.stage !== "duplicate") hashes.set(digest, record.id);

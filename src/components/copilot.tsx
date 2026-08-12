@@ -1,7 +1,9 @@
-import { useMemo, useState } from "react";
-import { Bot, Send, X } from "lucide-react";
+import { useState } from "react";
+import { Bot, Loader2, Send, X } from "lucide-react";
+import { useMutation } from "@tanstack/react-query";
 import { useAppState } from "@/lib/app-state";
-import { rankCandidates } from "@/lib/types";
+import { copilotAsk } from "@/lib/api/jobs";
+import type { CopilotResponse } from "@/lib/types";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
@@ -13,11 +15,16 @@ const SUGGESTIONS = [
   "Summarise the qualification gaps in this pool",
 ];
 
-type Msg = { role: "user" | "assistant"; text: string };
+type Msg = {
+  role: "user" | "assistant";
+  text: string;
+  citations?: CopilotResponse["citations"];
+  engine?: CopilotResponse["engine"];
+};
 
 export function CopilotPanel() {
-  const { copilotOpen, setCopilotOpen, weights, candidates } = useAppState();
-  const ranked = useMemo(() => rankCandidates(candidates, weights), [candidates, weights]);
+  const { copilotOpen, setCopilotOpen, job, weights, blindMode, candidates } =
+    useAppState();
   const [messages, setMessages] = useState<Msg[]>([
     {
       role: "assistant",
@@ -26,76 +33,42 @@ export function CopilotPanel() {
   ]);
   const [input, setInput] = useState("");
 
-  function answer(q: string): string {
-    if (ranked.length === 0) {
-      return "There is no ranked pool yet. Upload resumes, analyze a job description, then run screening — I answer from the real scored candidates.";
-    }
-
-    const lower = q.toLowerCase();
-    const top = ranked.slice(0, 3);
-
-    if (lower.includes("compare") || lower.includes("top 3")) {
-      return `Top ${top.length} by current weighting:\n\n${top
-        .map(
-          (c) =>
-            `- **#${c.rank} ${c.name}** (${c.score}) — skills ${c.categories.skills}, experience ${c.categories.experience}, education ${c.categories.education}`,
-        )
-        .join("\n")}`;
-    }
-
-    if (lower.includes("certification")) {
-      const weak = ranked.filter((c) => c.categories.certifications < 45).length;
-      return `${weak} of ${ranked.length} candidates score under 45 on certifications. Consider lowering that weight or treating it as a nice-to-have.`;
-    }
-
-    if (lower.includes("must") || lower.includes("requirement")) {
-      const full = ranked.filter((c) => c.mustHavesTotal > 0 && c.mustHavesMet === c.mustHavesTotal);
-      return full.length
-        ? `${full.length} candidate${full.length === 1 ? "" : "s"} meet every must-have:\n\n${full
-            .slice(0, 5)
-            .map((c) => `- **${c.name}** (${c.score})`)
-            .join("\n")}`
-        : "No candidate currently meets every must-have requirement. Loosening a must-have on the job description page will widen the shortlist.";
-    }
-
-    if (lower.includes("gap")) {
-      const counts = new Map<string, number>();
-      for (const c of ranked) for (const g of c.gaps) counts.set(g, (counts.get(g) ?? 0) + 1);
-      const commonGaps = [...counts.entries()].sort((a, b) => b[1] - a[1]).slice(0, 3);
-      return commonGaps.length
-        ? `Most common gaps across ${ranked.length} candidates:\n\n${commonGaps
-            .map(([gap, n]) => `- ${gap} (${n})`)
-            .join("\n")}`
-        : `No gaps were recorded for the current pool of ${ranked.length} candidates.`;
-    }
-
-    const byName = ranked.find((c) => lower.includes(c.name.split(" ")[0]!.toLowerCase()));
-    if (byName) {
-      return `**${byName.name}** ranks #${byName.rank} with a score of ${byName.score}.${
-        byName.strengths[0] ? ` Strength: ${byName.strengths[0]}.` : ""
-      }${byName.gaps[0] ? ` Gap: ${byName.gaps[0]}.` : ""}`;
-    }
-
-    // Fall back to treating the question as a skill lookup.
-    const term = lower.match(/[a-z][a-z0-9+#.]{2,}/g)?.find((t) =>
-      ranked.some((c) => c.skills.some((s) => s.toLowerCase().includes(t))),
-    );
-    if (term) {
-      const withSkill = ranked
-        .filter((c) => c.skills.some((s) => s.toLowerCase().includes(term)))
-        .slice(0, 5);
-      return `${withSkill.length} candidate${withSkill.length === 1 ? "" : "s"} show ${term}:\n\n${withSkill
-        .map((c) => `- **${c.name}** — score ${c.score}, ${c.years} yrs`)
-        .join("\n")}`;
-    }
-
-    return `Across ${ranked.length} scored candidates the highest match is **${top[0]!.name}** at ${top[0]!.score}. Ask about a specific skill, candidate, must-haves or gaps.`;
-  }
+  const ask = useMutation({
+    mutationFn: (question: string) =>
+      copilotAsk({
+        data: { jobId: job?.id ?? "", question, blind: blindMode, weights },
+      }),
+    onSuccess: (response) => {
+      setMessages((m) => [
+        ...m,
+        {
+          role: "assistant",
+          text: response.answer,
+          citations: response.citations,
+          engine: response.engine,
+        },
+      ]);
+    },
+    onError: (error: unknown) => {
+      setMessages((m) => [
+        ...m,
+        {
+          role: "assistant",
+          text:
+            error instanceof Error
+              ? error.message
+              : "The copilot couldn't answer right now. Try again in a moment.",
+        },
+      ]);
+    },
+  });
 
   function send(text: string) {
-    if (!text.trim()) return;
-    setMessages((m) => [...m, { role: "user", text }, { role: "assistant", text: answer(text) }]);
+    const question = text.trim();
+    if (!question || ask.isPending) return;
+    setMessages((m) => [...m, { role: "user", text: question }]);
     setInput("");
+    ask.mutate(question);
   }
 
   return (
@@ -121,8 +94,8 @@ export function CopilotPanel() {
           <div className="min-w-0">
             <p className="truncate font-bold">Recruiter Copilot</p>
             <p className="truncate text-xs text-muted-foreground">
-              {ranked.length
-                ? `Ask about the ${ranked.length}-candidate pool`
+              {candidates.length
+                ? `Ask about the ${candidates.length}-candidate pool`
                 : "No screened candidates yet"}
             </p>
           </div>
@@ -130,7 +103,13 @@ export function CopilotPanel() {
 
         <div className="flex-1 space-y-4 overflow-y-auto px-5 py-5">
           {messages.map((m, i) => (
-            <div key={i} className={cn("flex", m.role === "user" ? "justify-end" : "justify-start")}>
+            <div
+              key={i}
+              className={cn(
+                "flex",
+                m.role === "user" ? "justify-end" : "justify-start",
+              )}
+            >
               <div
                 className={cn(
                   "max-w-[85%] whitespace-pre-wrap rounded-2xl px-4 py-2.5 text-sm",
@@ -139,16 +118,49 @@ export function CopilotPanel() {
                     : "bg-secondary text-secondary-foreground",
                 )}
               >
-                {m.text.split("**").map((part, j) =>
-                  j % 2 ? (
-                    <strong key={j}>{part}</strong>
-                  ) : (
-                    <span key={j}>{part}</span>
-                  ),
+                {m.text
+                  .split("**")
+                  .map((part, j) =>
+                    j % 2 ? (
+                      <strong key={j}>{part}</strong>
+                    ) : (
+                      <span key={j}>{part}</span>
+                    ),
+                  )}
+                {m.citations && m.citations.length > 0 && (
+                  <div className="mt-3 space-y-1 border-t border-muted-foreground/20 pt-2 text-xs text-muted-foreground">
+                    <p className="font-semibold">Evidence</p>
+                    {m.citations.map((e) => (
+                      <p key={e.id} title={`"${e.quote}" — ${e.source}`}>
+                        • {e.claim}{" "}
+                        <span className="italic">
+                          ({e.source}, {e.provenance})
+                        </span>
+                      </p>
+                    ))}
+                  </div>
+                )}
+                {m.engine && (
+                  <span
+                    className={cn(
+                      "mt-2 inline-block rounded-full px-2 py-0.5 text-[10px] font-medium",
+                      m.engine === "agent"
+                        ? "bg-primary-soft text-primary-soft-foreground"
+                        : "bg-muted text-muted-foreground",
+                    )}
+                  >
+                    {m.engine === "agent" ? "LLM agent" : "Offline rules"}
+                  </span>
                 )}
               </div>
             </div>
           ))}
+          {ask.isPending && (
+            <div className="flex items-center gap-2 text-xs text-muted-foreground">
+              <Loader2 className="h-3.5 w-3.5 animate-spin" />
+              <span>{blindMode ? "Answering (blind)…" : "Answering…"}</span>
+            </div>
+          )}
         </div>
 
         <div className="border-t px-5 py-4">
@@ -157,7 +169,8 @@ export function CopilotPanel() {
               <button
                 key={s}
                 onClick={() => send(s)}
-                className="rounded-full bg-primary-soft px-3 py-1 text-xs font-medium text-primary-soft-foreground transition-colors hover:bg-accent"
+                disabled={ask.isPending}
+                className="rounded-full bg-primary-soft px-3 py-1 text-xs font-medium text-primary-soft-foreground transition-colors hover:bg-accent disabled:opacity-50"
               >
                 {s}
               </button>
@@ -175,9 +188,19 @@ export function CopilotPanel() {
               onChange={(e) => setInput(e.target.value)}
               placeholder="Ask about candidates…"
               className="rounded-xl"
+              disabled={ask.isPending}
             />
-            <Button type="submit" size="icon" className="shrink-0 rounded-xl">
-              <Send className="h-4 w-4" />
+            <Button
+              type="submit"
+              size="icon"
+              className="shrink-0 rounded-xl"
+              disabled={ask.isPending}
+            >
+              {ask.isPending ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <Send className="h-4 w-4" />
+              )}
             </Button>
           </form>
         </div>

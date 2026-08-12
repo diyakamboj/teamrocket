@@ -1,25 +1,29 @@
 import { createHash } from "node:crypto";
 import { capabilities, config } from "./config";
-import { chatJson, cosineSimilarity, embed } from "./openai";
+import { chatJson, cosineSimilarity, embed } from "./ai";
 import { store } from "./store";
-import type {
-  EvidenceItem,
-  JobRecord,
-  MatchRecord,
-  ParsedResume,
-  Requirement,
-  RequirementVerdict,
-  ResumeRecord,
-  ScoreCategory,
-  SignalBreakdown,
+import {
+  DEFAULT_WEIGHTS,
+  scoreOf,
+  type EvidenceItem,
+  type JobRecord,
+  type MatchRecord,
+  type ParsedResume,
+  type Requirement,
+  type RequirementVerdict,
+  type ResumeRecord,
+  type ScoreCategory,
+  type ScoreExplanation,
+  type SignalBreakdown,
 } from "@/lib/types";
 
-const CATEGORY_OF_REQUIREMENT: Record<Requirement["category"], ScoreCategory> = {
-  Skills: "skills",
-  Experience: "experience",
-  Education: "education",
-  Certifications: "certifications",
-};
+const CATEGORY_OF_REQUIREMENT: Record<Requirement["category"], ScoreCategory> =
+  {
+    Skills: "skills",
+    Experience: "experience",
+    Education: "education",
+    Certifications: "certifications",
+  };
 
 const ALL_CATEGORIES: ScoreCategory[] = [
   "skills",
@@ -41,7 +45,9 @@ function projections(parsed: ParsedResume): Record<ScoreCategory, string> {
     .map((e) =>
       [
         `${e.title} at ${e.company}`,
-        [e.startDate, e.current ? "present" : e.endDate].filter(Boolean).join(" – "),
+        [e.startDate, e.current ? "present" : e.endDate]
+          .filter(Boolean)
+          .join(" – "),
         e.technologies.join(", "),
         e.highlights.join(" "),
       ]
@@ -51,7 +57,11 @@ function projections(parsed: ParsedResume): Record<ScoreCategory, string> {
     .join("\n");
 
   const education = parsed.education
-    .map((e) => [e.degree, e.field, e.institution, e.graduationYear].filter(Boolean).join(" "))
+    .map((e) =>
+      [e.degree, e.field, e.institution, e.graduationYear]
+        .filter(Boolean)
+        .join(" "),
+    )
     .join("\n");
 
   const certifications = parsed.certifications
@@ -59,7 +69,11 @@ function projections(parsed: ParsedResume): Record<ScoreCategory, string> {
     .join("\n");
 
   const projects = parsed.projects
-    .map((p) => [p.name, p.description, p.technologies.join(", ")].filter(Boolean).join(" — "))
+    .map((p) =>
+      [p.name, p.description, p.technologies.join(", ")]
+        .filter(Boolean)
+        .join(" — "),
+    )
     .join("\n");
 
   return { skills, experience, education, certifications, projects };
@@ -77,7 +91,9 @@ function fullText(parsed: ParsedResume, blobs: Record<ScoreCategory, string>) {
 function matchesKeyword(haystack: string, keyword: string) {
   const escaped = keyword.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
   // Guard the edges so "go" doesn't match "google", but allow +, #, . inside.
-  return new RegExp(`(^|[^a-z0-9+#.])${escaped}([^a-z0-9+#.]|$)`, "i").test(haystack);
+  return new RegExp(`(^|[^a-z0-9+#.])${escaped}([^a-z0-9+#.]|$)`, "i").test(
+    haystack,
+  );
 }
 
 type KeywordHit = { score: number; matched: string[]; missing: string[] };
@@ -85,8 +101,14 @@ type KeywordHit = { score: number; matched: string[]; missing: string[] };
 /** Weight of a keyword found outside the requirement's own resume section. */
 const OUT_OF_CATEGORY_WEIGHT = 0.5;
 
-function keywordSignal(requirement: Requirement, categoryText: string, allText: string): KeywordHit {
-  const keywords = requirement.keywords.length ? requirement.keywords : [requirement.text];
+export function keywordSignal(
+  requirement: Requirement,
+  categoryText: string,
+  allText: string,
+): KeywordHit {
+  const keywords = requirement.keywords.length
+    ? requirement.keywords
+    : [requirement.text];
   const matched: string[] = [];
   const missing: string[] = [];
   let weighted = 0;
@@ -109,16 +131,21 @@ function keywordSignal(requirement: Requirement, categoryText: string, allText: 
 
   const coverage = keywords.length ? weighted / keywords.length : 0;
   // One strong keyword hit already means a lot; don't demand every alias.
-  const score = best === 0 ? 0 : Math.min(100, Math.round(40 * best + coverage * 60));
+  const score =
+    best === 0 ? 0 : Math.min(100, Math.round(40 * best + coverage * 60));
   return { score, matched, missing };
 }
 
 /** Deterministic tenure check for "N+ years" requirements. */
-function yearsSignal(requirement: Requirement, years: number | undefined): number | undefined {
+export function yearsSignal(
+  requirement: Requirement,
+  years: number | undefined,
+): number | undefined {
   if (!requirement.minYears) return undefined;
   if (years === undefined) return 40;
   const ratio = years / requirement.minYears;
-  if (ratio >= 1) return Math.min(100, Math.round(85 + Math.min(ratio - 1, 1) * 15));
+  if (ratio >= 1)
+    return Math.min(100, Math.round(85 + Math.min(ratio - 1, 1) * 15));
   return Math.max(0, Math.round(ratio * 80));
 }
 
@@ -198,7 +225,13 @@ const ANALYSIS_SCHEMA = {
         certifications: { type: "number" },
         projects: { type: "number" },
       },
-      required: ["skills", "experience", "education", "certifications", "projects"],
+      required: [
+        "skills",
+        "experience",
+        "education",
+        "certifications",
+        "projects",
+      ],
     },
     strengths: { type: "array", items: { type: "string" } },
     gaps: { type: "array", items: { type: "string" } },
@@ -217,24 +250,40 @@ const ANALYSIS_SCHEMA = {
     },
     summary: { type: "string" },
   },
-  required: ["requirements", "categoryScores", "strengths", "gaps", "transferable", "summary"],
+  required: [
+    "requirements",
+    "categoryScores",
+    "strengths",
+    "gaps",
+    "transferable",
+    "summary",
+  ],
 } as const;
 
 type LooseAnalysis = {
-  [K in
-    | "requirements"
-    | "categoryScores"
-    | "strengths"
-    | "gaps"
-    | "transferable"
-    | "evidence"
-    | "summary"]?: unknown;
+  [
+    K in
+      | "requirements"
+      | "categoryScores"
+      | "strengths"
+      | "gaps"
+      | "transferable"
+      | "evidence"
+      | "summary"
+  ]?: unknown;
 };
 type LooseVerdict = { [K in "id" | "status" | "score" | "evidence"]?: unknown };
 type LooseEvidence = { [K in "skill" | "detail" | "source"]?: unknown };
 
 type AiAnalysis = {
-  requirements: Map<string, { status: RequirementVerdict["status"]; score: number; evidence?: string | undefined }>;
+  requirements: Map<
+    string,
+    {
+      status: RequirementVerdict["status"];
+      score: number;
+      evidence?: string | undefined;
+    }
+  >;
   categoryScores: Partial<Record<ScoreCategory, number>>;
   strengths: string[];
   gaps: string[];
@@ -247,11 +296,15 @@ function compactResume(parsed: ParsedResume) {
   return {
     title: parsed.title,
     totalYearsExperience: parsed.totalYearsExperience,
-    skills: parsed.skills.slice(0, 60).map((s) => (s.evidence ? `${s.name} (${s.evidence})` : s.name)),
+    skills: parsed.skills
+      .slice(0, 60)
+      .map((s) => (s.evidence ? `${s.name} (${s.evidence})` : s.name)),
     experience: parsed.experience.slice(0, 10).map((e) => ({
       title: e.title,
       company: e.company,
-      period: [e.startDate, e.current ? "present" : e.endDate].filter(Boolean).join(" – "),
+      period: [e.startDate, e.current ? "present" : e.endDate]
+        .filter(Boolean)
+        .join(" – "),
       technologies: e.technologies.slice(0, 15),
       highlights: e.highlights.slice(0, 6),
     })),
@@ -265,14 +318,21 @@ function compactResume(parsed: ParsedResume) {
   };
 }
 
-async function analyzeCandidate(job: JobRecord, parsed: ParsedResume): Promise<AiAnalysis> {
+async function analyzeCandidate(
+  job: JobRecord,
+  parsed: ParsedResume,
+  candidateId: string,
+): Promise<AiAnalysis> {
   const raw = (await chatJson({
     system: ANALYSIS_SYSTEM,
     user: `Role: ${job.title}
 
 Requirements:
 ${job.requirements
-  .map((r) => `- id=${r.id} [${r.category}${r.must ? ", MUST-HAVE" : ", nice-to-have"}] ${r.text}`)
+  .map(
+    (r) =>
+      `- id=${r.id} [${r.category}${r.must ? ", MUST-HAVE" : ", nice-to-have"}] ${r.text}`,
+  )
   .join("\n")}
 
 Candidate resume (JSON):
@@ -284,6 +344,20 @@ ${JSON.stringify(compactResume(parsed))}`,
     maxTokens: 2000,
   })) as LooseAnalysis;
 
+  return coerceAiAnalysis(raw, candidateId);
+}
+
+/**
+ * Coerce + validate the model's candidate analysis into domain types. Untrusted
+ * model output (AI principles #1): every field is narrowed, clamped and sliced
+ * here — nothing reaches the match record unchecked. `idPrefix` (the resume id)
+ * keeps evidence item ids stable across a re-screening.
+ */
+export function coerceAiAnalysis(raw: unknown, idPrefix: string): AiAnalysis {
+  const o = (
+    typeof raw === "object" && raw !== null ? raw : {}
+  ) as LooseAnalysis;
+
   const clamp = (v: unknown) => {
     const n = Number(v);
     return Number.isFinite(n) ? Math.max(0, Math.min(100, Math.round(n))) : 0;
@@ -294,53 +368,77 @@ ${JSON.stringify(compactResume(parsed))}`,
       .map((x) => x.trim())
       .slice(0, limit);
 
-  const requirements = new Map<string, { status: RequirementVerdict["status"]; score: number; evidence?: string | undefined }>();
-  for (const item of Array.isArray(raw.requirements) ? raw.requirements : []) {
+  const requirements = new Map<
+    string,
+    {
+      status: RequirementVerdict["status"];
+      score: number;
+      evidence?: string | undefined;
+    }
+  >();
+  for (const item of Array.isArray(o.requirements) ? o.requirements : []) {
     if (typeof item !== "object" || item === null) continue;
     const r = item as LooseVerdict;
     if (typeof r.id !== "string") continue;
     const status: RequirementVerdict["status"] =
-      r.status === "met" || r.status === "partial" || r.status === "missing" ? r.status : "missing";
+      r.status === "met" || r.status === "partial" || r.status === "missing"
+        ? r.status
+        : "missing";
     requirements.set(r.id, {
       status,
       score: clamp(r.score),
-      evidence: typeof r.evidence === "string" ? r.evidence.trim() || undefined : undefined,
+      evidence:
+        typeof r.evidence === "string"
+          ? r.evidence.trim() || undefined
+          : undefined,
     });
   }
 
-  const scoresRaw = (typeof raw.categoryScores === "object" && raw.categoryScores !== null
-    ? raw.categoryScores
-    : {}) as Record<string, unknown>;
+  const scoresRaw = (
+    typeof o.categoryScores === "object" && o.categoryScores !== null
+      ? o.categoryScores
+      : {}
+  ) as Record<string, unknown>;
   const categoryScores: Partial<Record<ScoreCategory, number>> = {};
   for (const category of ALL_CATEGORIES) {
-    if (scoresRaw[category] !== undefined) categoryScores[category] = clamp(scoresRaw[category]);
+    if (scoresRaw[category] !== undefined)
+      categoryScores[category] = clamp(scoresRaw[category]);
   }
 
-  const evidence: EvidenceItem[] = (Array.isArray(raw.evidence) ? raw.evidence : [])
+  // Model evidence becomes provenance-tagged items: claim = the skill, quote =
+  // the verbatim backing, provenance "ai". Confidence is high because the prompt
+  // forbids asserting evidence that is not in the resume.
+  const evidence: EvidenceItem[] = (Array.isArray(o.evidence) ? o.evidence : [])
     .filter((x): x is LooseEvidence => typeof x === "object" && x !== null)
-    .map((e) => ({
-      skill: String(e.skill ?? "").trim(),
-      detail: String(e.detail ?? "").trim(),
+    .map((e, i) => ({
+      id: `${idPrefix}-ev-${i + 1}`,
+      claim: String(e.skill ?? "").trim(),
+      quote: String(e.detail ?? "").trim(),
       source: String(e.source ?? "").trim(),
+      provenance: "ai" as const,
+      confidence: 0.9,
     }))
-    .filter((e) => e.skill && e.detail)
+    .filter((e) => e.claim && e.quote)
     .slice(0, 5);
 
   return {
     requirements,
     categoryScores,
-    strengths: strings(raw.strengths, 3),
-    gaps: strings(raw.gaps, 3),
-    transferable: strings(raw.transferable, 3),
+    strengths: strings(o.strengths, 3),
+    gaps: strings(o.gaps, 3),
+    transferable: strings(o.transferable, 3),
     evidence,
-    summary: typeof raw.summary === "string" ? raw.summary.trim() : "",
+    summary: typeof o.summary === "string" ? o.summary.trim() : "",
   };
 }
 
 /* -------------------------------- blending -------------------------------- */
 
-function blend(signals: SignalBreakdown): number {
-  const weights = signals.ai === null ? { keyword: 0.6, semantic: 0.4, ai: 0 } : { keyword: 0.3, semantic: 0.2, ai: 0.5 };
+export function blend(signals: SignalBreakdown): number {
+  const weights =
+    signals.ai === null
+      ? { keyword: 0.6, semantic: 0.4, ai: 0 }
+      : { keyword: 0.3, semantic: 0.2, ai: 0.5 };
   const total = weights.keyword + weights.semantic + weights.ai;
   const sum =
     signals.keyword * weights.keyword +
@@ -356,7 +454,10 @@ function average(values: number[], fallback = 0) {
 
 /* --------------------------------- driver --------------------------------- */
 
-export type ScreenProgress = (progress: { scored: number; aiAnalyzed: number }) => void;
+export type ScreenProgress = (progress: {
+  scored: number;
+  aiAnalyzed: number;
+}) => void;
 
 export async function screen(
   job: JobRecord,
@@ -381,7 +482,10 @@ export async function screen(
     try {
       semanticByResume = await semanticScores(job, usable, blobsByResume);
     } catch (error) {
-      console.error("[matching] semantic pass failed, continuing without it:", error);
+      console.error(
+        "[matching] semantic pass failed, continuing without it:",
+        error,
+      );
     }
   }
 
@@ -391,7 +495,11 @@ export async function screen(
     const semantic = semanticByResume.get(resume.id);
     const keyword = keywordScores(job, resume, blobs, allText);
     const prescore = average(
-      ALL_CATEGORIES.map((c) => (keyword.byCategory[c] + (semantic?.[c] ?? keyword.byCategory[c])) / 2),
+      ALL_CATEGORIES.map(
+        (c) =>
+          (keyword.byCategory[c] + (semantic?.[c] ?? keyword.byCategory[c])) /
+          2,
+      ),
     );
     return { resume, blobs, allText, keyword, semantic, prescore };
   });
@@ -399,22 +507,34 @@ export async function screen(
   // --- Signal 3: LLM analysis, best-first within the configured budget ---
   const aiOrder = [...prescored].sort((a, b) => b.prescore - a.prescore);
   const aiTargets = new Set(
-    caps.chat ? aiOrder.slice(0, config.scoring.aiAnalysisLimit).map((p) => p.resume.id) : [],
+    caps.chat
+      ? aiOrder.slice(0, config.scoring.aiAnalysisLimit).map((p) => p.resume.id)
+      : [],
   );
 
   const analyses = new Map<string, AiAnalysis>();
   let scored = 0;
   let aiAnalyzed = 0;
 
-  await runPool(aiOrder.filter((p) => aiTargets.has(p.resume.id)), config.scoring.concurrency, async (entry) => {
-    try {
-      analyses.set(entry.resume.id, await analyzeCandidate(job, entry.resume.parsed!));
-      aiAnalyzed += 1;
-    } catch (error) {
-      console.error(`[matching] AI analysis failed for ${entry.resume.fileName}:`, error);
-    }
-    onProgress?.({ scored, aiAnalyzed });
-  });
+  await runPool(
+    aiOrder.filter((p) => aiTargets.has(p.resume.id)),
+    config.scoring.concurrency,
+    async (entry) => {
+      try {
+        analyses.set(
+          entry.resume.id,
+          await analyzeCandidate(job, entry.resume.parsed!, entry.resume.id),
+        );
+        aiAnalyzed += 1;
+      } catch (error) {
+        console.error(
+          `[matching] AI analysis failed for ${entry.resume.fileName}:`,
+          error,
+        );
+      }
+      onProgress?.({ scored, aiAnalyzed });
+    },
+  );
 
   // --- Combine ---
   const matches: MatchRecord[] = [];
@@ -426,53 +546,106 @@ export async function screen(
     for (const category of ALL_CATEGORIES) {
       signals[category] = {
         keyword: entry.keyword.byCategory[category],
-        semantic: entry.semantic?.[category] ?? entry.keyword.byCategory[category],
+        semantic:
+          entry.semantic?.[category] ?? entry.keyword.byCategory[category],
         ai: analysis?.categoryScores[category] ?? null,
       };
       categories[category] = blend(signals[category]);
     }
 
-    const requirements: RequirementVerdict[] = job.requirements.map((requirement) => {
-      const fromAi = analysis?.requirements.get(requirement.id);
-      const deterministic = entry.keyword.byRequirement.get(requirement.id);
-      if (fromAi) {
+    const requirements: RequirementVerdict[] = job.requirements.map(
+      (requirement) => {
+        const fromAi = analysis?.requirements.get(requirement.id);
+        const deterministic = entry.keyword.byRequirement.get(requirement.id);
+        const claim = requirement.text;
+        if (fromAi) {
+          // The AI verdict cites the model's own evidence sentence when present,
+          // otherwise it degrades to the deterministic keyword hit (same provenance).
+          const evidence =
+            fromAi.evidence ?? deterministicEvidence(deterministic);
+          return {
+            requirementId: requirement.id,
+            status: fromAi.status,
+            score: fromAi.score,
+            evidence,
+            evidenceItems: [
+              {
+                id: `${entry.resume.id}-vr-${requirement.id}`,
+                claim,
+                quote:
+                  evidence ??
+                  "No explicit evidence sentence returned by the model.",
+                source: fromAi.evidence ? "candidate analysis" : "keyword pass",
+                provenance: fromAi.evidence
+                  ? ("ai" as const)
+                  : ("keyword" as const),
+                confidence: fromAi.status === "met" ? 0.9 : 0.6,
+              },
+            ],
+          };
+        }
+        const score = deterministic?.score ?? 0;
+        const status: RequirementVerdict["status"] =
+          score >= 70 ? "met" : score >= 35 ? "partial" : "missing";
+        const evidence = deterministicEvidence(deterministic);
         return {
           requirementId: requirement.id,
-          status: fromAi.status,
-          score: fromAi.score,
-          evidence: fromAi.evidence ?? deterministicEvidence(deterministic),
+          status,
+          score,
+          evidence,
+          evidenceItems: evidence
+            ? [
+                {
+                  id: `${entry.resume.id}-vr-${requirement.id}`,
+                  claim,
+                  quote: evidence,
+                  source: "keyword pass",
+                  provenance: "keyword" as const,
+                  confidence: score / 100,
+                },
+              ]
+            : [],
         };
-      }
-      const score = deterministic?.score ?? 0;
-      return {
-        requirementId: requirement.id,
-        status: score >= 70 ? "met" : score >= 35 ? "partial" : "missing",
-        score,
-        evidence: deterministicEvidence(deterministic),
-      };
-    });
+      },
+    );
 
     const mustHaves = job.requirements.filter((r) => r.must);
     const mustMet = mustHaves.filter(
-      (r) => requirements.find((v) => v.requirementId === r.id)?.status === "met",
+      (r) =>
+        requirements.find((v) => v.requirementId === r.id)?.status === "met",
     ).length;
 
     matches.push({
       resumeId: entry.resume.id,
       jobId: job.id,
+      // The score explanation snapshots the raw categories + signals so the
+      // client can re-weight instantly without re-running the pipeline.
+      score: {
+        overall: scoreOf(categories, DEFAULT_WEIGHTS),
+        weights: DEFAULT_WEIGHTS,
+        categories: ALL_CATEGORIES.map((category) => ({
+          category,
+          value: categories[category],
+          signals: signals[category],
+        })),
+        aiAnalyzed: Boolean(analysis),
+      },
       categories,
       signals,
       requirements,
+      evidence: analysis?.evidence.length
+        ? analysis.evidence
+        : deterministicEvidenceItems(entry.resume),
+      mustHaves: { met: mustMet, total: mustHaves.length },
       strengths: analysis?.strengths.length
         ? analysis.strengths
         : deterministicStrengths(job, entry.keyword, entry.resume),
-      gaps: analysis?.gaps.length ? analysis.gaps : deterministicGaps(job, entry.keyword),
+      gaps: analysis?.gaps.length
+        ? analysis.gaps
+        : deterministicGaps(job, entry.keyword),
       transferable: analysis?.transferable ?? [],
-      evidence: analysis?.evidence.length ? analysis.evidence : deterministicEvidenceItems(entry.resume),
       summary: analysis?.summary ?? "",
       aiAnalyzed: Boolean(analysis),
-      mustHavesMet: mustMet,
-      mustHavesTotal: mustHaves.length,
       scoredAt: new Date().toISOString(),
     });
 
@@ -495,7 +668,10 @@ function keywordScores(
   allText: string,
 ): KeywordResult {
   const byRequirement = new Map<string, KeywordHit & { score: number }>();
-  const perCategory: Record<ScoreCategory, { score: number; weight: number }[]> = {
+  const perCategory: Record<
+    ScoreCategory,
+    { score: number; weight: number }[]
+  > = {
     skills: [],
     experience: [],
     education: [],
@@ -506,16 +682,29 @@ function keywordScores(
   for (const requirement of job.requirements) {
     const category = CATEGORY_OF_REQUIREMENT[requirement.category];
     const hit = keywordSignal(requirement, blobs[category], allText);
-    const tenure = yearsSignal(requirement, resume.parsed?.totalYearsExperience);
-    const score = tenure === undefined ? hit.score : Math.round(hit.score * 0.4 + tenure * 0.6);
+    const tenure = yearsSignal(
+      requirement,
+      resume.parsed?.totalYearsExperience,
+    );
+    const score =
+      tenure === undefined
+        ? hit.score
+        : Math.round(hit.score * 0.4 + tenure * 0.6);
 
     byRequirement.set(requirement.id, { ...hit, score });
     perCategory[category].push({ score, weight: requirement.must ? 1 : 0.6 });
 
     // Project work is scored against the same role keywords, in the projects text.
-    const projectHit = keywordSignal(requirement, blobs.projects, blobs.projects);
+    const projectHit = keywordSignal(
+      requirement,
+      blobs.projects,
+      blobs.projects,
+    );
     if (projectHit.matched.length) {
-      perCategory.projects.push({ score: projectHit.score, weight: requirement.must ? 1 : 0.6 });
+      perCategory.projects.push({
+        score: projectHit.score,
+        weight: requirement.must ? 1 : 0.6,
+      });
     }
   }
 
@@ -541,7 +730,9 @@ async function semanticScores(
   resumes: ResumeRecord[],
   blobsByResume: Map<string, Record<ScoreCategory, string>>,
 ): Promise<Map<string, Record<ScoreCategory, number>>> {
-  const requirementTexts = job.requirements.map((r) => `${r.category}: ${r.text}`);
+  const requirementTexts = job.requirements.map(
+    (r) => `${r.category}: ${r.text}`,
+  );
   const blobTexts: string[] = [];
   for (const resume of resumes) {
     const blobs = blobsByResume.get(resume.id)!;
@@ -551,7 +742,9 @@ async function semanticScores(
     }
   }
 
-  const vectors = await embedCached([...new Set([...requirementTexts, ...blobTexts])]);
+  const vectors = await embedCached([
+    ...new Set([...requirementTexts, ...blobTexts]),
+  ]);
   const result = new Map<string, Record<ScoreCategory, number>>();
 
   for (const resume of resumes) {
@@ -576,7 +769,9 @@ async function semanticScores(
         .filter((v): v is number[] => Boolean(v))
         .map((v) => normalizeSimilarity(cosineSimilarity(v, blobVector)));
 
-      scores[category] = similarities.length ? Math.round(average(similarities)) : 0;
+      scores[category] = similarities.length
+        ? Math.round(average(similarities))
+        : 0;
     }
 
     result.set(resume.id, scores);
@@ -590,7 +785,11 @@ function deterministicEvidence(hit?: KeywordHit) {
   return `Keyword match: ${hit.matched.slice(0, 5).join(", ")}`;
 }
 
-function deterministicStrengths(job: JobRecord, keyword: KeywordResult, resume: ResumeRecord) {
+function deterministicStrengths(
+  job: JobRecord,
+  keyword: KeywordResult,
+  resume: ResumeRecord,
+) {
   const strong = job.requirements
     .filter((r) => (keyword.byRequirement.get(r.id)?.score ?? 0) >= 70)
     .slice(0, 3)
@@ -610,25 +809,37 @@ function deterministicGaps(job: JobRecord, keyword: KeywordResult) {
 function deterministicEvidenceItems(resume: ResumeRecord): EvidenceItem[] {
   const parsed = resume.parsed;
   if (!parsed) return [];
+  // Keyword provenance: claim = the skill, quote = the verbatim evidence the
+  // parser anchored on, source = where on the resume it lives.
   return parsed.skills
     .filter((s) => s.evidence)
     .slice(0, 4)
-    .map((s) => ({
-      skill: s.name,
-      detail: s.evidence!,
+    .map((s, i) => ({
+      id: `${resume.id}-ev-${i + 1}`,
+      claim: `Skill: ${s.name}`,
+      quote: s.evidence!,
       source: parsed.experience[0]?.company ?? resume.fileName,
+      provenance: "keyword" as const,
+      confidence: 0.9,
     }));
 }
 
 /** Runs an async task over items with a fixed number of workers. */
-async function runPool<T>(items: T[], size: number, task: (item: T) => Promise<void>) {
+async function runPool<T>(
+  items: T[],
+  size: number,
+  task: (item: T) => Promise<void>,
+) {
   const queue = [...items];
-  const workers = Array.from({ length: Math.max(1, Math.min(size, queue.length)) }, async () => {
-    while (queue.length) {
-      const item = queue.shift();
-      if (item === undefined) return;
-      await task(item);
-    }
-  });
+  const workers = Array.from(
+    { length: Math.max(1, Math.min(size, queue.length)) },
+    async () => {
+      while (queue.length) {
+        const item = queue.shift();
+        if (item === undefined) return;
+        await task(item);
+      }
+    },
+  );
   await Promise.all(workers);
 }
