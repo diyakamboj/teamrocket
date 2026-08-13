@@ -1,0 +1,180 @@
+<!DOCTYPE html>
+<html>
+<head>
+<style>
+  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #0f172a; color: #e2e8f0; padding: 30px; margin: 0; }
+  .diagram { max-width: 1100px; margin: 0 auto; }
+  h1 { text-align: center; color: #64ffda; margin-bottom: 8px; font-size: 24px; }
+  .subtitle { text-align: center; color: #888; margin-bottom: 36px; font-size: 14px; }
+
+  /* Flow rows */
+  .flow-row { display: flex; align-items: center; justify-content: center; gap: 12px; margin-bottom: 8px; flex-wrap: wrap; }
+  .arrow-down { text-align: center; color: #475569; font-size: 28px; margin: 4px 0; }
+  .arrow-right { color: #475569; font-size: 24px; flex-shrink: 0; }
+  .arrow-label { color: #94a3b8; font-size: 11px; text-align: center; margin: -2px 0 2px; }
+
+  /* Resource boxes */
+  .box { border-radius: 10px; padding: 14px 20px; text-align: center; min-width: 140px; max-width: 200px; border: 2px solid; }
+  .box .icon { font-size: 28px; margin-bottom: 4px; }
+  .box .title { font-weight: 700; font-size: 13px; }
+  .box .desc { font-size: 11px; color: #94a3b8; margin-top: 3px; }
+
+  .user { background: #1e293b; border-color: #3b82f6; }
+  .storage { background: #0f2a1f; border-color: #22c55e; }
+  .ai { background: #1a0f2e; border-color: #a855f7; }
+  .compute { background: #1f1a0f; border-color: #f97316; }
+  .data { background: #0f1f2e; border-color: #06b6d4; }
+  .security { background: #2e2a0f; border-color: #eab308; }
+  .cicd { background: #0f2e2e; border-color: #14b8a6; }
+
+  /* Side panels */
+  .main-flow { display: flex; flex-direction: column; align-items: center; flex: 1; }
+  .layout { display: flex; gap: 40px; align-items: flex-start; }
+  .side-panel { display: flex; flex-direction: column; gap: 12px; padding-top: 60px; }
+  .side-label { font-size: 11px; text-transform: uppercase; letter-spacing: 1.5px; color: #64748b; text-align: center; margin-bottom: 4px; }
+  .connector { border-left: 2px dashed #334155; height: 20px; margin-left: 50%; }
+
+  /* Sections */
+  .section-divider { border: none; border-top: 1px solid #1e293b; margin: 30px 0; }
+  .section-label { text-align: center; font-size: 12px; text-transform: uppercase; letter-spacing: 2px; color: #475569; margin: 20px 0 16px; }
+
+  /* Parallel group */
+  .parallel { display: flex; gap: 16px; justify-content: center; flex-wrap: wrap; }
+  .parallel-connector { display: flex; justify-content: center; gap: 80px; color: #475569; font-size: 28px; }
+</style>
+</head>
+<body>
+<div class="diagram">
+  <h1>🏗️ Resume Screening Assistant — Architecture</h1>
+  <p class="subtitle">End-to-end flow from resume upload to candidate ranking</p>
+
+  <!-- USER -->
+  <div class="flow-row">
+    <div class="box user">
+      <div class="icon">👤</div>
+      <div class="title">User / Recruiter</div>
+      <div class="desc">Uploads resume, posts job</div>
+    </div>
+  </div>
+  <div class="arrow-down">▼</div>
+  <div class="arrow-label">browser</div>
+
+  <!-- FRONTEND -->
+  <div class="flow-row">
+    <div class="box storage">
+      <div class="icon">⚛️</div>
+      <div class="title">React Frontend</div>
+      <div class="desc">Static Website on Blob Storage</div>
+    </div>
+  </div>
+  <div class="arrow-down">▼</div>
+  <div class="arrow-label">API calls</div>
+
+  <!-- BACKEND -->
+  <div class="flow-row">
+    <div class="box compute">
+      <div class="icon">⚡</div>
+      <div class="title">FastAPI Backend</div>
+      <div class="desc">App Service (Linux, Python 3.12)</div>
+    </div>
+  </div>
+
+  <div class="arrow-down">▼</div>
+  <div class="arrow-label">orchestrates all services via Managed Identity</div>
+
+  <!-- AI SERVICES ROW -->
+  <div class="section-label">AI Processing Pipeline</div>
+
+  <div class="parallel">
+    <div style="display:flex; flex-direction:column; align-items:center;">
+      <div class="box ai">
+        <div class="icon">📄</div>
+        <div class="title">Document Intelligence</div>
+        <div class="desc">Extract text + layout from PDF/DOCX resumes</div>
+      </div>
+      <div class="arrow-down">▼</div>
+      <div class="arrow-label">raw text</div>
+    </div>
+  </div>
+
+  <div class="parallel">
+    <div class="box ai">
+      <div class="icon">🧠</div>
+      <div class="title">Azure OpenAI</div>
+      <div class="desc">GPT-5.2: parse, rank, explain<br>Embeddings: vectorize resumes + jobs</div>
+    </div>
+    <div class="arrow-right">→</div>
+    <div class="box ai">
+      <div class="icon">🔍</div>
+      <div class="title">AI Search</div>
+      <div class="desc">Keyword + semantic matching<br>Vector index of all resumes</div>
+    </div>
+  </div>
+
+  <div class="arrow-down">▼</div>
+
+  <div class="parallel">
+    <div class="box ai">
+      <div class="icon">🤖</div>
+      <div class="title">AI Foundry Agent</div>
+      <div class="desc">Orchestrates multi-step screening<br>Uses OpenAI + Search as tools</div>
+    </div>
+  </div>
+
+  <!-- DATA LAYER -->
+  <div class="section-label">Data Layer</div>
+
+  <div class="parallel">
+    <div class="box storage">
+      <div class="icon">📁</div>
+      <div class="title">Blob Storage</div>
+      <div class="desc">resumes/ — raw files<br>processed/ — extracted data</div>
+    </div>
+    <div class="box data">
+      <div class="icon">🗄️</div>
+      <div class="title">PostgreSQL</div>
+      <div class="desc">Users, jobs, candidates<br>Screening results + scores</div>
+    </div>
+    <div class="box security">
+      <div class="icon">🔐</div>
+      <div class="title">Key Vault</div>
+      <div class="desc">DB password<br>Any future secrets</div>
+    </div>
+  </div>
+
+  <!-- CI/CD -->
+  <hr class="section-divider">
+  <div class="section-label">CI/CD & Deployment</div>
+
+  <div class="parallel">
+    <div class="box cicd">
+      <div class="icon">🔧</div>
+      <div class="title">GitHub Actions</div>
+      <div class="desc">Terraform plan/apply<br>Infrastructure changes</div>
+    </div>
+    <div class="box cicd">
+      <div class="icon">🚀</div>
+      <div class="title">Azure DevOps</div>
+      <div class="desc">Backend: test + deploy FastAPI<br>Frontend: build + deploy React</div>
+    </div>
+  </div>
+
+  <!-- Flow summary -->
+  <hr class="section-divider">
+  <div style="background:#1e293b; border-radius:10px; padding:20px; margin-top:10px;">
+    <div style="font-weight:700; color:#64ffda; margin-bottom:10px;">📋 The Flow</div>
+    <div style="font-size:13px; line-height:2; color:#cbd5e1;">
+      <strong>1.</strong> Recruiter uploads resume via <strong>React frontend</strong><br>
+      <strong>2.</strong> <strong>FastAPI</strong> stores file in <strong>Blob Storage</strong><br>
+      <strong>3.</strong> <strong>Document Intelligence</strong> extracts text + structure from the PDF<br>
+      <strong>4.</strong> <strong>OpenAI embeddings</strong> vectorize the content<br>
+      <strong>5.</strong> <strong>AI Search</strong> indexes it for keyword + semantic queries<br>
+      <strong>6.</strong> When a job is posted, <strong>GPT-5.2</strong> ranks matching candidates<br>
+      <strong>7.</strong> <strong>AI Foundry Agent</strong> can run full multi-step screening autonomously<br>
+      <strong>8.</strong> Results stored in <strong>PostgreSQL</strong>, displayed in the frontend
+    </div>
+  </div>
+
+</div>
+</body>
+</html>

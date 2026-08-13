@@ -1,0 +1,165 @@
+<!DOCTYPE html>
+<html>
+<head>
+<style>
+  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #1a1a2e; color: #eee; padding: 40px; }
+  .diagram { max-width: 1000px; margin: 0 auto; }
+  h1 { text-align: center; color: #64ffda; margin-bottom: 40px; }
+  .section { display: grid; grid-template-columns: 200px 1fr; gap: 16px; margin-bottom: 24px; align-items: start; }
+  .file-box { background: #16213e; border: 2px solid #0f3460; border-radius: 8px; padding: 12px 16px; font-family: monospace; font-size: 14px; color: #64ffda; text-align: center; }
+  .arrow { display: flex; align-items: center; justify-content: center; color: #555; font-size: 20px; }
+  .resources { display: flex; flex-wrap: wrap; gap: 8px; }
+  .resource { background: #0f3460; border-radius: 6px; padding: 8px 12px; font-size: 13px; color: #e2e8f0; border-left: 3px solid; }
+  .resource.compute { border-color: #f97316; }
+  .resource.data { border-color: #22c55e; }
+  .resource.ai { border-color: #a855f7; }
+  .resource.security { border-color: #eab308; }
+  .resource.cicd { border-color: #06b6d4; }
+  .legend { display: flex; gap: 20px; justify-content: center; margin-bottom: 30px; flex-wrap: wrap; }
+  .legend-item { display: flex; align-items: center; gap: 6px; font-size: 12px; }
+  .legend-dot { width: 12px; height: 12px; border-radius: 3px; }
+  .separator { border: none; border-top: 1px solid #333; margin: 32px 0; }
+  .group-label { font-size: 11px; text-transform: uppercase; letter-spacing: 1px; color: #888; margin-bottom: 8px; }
+</style>
+</head>
+<body>
+<div class="diagram">
+  <h1>Resume Screening Infra — File → Resource Map</h1>
+
+  <div class="legend">
+    <div class="legend-item"><div class="legend-dot" style="background:#f97316"></div> Compute</div>
+    <div class="legend-item"><div class="legend-dot" style="background:#22c55e"></div> Data/Storage</div>
+    <div class="legend-item"><div class="legend-dot" style="background:#a855f7"></div> AI Services</div>
+    <div class="legend-item"><div class="legend-dot" style="background:#eab308"></div> Security</div>
+    <div class="legend-item"><div class="legend-dot" style="background:#06b6d4"></div> CI/CD</div>
+  </div>
+
+  <hr class="separator">
+  <div class="group-label">Terraform Files</div>
+
+  <div class="section">
+    <div class="file-box">main.tf</div>
+    <div class="resources">
+      <div class="resource compute">Resource Group</div>
+      <div class="resource security">Random Password (PostgreSQL)</div>
+    </div>
+  </div>
+
+  <div class="section">
+    <div class="file-box">keyvault.tf</div>
+    <div class="resources">
+      <div class="resource security">Key Vault</div>
+      <div class="resource security">Deployer Role Assignment</div>
+      <div class="resource security">PostgreSQL Password Secret</div>
+    </div>
+  </div>
+
+  <div class="section">
+    <div class="file-box">storage.tf</div>
+    <div class="resources">
+      <div class="resource data">Storage Account</div>
+      <div class="resource data">Blob Container: resumes</div>
+      <div class="resource data">Blob Container: processed</div>
+      <div class="resource data">Static Website (React host)</div>
+    </div>
+  </div>
+
+  <div class="section">
+    <div class="file-box">database.tf</div>
+    <div class="resources">
+      <div class="resource data">PostgreSQL Flexible Server</div>
+      <div class="resource data">Database: resumedb</div>
+      <div class="resource security">Firewall Rule (Azure Services)</div>
+    </div>
+  </div>
+
+  <div class="section">
+    <div class="file-box">openai.tf</div>
+    <div class="resources">
+      <div class="resource ai">Azure OpenAI Account</div>
+      <div class="resource ai">Deployment: GPT-5.2</div>
+      <div class="resource ai">Deployment: text-embedding-3-large</div>
+    </div>
+  </div>
+
+  <div class="section">
+    <div class="file-box">document_intelligence.tf</div>
+    <div class="resources">
+      <div class="resource ai">AI Document Intelligence (FormRecognizer)</div>
+    </div>
+  </div>
+
+  <div class="section">
+    <div class="file-box">ai_search.tf</div>
+    <div class="resources">
+      <div class="resource ai">Azure AI Search (semantic enabled)</div>
+    </div>
+  </div>
+
+  <div class="section">
+    <div class="file-box">ai_foundry.tf</div>
+    <div class="resources">
+      <div class="resource ai">AI Services Account</div>
+      <div class="resource ai">AI Foundry Hub</div>
+      <div class="resource ai">AI Foundry Project (Agent)</div>
+    </div>
+  </div>
+
+  <div class="section">
+    <div class="file-box">app_service.tf</div>
+    <div class="resources">
+      <div class="resource compute">App Service Plan (Linux)</div>
+      <div class="resource compute">Web App: FastAPI Backend</div>
+      <div class="resource compute">CDN Front Door (prod only)</div>
+    </div>
+  </div>
+
+  <div class="section">
+    <div class="file-box">rbac.tf</div>
+    <div class="resources">
+      <div class="resource security">App → Blob Storage</div>
+      <div class="resource security">App → Key Vault</div>
+      <div class="resource security">App → OpenAI</div>
+      <div class="resource security">App → Doc Intelligence</div>
+      <div class="resource security">App → AI Search (x2)</div>
+      <div class="resource security">Search → Storage</div>
+      <div class="resource security">Search → OpenAI</div>
+      <div class="resource security">Foundry → OpenAI</div>
+      <div class="resource security">Foundry → Search</div>
+      <div class="resource security">Foundry → Storage</div>
+    </div>
+  </div>
+
+  <hr class="separator">
+  <div class="group-label">CI/CD Pipelines</div>
+
+  <div class="section">
+    <div class="file-box">terraform.yml</div>
+    <div class="resources">
+      <div class="resource cicd">GitHub Actions: Plan on PR</div>
+      <div class="resource cicd">GitHub Actions: Apply on merge</div>
+      <div class="resource cicd">Manual dispatch (any env)</div>
+    </div>
+  </div>
+
+  <div class="section">
+    <div class="file-box">backend-pipeline.yml</div>
+    <div class="resources">
+      <div class="resource cicd">Azure DevOps: Lint + Test</div>
+      <div class="resource cicd">Deploy FastAPI → App Service</div>
+      <div class="resource cicd">Health Check</div>
+    </div>
+  </div>
+
+  <div class="section">
+    <div class="file-box">frontend-pipeline.yml</div>
+    <div class="resources">
+      <div class="resource cicd">Azure DevOps: Build React</div>
+      <div class="resource cicd">Upload to Static Website ($web)</div>
+      <div class="resource cicd">CDN Purge (prod)</div>
+    </div>
+  </div>
+
+</div>
+</body>
+</html>
