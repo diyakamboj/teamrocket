@@ -23,7 +23,9 @@ export type AgentAskResponse = {
   response: string;
   candidates_referenced: string[];
   chat_turn: number;
-  source: "chatbot" | "local" | string;
+  source: "chatbot" | "local" | "agent" | string;
+  engine?: "agent" | "deterministic" | "chatbot" | "comparison" | string;
+  tools?: string[];
   citations: AgentCitation[];
   chatbot_conversation_id?: string | null;
   job_id?: string | null;

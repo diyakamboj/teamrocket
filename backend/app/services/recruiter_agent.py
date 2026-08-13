@@ -7,9 +7,10 @@ from sqlalchemy.orm import Session
 
 from app.models.evaluation import AgentSession
 from app.models.job_posting import JobPosting
-from app.services.azure_services import openai_service
+from app.models.schemas import WeightConfig
 from app.services.candidate_comparison import candidate_comparison
-from app.services.candidate_matcher import candidate_matcher
+from app.services.copilot_agent import copilot_answer
+from app.services.copilot_pool import extract_candidate_ids
 from app.services.chatbot_client import chatbot_client
 from app.utils.error_handlers import NotFoundError
 from app.utils.logger import get_logger
@@ -28,11 +29,7 @@ class RecruiterCopilot:
         if job:
             return job
 
-        job = (
-            db.query(JobPosting)
-            .order_by(JobPosting.created_at.desc())
-            .first()
-        )
+        job = db.query(JobPosting).order_by(JobPosting.created_at.desc()).first()
         if job:
             return job
 
@@ -63,6 +60,7 @@ class RecruiterCopilot:
         session_id: Optional[UUID] = None,
         chatbot_conversation_id: Optional[str] = None,
         blind_mode: bool = False,
+        weights: Optional[WeightConfig] = None,
     ) -> dict[str, Any]:
         if job_id:
             job = db.get(JobPosting, job_id)
@@ -70,11 +68,6 @@ class RecruiterCopilot:
                 raise NotFoundError("Job posting not found", {"job_id": str(job_id)})
         else:
             job = await self.ensure_default_job(db, recruiter_email)
-
-        ranked = await candidate_matcher.rank_candidates(
-            db, job.id, persist=True, blind_mode=blind_mode
-        )
-        top = ranked[:10]
 
         session = None
         if session_id:
@@ -89,49 +82,85 @@ class RecruiterCopilot:
             db.flush()
 
         history = list(session.messages or [])
-        context_block = self._build_context(job, ranked, top, user_query, blind_mode)
-
-        # Prefer Chat-with-Your-Data accelerator when available
+        compare_ids = await self._extract_compare_ids(user_query, db, job.id, blind_mode)
         source = "local"
         citations: list[Any] = []
         external_conversation_id = chatbot_conversation_id
         assistant_response: Optional[str] = None
+        engine = "deterministic"
+        tools: list[str] = []
 
-        compare_ids = self._extract_compare_ids(user_query, ranked)
         if compare_ids and len(compare_ids) >= 2:
             comparison = await candidate_comparison.compare(
                 db, job.id, compare_ids, blind_mode=blind_mode
             )
             assistant_response = comparison["comparison"]
             source = "local"
-        elif chatbot_client.enabled:
-            try:
-                cwyd_messages = self._to_cwyd_messages(history, context_block)
-                result = await chatbot_client.ask(
-                    messages=cwyd_messages,
-                    conversation_id=chatbot_conversation_id,
-                    user_id=self._stable_user_id(recruiter_email),
-                )
-                assistant_response = result.get("content") or ""
-                citations = result.get("citations") or []
-                external_conversation_id = result.get("conversation_id") or chatbot_conversation_id
-                source = "chatbot"
-            except Exception as exc:
-                logger.warning("Chatbot accelerator unavailable, using local agent: %s", exc)
-
-        if not assistant_response:
-            messages = [
-                {"role": "system", "content": "You are an expert technical recruiter copilot."}
-            ]
-            messages.extend(history)
-            messages.append({"role": "user", "content": context_block})
-            assistant_response = openai_service.chat_text(
-                context_block,
-                messages=messages,
-                temperature=0.7,
-                max_tokens=1000,
+            engine = "comparison"
+        else:
+            result = await copilot_answer(
+                db=db,
+                job=job,
+                question=user_query,
+                blind=blind_mode,
+                weights=weights,
             )
-            source = "local"
+            assistant_response = result["answer"]
+            citations = result.get("citations") or []
+            engine = result.get("engine") or "agent"
+            tools = result.get("tools") or []
+            source = "agent" if engine == "agent" else "local"
+            pool = result.get("pool") or []
+
+            # Optional CWYD enrichment when local agent is deterministic and CWYD is up
+            if engine == "deterministic" and chatbot_client.enabled:
+                try:
+                    cwyd_messages = self._to_cwyd_messages(history, assistant_response, user_query)
+                    cwyd = await chatbot_client.ask(
+                        messages=cwyd_messages,
+                        conversation_id=chatbot_conversation_id,
+                        user_id=self._stable_user_id(recruiter_email),
+                    )
+                    if cwyd.get("content"):
+                        assistant_response = cwyd["content"]
+                        citations = cwyd.get("citations") or citations
+                        external_conversation_id = cwyd.get("conversation_id") or chatbot_conversation_id
+                        source = "chatbot"
+                        engine = "chatbot"
+                except Exception as exc:
+                    logger.warning("Chatbot accelerator unavailable, using local agent: %s", exc)
+
+            candidates_referenced = extract_candidate_ids(assistant_response or "", pool)
+            history.append({"role": "user", "content": user_query})
+            history.append(
+                {
+                    "role": "assistant",
+                    "content": assistant_response,
+                    "metadata": {
+                        "source": source,
+                        "engine": engine,
+                        "tools": tools,
+                        "citations": citations,
+                        "chatbot_conversation_id": external_conversation_id,
+                    },
+                }
+            )
+            session.messages = history
+            db.commit()
+            db.refresh(session)
+
+            return {
+                "session_id": session.id,
+                "response": assistant_response,
+                "candidates_referenced": candidates_referenced,
+                "chat_turn": len(history) // 2,
+                "source": source,
+                "engine": engine,
+                "tools": tools,
+                "citations": citations,
+                "chatbot_conversation_id": external_conversation_id,
+                "job_id": job.id,
+            }
 
         history.append({"role": "user", "content": user_query})
         history.append(
@@ -140,6 +169,7 @@ class RecruiterCopilot:
                 "content": assistant_response,
                 "metadata": {
                     "source": source,
+                    "engine": engine,
                     "citations": citations,
                     "chatbot_conversation_id": external_conversation_id,
                 },
@@ -152,9 +182,11 @@ class RecruiterCopilot:
         return {
             "session_id": session.id,
             "response": assistant_response,
-            "candidates_referenced": self._extract_candidate_ids(assistant_response, ranked),
+            "candidates_referenced": compare_ids,
             "chat_turn": len(history) // 2,
             "source": source,
+            "engine": engine,
+            "tools": tools,
             "citations": citations,
             "chatbot_conversation_id": external_conversation_id,
             "job_id": job.id,
@@ -166,55 +198,24 @@ class RecruiterCopilot:
             query = query.filter(AgentSession.recruiter_email == recruiter_email)
         return query.limit(50).all()
 
-    def _build_context(
-        self,
-        job: JobPosting,
-        ranked: list[dict[str, Any]],
-        top: list[dict[str, Any]],
-        user_query: str,
-        blind_mode: bool = False,
-    ) -> str:
-        identity_instruction = (
-            "Blind review is ON: candidates below are already identified only by "
-            "anonymized labels (e.g. 'Candidate-abcd1234'). Use those labels exactly "
-            "as given — never invent, infer, or ask for a real name or contact detail."
-            if blind_mode
-            else "Mention candidate names and overall scores when relevant."
-        )
-        return f"""
-You are a recruiter assistant for ResumeIQ. Use the candidate pool and job requirements below.
-Prefer grounded answers. If using retrieved documents, cite them.
-
-Role: {job.title}
-Required skills: {job.required_skills}
-Nice to have: {job.nice_to_have_skills}
-Years required: {job.required_experience_years}
-Education: {job.education_requirements}
-
-Candidate pool size: {len(ranked)}
-Top 10 ranked candidates:
-{top}
-
-User question: {user_query}
-
-Respond with specific candidate recommendations, insights, and explanations.
-{identity_instruction}
-""".strip()
-
     def _to_cwyd_messages(
         self,
         history: list[dict[str, Any]],
-        context_block: str,
+        context_answer: str,
+        user_query: str,
     ) -> list[dict[str, str]]:
-        """Map local session history into CWYD conversation messages."""
         messages: list[dict[str, str]] = []
         for turn in history[-8:]:
             role = turn.get("role")
             content = turn.get("content")
             if role in {"user", "assistant"} and content:
                 messages.append({"role": role, "content": str(content)})
-        # Final user turn includes screening context for grounding
-        messages.append({"role": "user", "content": context_block})
+        messages.append(
+            {
+                "role": "user",
+                "content": f"{user_query}\n\nLocal screening context:\n{context_answer}",
+            }
+        )
         return messages
 
     @staticmethod
@@ -222,7 +223,25 @@ Respond with specific candidate recommendations, insights, and explanations.
         digest = hashlib.md5(email.encode("utf-8")).hexdigest()
         return f"{digest[:8]}-{digest[8:12]}-{digest[12:16]}-{digest[16:20]}-{digest[20:32]}"
 
-    def _extract_candidate_ids(self, text: str, ranked: list[dict[str, Any]]) -> list[UUID]:
+    async def _extract_compare_ids(
+        self,
+        query: str,
+        db: Session,
+        job_id: UUID,
+        blind_mode: bool,
+    ) -> list[UUID]:
+        if "compare" not in query.lower():
+            return []
+        from app.services.candidate_matcher import candidate_matcher
+
+        ranked = await candidate_matcher.rank_candidates(
+            db, job_id, persist=False, blind_mode=blind_mode
+        )
+        return self._extract_candidate_ids_from_ranked(query, ranked)
+
+    def _extract_candidate_ids_from_ranked(
+        self, text: str, ranked: list[dict[str, Any]]
+    ) -> list[UUID]:
         found: list[UUID] = []
         lower = text.lower()
         for item in ranked:
@@ -245,11 +264,6 @@ Respond with specific candidate recommendations, insights, and explanations.
                 seen.add(cid)
                 ordered.append(cid)
         return ordered[:10]
-
-    def _extract_compare_ids(self, query: str, ranked: list[dict[str, Any]]) -> list[UUID]:
-        if "compare" not in query.lower():
-            return []
-        return self._extract_candidate_ids(query, ranked)
 
 
 recruiter_agent = RecruiterCopilot()

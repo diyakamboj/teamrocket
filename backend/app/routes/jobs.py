@@ -115,4 +115,6 @@ async def analyze_job(
         required_experience_years=job.required_experience_years,
         education_requirements=job.education_requirements,
         summary=analysis.get("summary"),
+        requirements=analysis.get("requirements") or [],
+        analyzed_by=analysis.get("analyzed_by"),
     )

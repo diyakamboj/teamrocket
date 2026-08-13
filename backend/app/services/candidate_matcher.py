@@ -12,6 +12,7 @@ from app.models.schemas import WeightConfig
 from app.services import handoff_service
 from app.services.azure_services import openai_service, search_service
 from app.services.evidence_tracker import evidence_tracker
+from app.services.matching_signals import blend_signals, keyword_signal, semantic_signal
 from app.utils.error_handlers import NotFoundError
 from app.utils.validators import normalize_skill, redact_name, redact_pii
 
@@ -104,6 +105,8 @@ class CandidateMatcher:
             "candidate_id": candidate.id,
             "name": candidate.name,
             "email": candidate.email,
+            "years_of_experience": candidate.years_of_experience(),
+            "skills": [str(s) for s in (candidate.skills or [])],
             "overall_score": round(float(overall), 2),
             "skill_score": skill_score,
             "experience_score": exp_score,
@@ -165,14 +168,30 @@ class CandidateMatcher:
     async def _match_skills(self, candidate: Candidate, job: JobPosting) -> float:
         candidate_skills = [str(s) for s in (candidate.skills or [])]
         required = [str(s) for s in (job.required_skills or [])]
-        keyword = self._jaccard(candidate_skills, required)
-        semantic = search_service.semantic_skill_overlap(candidate_skills, required)
+        skills_text = " ".join(candidate_skills).lower()
+        resume_text = (candidate.resume_text or skills_text).lower()
+        keyword_scores = [
+            keyword_signal([normalize_skill(s)], skills_text, resume_text)["score"]
+            for s in required
+        ]
+        keyword = sum(keyword_scores) / len(keyword_scores) if keyword_scores else self._jaccard(candidate_skills, required)
+        semantic_scores = []
+        for skill in required:
+            sem = semantic_signal(skill, skills_text)
+            if sem is not None:
+                semantic_scores.append(sem)
+        semantic = (
+            sum(semantic_scores) / len(semantic_scores)
+            if semantic_scores
+            else search_service.semantic_skill_overlap(candidate_skills, required)
+        )
         nice = [str(s) for s in (job.nice_to_have_skills or [])]
         nice_bonus = 0.0
         if nice:
             nice_overlap = self._jaccard(candidate_skills, nice)
             nice_bonus = nice_overlap * 0.1
-        return round(min(100.0, (keyword * 0.55 + semantic * 0.45) + nice_bonus), 2)
+        blended = blend_signals(float(keyword), float(semantic), None)
+        return round(min(100.0, blended + nice_bonus), 2)
 
     async def _match_experience(self, candidate: Candidate, job: JobPosting) -> float:
         years = candidate.years_of_experience()

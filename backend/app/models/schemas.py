@@ -128,6 +128,8 @@ class JobAnalyzeResponse(BaseModel):
     required_experience_years: Optional[int] = None
     education_requirements: Optional[str] = None
     summary: Optional[str] = None
+    requirements: list[Any] = Field(default_factory=list)
+    analyzed_by: Optional[str] = None
 
 
 # ---------- Evaluations ----------
@@ -297,9 +299,9 @@ class AgentAskRequest(BaseModel):
     query: str
     job_id: Optional[UUID] = None
     session_id: Optional[UUID] = None
-    # External CWYD conversation id (string) when using the RAG chatbot service
     chatbot_conversation_id: Optional[str] = None
     blind_mode: bool = False
+    weights: Optional[WeightConfig] = None
 
 
 class AgentAskResponse(BaseModel):
@@ -307,7 +309,9 @@ class AgentAskResponse(BaseModel):
     response: str
     candidates_referenced: list[UUID] = Field(default_factory=list)
     chat_turn: int
-    source: str = "local"  # "chatbot" | "local"
+    source: str = "local"  # "chatbot" | "local" | "agent"
+    engine: str = "deterministic"  # "agent" | "deterministic" | "chatbot" | "comparison"
+    tools: list[str] = Field(default_factory=list)
     citations: list[Any] = Field(default_factory=list)
     chatbot_conversation_id: Optional[str] = None
     job_id: Optional[UUID] = None

@@ -1,1 +1,48 @@
+# Dependencies
+node_modules/
+
+# Python
 venv/
+.venv/
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+.mypy_cache/
+.coverage
+htmlcov/
+
+# Environment / secrets
+.env
+.env.local
+.env.*.local
+.dev.vars
+
+# Node / frontend build output
+dist/
+dist-ssr/
+.output/
+.vinxi/
+.tanstack/
+.nitro/
+.vite/
+coverage/
+*.local
+
+# Cloudflare Wrangler
+.wrangler/
+
+# Logs
+logs/
+*.log
+
+# Local databases & uploads
+*.db
+backend/uploads/
+
+# OS / editor
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/*
+!.vscode/extensions.json
