@@ -2,18 +2,28 @@ import uuid
 
 from fastapi import APIRouter
 
-from app.dependencies import DbSession, RecruiterEmail
+from app.dependencies import AppStore, RecruiterEmail
 from app.models.evaluation import AuditLog
 from app.models.job_posting import JobPosting
 from app.models.schemas import JobAnalyzeResponse, JobCreate, JobResponse, JobUpdate
 from app.services.job_analyzer import job_analyzer
-from app.utils.error_handlers import NotFoundError
+from app.storage.store import Store
+from app.utils.error_handlers import NotFoundError, ValidationAppError
+from app.utils.logger import get_logger
 
 router = APIRouter()
+logger = get_logger(__name__)
+
+
+def _log_audit(store: Store, **fields) -> None:
+    try:
+        store.audit_logs.save(AuditLog(**fields))
+    except Exception as exc:
+        logger.warning("Failed to persist audit log %s: %s", fields.get("action"), exc)
 
 
 @router.post("", response_model=JobResponse)
-async def create_job(payload: JobCreate, db: DbSession, recruiter_email: RecruiterEmail):
+async def create_job(payload: JobCreate, store: AppStore, recruiter_email: RecruiterEmail):
     job = JobPosting(
         title=payload.title,
         description=payload.description,
@@ -23,28 +33,25 @@ async def create_job(payload: JobCreate, db: DbSession, recruiter_email: Recruit
         nice_to_have_skills=payload.nice_to_have_skills,
         created_by=payload.created_by or recruiter_email,
     )
-    db.add(job)
-    db.add(
-        AuditLog(
-            recruiter_email=recruiter_email,
-            action="create_job",
-            resource_type="job",
-            details={"title": payload.title},
-        )
+    store.jobs.save(job)
+    _log_audit(
+        store,
+        recruiter_email=recruiter_email,
+        action="create_job",
+        resource_type="job",
+        details={"title": payload.title},
     )
-    db.commit()
-    db.refresh(job)
     return job
 
 
 @router.get("", response_model=list[JobResponse])
-def list_jobs(db: DbSession):
-    return db.query(JobPosting).order_by(JobPosting.created_at.desc()).all()
+def list_jobs(store: AppStore):
+    return sorted(store.jobs.list_all(), key=lambda j: j.created_at, reverse=True)
 
 
 @router.get("/{job_id}", response_model=JobResponse)
-def get_job(job_id: uuid.UUID, db: DbSession):
-    job = db.get(JobPosting, job_id)
+def get_job(job_id: uuid.UUID, store: AppStore):
+    job = store.jobs.get(job_id)
     if not job:
         raise NotFoundError("Job posting not found", {"job_id": str(job_id)})
     return job
@@ -54,36 +61,45 @@ def get_job(job_id: uuid.UUID, db: DbSession):
 def update_job(
     job_id: uuid.UUID,
     payload: JobUpdate,
-    db: DbSession,
+    store: AppStore,
     recruiter_email: RecruiterEmail,
 ):
-    job = db.get(JobPosting, job_id)
+    job = store.jobs.get(job_id)
     if not job:
         raise NotFoundError("Job posting not found", {"job_id": str(job_id)})
 
-    for field, value in payload.model_dump(exclude_unset=True).items():
+    updates = payload.model_dump(exclude_unset=True)
+    if "sourcing_mode" in updates and updates["sourcing_mode"] not in (
+        "internal",
+        "external",
+        "both",
+    ):
+        raise ValidationAppError(
+            "sourcing_mode must be 'internal', 'external', or 'both'",
+            {"sourcing_mode": updates["sourcing_mode"]},
+        )
+
+    for field, value in updates.items():
         setattr(job, field, value)
 
-    db.add(
-        AuditLog(
-            recruiter_email=recruiter_email,
-            action="update_job",
-            resource_type="job",
-            resource_id=job.id,
-        )
+    store.jobs.save(job)
+    _log_audit(
+        store,
+        recruiter_email=recruiter_email,
+        action="update_job",
+        resource_type="job",
+        resource_id=job.id,
     )
-    db.commit()
-    db.refresh(job)
     return job
 
 
 @router.post("/{job_id}/analyze", response_model=JobAnalyzeResponse)
 async def analyze_job(
     job_id: uuid.UUID,
-    db: DbSession,
+    store: AppStore,
     recruiter_email: RecruiterEmail,
 ):
-    job = db.get(JobPosting, job_id)
+    job = store.jobs.get(job_id)
     if not job:
         raise NotFoundError("Job posting not found", {"job_id": str(job_id)})
 
@@ -95,17 +111,15 @@ async def analyze_job(
     if analysis.get("education_requirements"):
         job.education_requirements = analysis["education_requirements"]
 
-    db.add(
-        AuditLog(
-            recruiter_email=recruiter_email,
-            action="analyze_job",
-            resource_type="job",
-            resource_id=job.id,
-            details={"required_skills": job.required_skills},
-        )
+    store.jobs.save(job)
+    _log_audit(
+        store,
+        recruiter_email=recruiter_email,
+        action="analyze_job",
+        resource_type="job",
+        resource_id=job.id,
+        details={"required_skills": job.required_skills},
     )
-    db.commit()
-    db.refresh(job)
 
     return JobAnalyzeResponse(
         job_id=job.id,
@@ -115,4 +129,6 @@ async def analyze_job(
         required_experience_years=job.required_experience_years,
         education_requirements=job.education_requirements,
         summary=analysis.get("summary"),
+        requirements=analysis.get("requirements") or [],
+        analyzed_by=analysis.get("analyzed_by"),
     )

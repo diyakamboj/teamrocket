@@ -25,19 +25,15 @@ export const Route = createFileRoute("/job-analysis")({
       { property: "og:title", content: "Job Description Analysis — ResumeIQ" },
       {
         property: "og:description",
-        content: "Chat to extract job requirements into Skills, Experience, Education, Certifications.",
+        content:
+          "Chat to extract job requirements into Skills, Experience, Education, Certifications.",
       },
     ],
   }),
   component: JobAnalysis,
 });
 
-const CATEGORIES: RequirementCategory[] = [
-  "Skills",
-  "Experience",
-  "Education",
-  "Certifications",
-];
+const CATEGORIES: RequirementCategory[] = ["Skills", "Experience", "Education", "Certifications"];
 
 const SUGGESTIONS = [
   "What skills are needed for a software engineer?",
@@ -112,8 +108,7 @@ function JobAnalysis() {
     try {
       const local = analyzeJobDescription(query);
       const want = requestedCategories(query);
-      const categories: RequirementCategory[] =
-        want === "all" ? [...CATEGORIES] : want;
+      const categories: RequirementCategory[] = want === "all" ? [...CATEGORIES] : want;
 
       // Keep other sections; replace only what the user asked for
       setReqs((prev) => {
@@ -403,7 +398,12 @@ function JobAnalysis() {
                     placeholder={`Add ${cat.toLowerCase()} manually`}
                     className="rounded-xl text-sm"
                   />
-                  <Button type="submit" size="icon" variant="outline" className="shrink-0 rounded-xl">
+                  <Button
+                    type="submit"
+                    size="icon"
+                    variant="outline"
+                    className="shrink-0 rounded-xl"
+                  >
                     <Plus className="h-4 w-4" />
                   </Button>
                 </form>

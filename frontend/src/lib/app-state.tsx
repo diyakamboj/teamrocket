@@ -53,6 +53,10 @@ type Ctx = {
   activeJobId: string | null;
   setActiveJobId: (id: string | null) => void;
   backendReady: boolean;
+  viewingCandidateId: string | null;
+  setViewingCandidateId: (id: string | null) => void;
+  viewingJobId: string | null;
+  setViewingJobId: (id: string | null) => void;
 };
 
 const AppCtx = createContext<Ctx | null>(null);
@@ -71,6 +75,8 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
   const [compareIds, setCompareIds] = useState<string[]>([]);
   const [activeJobId, setActiveJobId] = useState<string | null>(null);
   const [backendReady, setBackendReady] = useState(false);
+  const [viewingCandidateId, setViewingCandidateId] = useState<string | null>(null);
+  const [viewingJobId, setViewingJobId] = useState<string | null>(null);
   const wasActive = useRef(false);
   const seq = useRef(0);
 
@@ -242,6 +248,10 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
     activeJobId,
     setActiveJobId,
     backendReady,
+    viewingCandidateId,
+    setViewingCandidateId,
+    viewingJobId,
+    setViewingJobId,
   };
 
   return <AppCtx.Provider value={value}>{children}</AppCtx.Provider>;

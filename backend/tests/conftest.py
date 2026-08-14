@@ -1,69 +1,85 @@
+import copy
 import os
 import uuid
-from typing import Generator
+from typing import Generator, Optional
 
 import pytest
 from fastapi.testclient import TestClient
-from sqlalchemy import create_engine, event
-from sqlalchemy.orm import Session, sessionmaker
-from sqlalchemy.pool import StaticPool
 
-# Force mock Azure before app imports
+# Force mock Azure before app imports. Search and embeddings are
+# deliberately decoupled from USE_MOCK_AZURE (see azure_services.py) so they
+# can go live independently of the chat deployment — which means they need
+# to be muted here explicitly, or tests would make real network calls.
 os.environ["USE_MOCK_AZURE"] = "true"
-os.environ["DATABASE_URL"] = "sqlite://"
 os.environ["DEBUG"] = "true"
+os.environ["AZURE_SEARCH_ENDPOINT"] = ""
+os.environ["AZURE_SEARCH_ADMIN_KEY"] = ""
+os.environ["AZURE_OPENAI_EMBEDDING_DEPLOYMENT_NAME"] = ""
 
-from app.database import Base, get_db
 from app.main import app
 from app.models.candidate import Candidate
 from app.models.job_posting import JobPosting
+from app.storage.store import Store, get_store
 
 
-engine = create_engine(
-    "sqlite://",
-    connect_args={"check_same_thread": False},
-    poolclass=StaticPool,
-)
+class InMemoryJsonBlobStore:
+    """Dict-backed stand-in for `JsonBlobStore`, same interface (put/get/
+    delete/exists/list_prefix). Gives each test a trivially-reset,
+    fully-isolated backing store — no real disk I/O, no shared state between
+    tests, no need for the old drop-all/create-all SQLAlchemy dance.
+    """
 
+    def __init__(self) -> None:
+        self._data: dict[str, dict] = {}
 
-@event.listens_for(engine, "connect")
-def _set_sqlite_pragma(dbapi_connection, connection_record):
-    cursor = dbapi_connection.cursor()
-    cursor.execute("PRAGMA foreign_keys=ON")
-    cursor.close()
+    def put(self, key: str, doc: dict) -> None:
+        self._data[key] = copy.deepcopy(doc)
 
+    def get(self, key: str) -> Optional[dict]:
+        doc = self._data.get(key)
+        return copy.deepcopy(doc) if doc is not None else None
 
-TestingSessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
+    def delete(self, key: str) -> None:
+        self._data.pop(key, None)
+
+    def exists(self, key: str) -> bool:
+        return key in self._data
+
+    def list_prefix(self, prefix: str) -> list[str]:
+        prefix = prefix.strip("/")
+        if not prefix:
+            return sorted(self._data.keys())
+        needle = f"{prefix}/"
+        return sorted(key for key in self._data if key.startswith(needle))
 
 
 @pytest.fixture()
-def db() -> Generator[Session, None, None]:
-    Base.metadata.drop_all(bind=engine)
-    Base.metadata.create_all(bind=engine)
-    session = TestingSessionLocal()
-    try:
-        yield session
-    finally:
-        session.close()
-        Base.metadata.drop_all(bind=engine)
+def store() -> Generator[Store, None, None]:
+    yield Store(InMemoryJsonBlobStore())
 
 
 @pytest.fixture()
-def client(db: Session) -> Generator[TestClient, None, None]:
-    def _override_get_db():
-        try:
-            yield db
-        finally:
-            pass
+def db(store: Store) -> Store:
+    """Alias for `store`. Most tests predate the blob-store rewrite and pass
+    a fixture named `db` straight through to service calls — that still
+    works unchanged since services only care that it quacks like a Store.
+    """
+    return store
 
-    app.dependency_overrides[get_db] = _override_get_db
+
+@pytest.fixture()
+def client(store: Store) -> Generator[TestClient, None, None]:
+    def _override_get_store() -> Store:
+        return store
+
+    app.dependency_overrides[get_store] = _override_get_store
     with TestClient(app) as test_client:
         yield test_client
     app.dependency_overrides.clear()
 
 
 @pytest.fixture()
-def sample_job(db: Session) -> JobPosting:
+def sample_job(store: Store) -> JobPosting:
     job = JobPosting(
         id=uuid.uuid4(),
         title="Backend Engineer",
@@ -74,14 +90,12 @@ def sample_job(db: Session) -> JobPosting:
         nice_to_have_skills=["Kubernetes"],
         created_by="recruiter@example.com",
     )
-    db.add(job)
-    db.commit()
-    db.refresh(job)
+    store.jobs.save(job)
     return job
 
 
 @pytest.fixture()
-def sample_candidate(db: Session) -> Candidate:
+def sample_candidate(store: Store) -> Candidate:
     candidate = Candidate(
         id=uuid.uuid4(),
         name="Alice Johnson",
@@ -101,7 +115,5 @@ def sample_candidate(db: Session) -> Candidate:
         certifications=["AZ-900"],
         projects=[{"name": "API Platform", "description": "FastAPI service", "technologies": ["Python"]}],
     )
-    db.add(candidate)
-    db.commit()
-    db.refresh(candidate)
+    store.candidates.save(candidate)
     return candidate

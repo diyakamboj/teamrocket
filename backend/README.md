@@ -43,7 +43,8 @@ backend/
 ```bash
 cd backend
 
-# 1) Local infra (Postgres + Azurite)
+# 1) Local infra (Azurite, optional — only needed to exercise the real
+#    Azure Blob Storage code path instead of mock mode)
 docker compose up -d
 
 # 2) Python env
@@ -55,12 +56,14 @@ pip install -r requirements.txt
 cp .env.example .env
 # Edit Azure credentials when ready. Keep USE_MOCK_AZURE=true for local mock mode.
 
-# 4) Migrations
-alembic upgrade head
-
-# 5) Run API
+# 4) Run API
 uvicorn app.main:app --reload --port 8000
 ```
+
+There is no database to migrate or provision — all structured data (candidates,
+jobs, evaluations, ...) is stored as JSON documents via the blob store (see
+`app/services/azure_services.py`'s `JsonBlobStore` and `app/storage/`), which
+in mock mode writes to `UPLOAD_DIR/documents/` on local disk with zero setup.
 
 API docs: [http://localhost:8000/docs](http://localhost:8000/docs)  
 Health: [http://localhost:8000/health](http://localhost:8000/health)

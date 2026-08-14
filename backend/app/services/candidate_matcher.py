@@ -3,52 +3,61 @@ from decimal import Decimal
 from typing import Any, Optional
 from uuid import UUID
 
-from sqlalchemy.orm import Session
-
 from app.models.candidate import Candidate
 from app.models.evaluation import Evaluation
 from app.models.job_posting import JobPosting
 from app.models.schemas import WeightConfig
+from app.services import handoff_service
 from app.services.azure_services import openai_service, search_service
 from app.services.evidence_tracker import evidence_tracker
+from app.services.matching_signals import blend_signals, keyword_signal, semantic_signal
+from app.storage.store import Store
 from app.utils.error_handlers import NotFoundError
-from app.utils.validators import normalize_skill, redact_pii
+from app.utils.validators import normalize_skill, redact_name, redact_pii
 
 
 DEFAULT_WEIGHTS = WeightConfig()
+
+BENCH_PRIORITY_BOOST = 8.0
+
+
+def bench_sort_key(overall_score: float, employment_status: Optional[str], tie_breaker: str) -> tuple:
+    boosted = min(100.0, overall_score + BENCH_PRIORITY_BOOST) if employment_status == "bench" else overall_score
+    return (-boosted, -overall_score, tie_breaker)
 
 
 class CandidateMatcher:
     async def rank_candidates(
         self,
-        db: Session,
+        store: Store,
         job_id: UUID,
         weight_config: Optional[WeightConfig] = None,
         persist: bool = True,
         blind_mode: bool = False,
+        source: Optional[str] = None,
+        bench_priority: bool = False,
     ) -> list[dict[str, Any]]:
-        job = db.get(JobPosting, job_id)
+        job = store.jobs.get(job_id)
         if not job:
             raise NotFoundError("Job posting not found", {"job_id": str(job_id)})
 
-        candidates = db.query(Candidate).all()
+        candidates = store.candidates.query(lambda c: c.source == source) if source else store.candidates.list_all()
         weights = weight_config or DEFAULT_WEIGHTS
         scores: list[dict[str, Any]] = []
 
         for candidate in candidates:
             score = await self.score_candidate(candidate, job, weights)
             if persist:
-                evaluation = self._upsert_evaluation(db, candidate, job, score, blind_mode)
+                evaluation = self._upsert_evaluation(store, candidate, job, score, blind_mode)
                 score["evaluation_id"] = evaluation.id
             if blind_mode:
-                score["name"] = f"Candidate-{str(candidate.id)[:8]}"
-                score["email"] = None
+                self._redact_identity(score, candidate)
             scores.append(score)
 
-        if persist:
-            db.commit()
-
-        ranked = sorted(scores, key=lambda x: x["overall_score"], reverse=True)
+        if bench_priority:
+            ranked = sorted(scores, key=lambda x: bench_sort_key(x["overall_score"], x.get("employment_status"), x["name"]))
+        else:
+            ranked = sorted(scores, key=lambda x: x["overall_score"], reverse=True)
         for idx, item in enumerate(ranked, start=1):
             item["rank"] = idx
         return ranked
@@ -104,6 +113,8 @@ class CandidateMatcher:
             "candidate_id": candidate.id,
             "name": candidate.name,
             "email": candidate.email,
+            "years_of_experience": candidate.years_of_experience(),
+            "skills": [str(s) for s in (candidate.skills or [])],
             "overall_score": round(float(overall), 2),
             "skill_score": skill_score,
             "experience_score": exp_score,
@@ -116,18 +127,22 @@ class CandidateMatcher:
             "weaknesses": explanation.get("weaknesses"),
             "transferable_skills": explanation.get("transferable_skills"),
             "evidence": evidence,
+            "source": candidate.source,
+            "employment_status": candidate.employment_status,
+            "current_assignment": candidate.current_assignment,
         }
 
     async def get_candidate_score(
         self,
-        db: Session,
+        store: Store,
         candidate_id: UUID,
         job_id: UUID,
         weight_config: Optional[WeightConfig] = None,
         persist: bool = True,
+        blind_mode: bool = False,
     ) -> dict[str, Any]:
-        candidate = db.get(Candidate, candidate_id)
-        job = db.get(JobPosting, job_id)
+        candidate = store.candidates.get(candidate_id)
+        job = store.jobs.get(job_id)
         if not candidate:
             raise NotFoundError("Candidate not found", {"candidate_id": str(candidate_id)})
         if not job:
@@ -135,22 +150,58 @@ class CandidateMatcher:
 
         score = await self.score_candidate(candidate, job, weight_config or DEFAULT_WEIGHTS)
         if persist:
-            evaluation = self._upsert_evaluation(db, candidate, job, score, False)
+            evaluation = self._upsert_evaluation(store, candidate, job, score, blind_mode)
             score["evaluation_id"] = evaluation.id
-            db.commit()
+        if blind_mode:
+            self._redact_identity(score, candidate)
         return score
+
+    @staticmethod
+    def _redact_identity(score: dict[str, Any], candidate: Candidate) -> None:
+        """Blind review mode: strip real name/email from a score payload before
+        it can reach a UI or an LLM prompt (comparison narratives, agent chat).
+
+        Evidence snippets and free-text explanations quote the resume verbatim,
+        which usually opens with the candidate's name, so name/email alone
+        isn't enough — scrub the name out of every text field too.
+        """
+        name = candidate.name
+        score["name"] = f"Candidate-{str(candidate.id)[:8]}"
+        score["email"] = None
+        for field in ("strengths", "weaknesses", "transferable_skills"):
+            if score.get(field):
+                score[field] = redact_name(score[field], name)
+        for item in score.get("evidence") or []:
+            if isinstance(item, dict) and item.get("resume_text_snippet"):
+                item["resume_text_snippet"] = redact_name(item["resume_text_snippet"], name)
 
     async def _match_skills(self, candidate: Candidate, job: JobPosting) -> float:
         candidate_skills = [str(s) for s in (candidate.skills or [])]
         required = [str(s) for s in (job.required_skills or [])]
-        keyword = self._jaccard(candidate_skills, required)
-        semantic = search_service.semantic_skill_overlap(candidate_skills, required)
+        skills_text = " ".join(candidate_skills).lower()
+        resume_text = (candidate.resume_text or skills_text).lower()
+        keyword_scores = [
+            keyword_signal([normalize_skill(s)], skills_text, resume_text)["score"]
+            for s in required
+        ]
+        keyword = sum(keyword_scores) / len(keyword_scores) if keyword_scores else self._jaccard(candidate_skills, required)
+        semantic_scores = []
+        for skill in required:
+            sem = semantic_signal(skill, skills_text)
+            if sem is not None:
+                semantic_scores.append(sem)
+        semantic = (
+            sum(semantic_scores) / len(semantic_scores)
+            if semantic_scores
+            else search_service.semantic_skill_overlap(candidate_skills, required)
+        )
         nice = [str(s) for s in (job.nice_to_have_skills or [])]
         nice_bonus = 0.0
         if nice:
             nice_overlap = self._jaccard(candidate_skills, nice)
             nice_bonus = nice_overlap * 0.1
-        return round(min(100.0, (keyword * 0.55 + semantic * 0.45) + nice_bonus), 2)
+        blended = blend_signals(float(keyword), float(semantic), None)
+        return round(min(100.0, blended + nice_bonus), 2)
 
     async def _match_experience(self, candidate: Candidate, job: JobPosting) -> float:
         years = candidate.years_of_experience()
@@ -263,24 +314,32 @@ evidence (list of {{skill_name, resume_text_snippet, source_section, confidence_
 
     def _upsert_evaluation(
         self,
-        db: Session,
+        store: Store,
         candidate: Candidate,
         job: JobPosting,
         score: dict[str, Any],
         blind_mode: bool,
     ) -> Evaluation:
-        evaluation = (
-            db.query(Evaluation)
-            .filter(Evaluation.candidate_id == candidate.id, Evaluation.job_id == job.id)
-            .first()
-        )
+        evaluation = store.evaluations.get_for(job.id, candidate.id)
         strengths = score.get("strengths")
         weaknesses = score.get("weaknesses")
         transferable = score.get("transferable_skills")
+        evidence = score.get("evidence") or []
         if blind_mode:
-            strengths = redact_pii(strengths or "")
-            weaknesses = redact_pii(weaknesses or "")
-            transferable = redact_pii(transferable or "")
+            strengths = redact_name(redact_pii(strengths or ""), candidate.name)
+            weaknesses = redact_name(redact_pii(weaknesses or ""), candidate.name)
+            transferable = redact_name(redact_pii(transferable or ""), candidate.name)
+            evidence = [
+                {
+                    **item,
+                    "resume_text_snippet": redact_name(
+                        item.get("resume_text_snippet") or "", candidate.name
+                    ),
+                }
+                if isinstance(item, dict) and item.get("resume_text_snippet")
+                else item
+                for item in evidence
+            ]
 
         payload = dict(
             overall_score=Decimal(str(score["overall_score"])),
@@ -297,17 +356,42 @@ evidence (list of {{skill_name, resume_text_snippet, source_section, confidence_
             blind_review_mode=blind_mode,
         )
 
+        is_rescore = evaluation is not None
         if evaluation:
             for key, value in payload.items():
                 setattr(evaluation, key, value)
-            for item in list(evaluation.evidence_items):
-                db.delete(item)
+            store.evidence.delete_for_evaluation(evaluation.id)
         else:
             evaluation = Evaluation(candidate_id=candidate.id, job_id=job.id, **payload)
-            db.add(evaluation)
-        db.flush()
 
-        evidence_tracker.persist(db, evaluation.id, score.get("evidence") or [])
+        # Primary domain write — must succeed; propagates on failure.
+        store.evaluations.save(evaluation)
+
+        evidence_tracker.persist(store, evaluation.id, evidence)
+
+        # Secondary write — best-effort (log_history_event swallows its own failures).
+        handoff_service.log_history_event(
+            store,
+            candidate_id=str(candidate.id),
+            candidate_name=candidate.name,
+            job_id=str(job.id),
+            job_title=job.title,
+            event_type="evaluation_updated" if is_rescore else "evaluation_created",
+            summary=(
+                f"{'Re-scored' if is_rescore else 'Scored'} against {job.title} — "
+                f"overall {score['overall_score']}/100"
+            ),
+            details={
+                "evaluation_id": str(evaluation.id),
+                "overall_score": score["overall_score"],
+                "skill_score": score["skill_score"],
+                "experience_score": score["experience_score"],
+                "education_score": score["education_score"],
+                "certification_score": score["certification_score"],
+                "project_score": score["project_score"],
+                "blind_review_mode": blind_mode,
+            },
+        )
         return evaluation
 
     @staticmethod

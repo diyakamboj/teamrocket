@@ -1,12 +1,11 @@
 from typing import Annotated, Optional
 
 from fastapi import Depends, Header
-from sqlalchemy.orm import Session
 
-from app.database import get_db
+from app.storage.store import Store, get_store
 
 
-DbSession = Annotated[Session, Depends(get_db)]
+AppStore = Annotated[Store, Depends(get_store)]
 
 
 def get_recruiter_email(

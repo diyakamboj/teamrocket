@@ -12,7 +12,13 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { useAppState } from "@/lib/app-state";
-import { ALL_SKILLS, CANDIDATES, DEFAULT_WEIGHTS, rankCandidates, type Candidate } from "@/lib/mock-data";
+import {
+  ALL_SKILLS,
+  CANDIDATES,
+  DEFAULT_WEIGHTS,
+  rankCandidates,
+  type Candidate,
+} from "@/lib/mock-data";
 import { submitCandidateDecision, type InterviewSlot } from "@/lib/api";
 import { MiniBar, ScoreRing } from "@/components/score-ring";
 import { Button } from "@/components/ui/button";
@@ -53,15 +59,50 @@ export const Route = createFileRoute("/candidates")({
 const LEVELS = ["All", "Junior", "Mid", "Senior", "Lead"] as const;
 const PAGE_SIZE = 12;
 const WEIGHT_KEYS = ["skills", "experience", "education", "certifications", "projects"] as const;
+const CATEGORY_LABELS: Record<(typeof WEIGHT_KEYS)[number], string> = {
+  skills: "skills",
+  experience: "experience",
+  education: "education",
+  certifications: "certifications",
+  projects: "project work",
+};
+
+/** One-line, always-visible reason for a candidate's rank — the strongest
+ * scoring category plus the top gap (if any), so recruiters don't have to
+ * expand each row to see why someone landed where they did. */
+function rankReason(c: Candidate, allRows: Candidate[]): string {
+  const topCategory = WEIGHT_KEYS.reduce(
+    (best, key) => (c.categories[key] > c.categories[best] ? key : best),
+    "skills",
+  );
+  const topValue = c.categories[topCategory];
+  const strengthPart = `strong ${CATEGORY_LABELS[topCategory]} (${topValue})`;
+
+  const gapPart = c.gaps.length > 0 ? c.gaps[0] : null;
+
+  const idx = allRows.findIndex((r) => r.id === c.id);
+  const prev = idx > 0 ? allRows[idx - 1] : undefined;
+  const behindPrev = prev ? prev.score - c.score : null;
+  const positionPart =
+    behindPrev !== null && behindPrev > 0
+      ? `${behindPrev.toFixed(0)} pts behind #${c.rank - 1}`
+      : null;
+
+  return [strengthPart, gapPart, positionPart].filter(Boolean).join(" · ");
+}
 
 function DecisionControls({
   candidate,
   state,
   onDecide,
+  blindMode,
+  displayName,
 }: {
   candidate: Candidate;
   state: DecisionState | undefined;
   onDecide: (decision: "approved" | "rejected") => void;
+  blindMode: boolean;
+  displayName: string;
 }) {
   const [pending, setPending] = useState<"approved" | "rejected" | null>(null);
 
@@ -85,7 +126,8 @@ function DecisionControls({
         )}
       >
         {isApproved ? <Check className="h-3.5 w-3.5" /> : <X className="h-3.5 w-3.5" />}
-        {isApproved ? "Selected" : "Rejected"} — email {state.source === "mock" ? "logged (mock)" : "sent"}
+        {isApproved ? "Selected" : "Rejected"} — email{" "}
+        {state.source === "mock" ? "logged (mock)" : "sent"}
       </span>
     );
   }
@@ -95,7 +137,8 @@ function DecisionControls({
     return (
       <div className="flex items-center gap-2 text-xs">
         <span className="text-muted-foreground">
-          {isApproved ? "Send selection" : "Send rejection"} email to {candidate.email}?
+          {isApproved ? "Send selection" : "Send rejection"} email to{" "}
+          {blindMode ? displayName : candidate.email}?
         </span>
         <Button
           size="sm"
@@ -140,7 +183,15 @@ function DecisionControls({
 }
 
 function Candidates() {
-  const { weights, setWeights, blindMode, setBlindMode, compareIds, toggleCompare } = useAppState();
+  const {
+    weights,
+    setWeights,
+    blindMode,
+    setBlindMode,
+    compareIds,
+    toggleCompare,
+    setViewingCandidateId,
+  } = useAppState();
   const [query, setQuery] = useState("");
   const [level, setLevel] = useState<(typeof LEVELS)[number]>("All");
   const [skill, setSkill] = useState("All");
@@ -173,10 +224,11 @@ function Candidates() {
         },
       }));
       if (result.email_sent) {
+        const label = blindMode ? `Candidate #${candidate.rank}` : candidate.name;
         toast.success(
           decision === "approved"
-            ? `Selection email sent to ${candidate.name}${result.email_source === "mock" ? " (mock — configure SMTP to send for real)" : ""}`
-            : `Rejection email sent to ${candidate.name}${result.email_source === "mock" ? " (mock — configure SMTP to send for real)" : ""}`,
+            ? `Selection email sent to ${label}${result.email_source === "mock" ? " (mock — configure SMTP to send for real)" : ""}`
+            : `Rejection email sent to ${label}${result.email_source === "mock" ? " (mock — configure SMTP to send for real)" : ""}`,
         );
       } else {
         toast.error(`Email failed to send: ${result.email_error ?? "unknown error"}`);
@@ -228,11 +280,7 @@ function Candidates() {
               Compare ({compareIds.length})
             </Link>
           )}
-          <Button
-            variant="outline"
-            className="rounded-xl"
-            onClick={() => setPanelOpen((p) => !p)}
-          >
+          <Button variant="outline" className="rounded-xl" onClick={() => setPanelOpen((p) => !p)}>
             <SlidersHorizontal className="mr-2 h-4 w-4" /> Weights
           </Button>
         </div>
@@ -323,6 +371,9 @@ function Candidates() {
                         <p className="truncate text-xs text-muted-foreground">
                           {c.title} · {c.years} yrs · {blindMode ? c.level : c.location}
                         </p>
+                        <p className="truncate text-xs text-primary-soft-foreground/80">
+                          {rankReason(c, rows)}
+                        </p>
                       </div>
                     </div>
                     <ScoreRing value={c.score} />
@@ -333,7 +384,10 @@ function Candidates() {
                       <MiniBar label="Certs" value={c.categories.certifications} />
                     </div>
                     <button
-                      onClick={() => setExpanded(isOpen ? null : c.id)}
+                      onClick={() => {
+                        setExpanded(isOpen ? null : c.id);
+                        setViewingCandidateId(isOpen ? null : c.id);
+                      }}
                       aria-label="Toggle explanation"
                       className="hidden h-9 w-9 place-items-center rounded-xl text-muted-foreground transition-colors hover:bg-secondary md:grid"
                     >
@@ -348,7 +402,10 @@ function Candidates() {
                       size="sm"
                       variant="ghost"
                       className="rounded-xl md:hidden"
-                      onClick={() => setExpanded(isOpen ? null : c.id)}
+                      onClick={() => {
+                        setExpanded(isOpen ? null : c.id);
+                        setViewingCandidateId(isOpen ? null : c.id);
+                      }}
                     >
                       {isOpen ? "Hide" : "Why this rank?"}
                     </Button>
@@ -357,6 +414,8 @@ function Candidates() {
                         candidate={c}
                         state={decisions[c.id]}
                         onDecide={(decision) => void handleDecision(c, decision)}
+                        blindMode={blindMode}
+                        displayName={displayName}
                       />
                     </div>
                   </div>
@@ -402,12 +461,18 @@ function Candidates() {
                         className="rounded-xl"
                         onClick={() => toggleCompare(c.id)}
                       >
-                        {compareIds.includes(c.id) ? "Selected for comparison" : "Add to comparison"}
+                        {compareIds.includes(c.id)
+                          ? "Selected for comparison"
+                          : "Add to comparison"}
                       </Button>
 
                       {(() => {
                         const state = decisions[c.id];
-                        if (state?.status !== "done" || state.decision !== "approved" || state.slots.length === 0) {
+                        if (
+                          state?.status !== "done" ||
+                          state.decision !== "approved" ||
+                          state.slots.length === 0
+                        ) {
                           return null;
                         }
                         return (

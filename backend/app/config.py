@@ -15,9 +15,6 @@ class Settings(BaseSettings):
         extra="ignore",
     )
 
-    # Database (SQLite by default for zero-setup local runs)
-    DATABASE_URL: str = "sqlite:///./resume_assistant.db"
-
     # Azure Blob Storage
     AZURE_STORAGE_CONNECTION_STRING: Optional[str] = None
     AZURE_BLOB_CONTAINER_NAME: str = "resumes"
@@ -30,6 +27,10 @@ class Settings(BaseSettings):
     AZURE_OPENAI_API_KEY: Optional[str] = None
     AZURE_OPENAI_ENDPOINT: Optional[str] = None
     AZURE_OPENAI_DEPLOYMENT_NAME: str = "gpt-4o"
+    # Separate deployment on the same resource, used for real semantic skill
+    # matching. Independently gated from AZURE_OPENAI_DEPLOYMENT_NAME (chat)
+    # since one deployment can be ready before the other.
+    AZURE_OPENAI_EMBEDDING_DEPLOYMENT_NAME: Optional[str] = "text-embedding-3-small"
     AZURE_OPENAI_API_VERSION: str = "2024-02-15-preview"
 
     # Azure AI Search
@@ -46,6 +47,19 @@ class Settings(BaseSettings):
     CHATBOT_ENABLED: bool = True
     CHATBOT_TIMEOUT_SECONDS: float = 60.0
 
+    # Copilot model selection (server-enforced allowlist; the app has no
+    # real auth system, so this is a documented, pragmatic approximation of
+    # RBAC, not real authorization).
+    COPILOT_MODEL_REGISTRY: List[dict] = [
+        {"id": "gpt-4o", "label": "GPT-4o", "description": "Balanced default.", "is_default": True},
+        {"id": "gpt-4o-mini", "label": "GPT-4o mini", "description": "Faster, lower-cost.", "is_default": False},
+        {"id": "gpt-4.1", "label": "GPT-4.1", "description": "Extended reasoning.", "is_default": False},
+    ]
+    COPILOT_MODEL_DEPLOYMENTS: dict[str, str] = {}  # model_id -> Azure deployment name; missing -> AZURE_OPENAI_DEPLOYMENT_NAME
+    COPILOT_MODEL_ALLOWLIST: dict[str, list[str]] = {}  # model_id -> emails; missing/empty = available to all
+    COPILOT_DEFAULT_MODEL: str = "gpt-4o"
+    COPILOT_ATTACHMENT_MAX_BYTES: int = 15 * 1024 * 1024
+
     # Outbound recruiter emails (approve/reject decisions).
     # Gmail: SMTP_USERNAME is the full gmail address, SMTP_PASSWORD is a 16-char
     # App Password (myaccount.google.com/apppasswords) — NOT the account password.
@@ -55,6 +69,10 @@ class Settings(BaseSettings):
     SMTP_PASSWORD: Optional[str] = None
     SMTP_FROM_NAME: str = "ResumeIQ Recruiting"
     SMTP_FROM_EMAIL: Optional[str] = None  # defaults to SMTP_USERNAME
+
+    # Public URL of the recruiter frontend (used to build interview handoff
+    # briefing links included in interviewer notification emails).
+    FRONTEND_URL: str = "http://localhost:8080"
 
     # App Config
     API_TITLE: str = "Resume Screening Assistant API"
@@ -78,6 +96,18 @@ class Settings(BaseSettings):
 
                 return json.loads(value)
             return [origin.strip() for origin in value.split(",") if origin.strip()]
+        return value
+
+    @field_validator("COPILOT_MODEL_DEPLOYMENTS", "COPILOT_MODEL_ALLOWLIST", mode="before")
+    @classmethod
+    def parse_copilot_json_dict(cls, value: Union[str, dict]) -> dict:
+        if isinstance(value, str):
+            value = value.strip()
+            if not value:
+                return {}
+            import json
+
+            return json.loads(value)
         return value
 
     @property

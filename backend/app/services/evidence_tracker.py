@@ -1,9 +1,8 @@
 import re
 from typing import Any, Optional
 
-from sqlalchemy.orm import Session
-
 from app.models.evaluation import Evidence
+from app.storage.store import Store
 from app.utils.validators import normalize_skill
 
 
@@ -84,7 +83,7 @@ class EvidenceTracker:
             )
         return evidence
 
-    def persist(self, db: Session, evaluation_id, evidence_items: list[dict[str, Any]]) -> list[Evidence]:
+    def persist(self, store: Store, evaluation_id, evidence_items: list[dict[str, Any]]) -> list[Evidence]:
         rows: list[Evidence] = []
         for item in evidence_items:
             row = Evidence(
@@ -94,9 +93,8 @@ class EvidenceTracker:
                 source_section=item.get("source_section"),
                 confidence_score=item.get("confidence_score"),
             )
-            db.add(row)
+            store.evidence.save(row)
             rows.append(row)
-        db.flush()
         return rows
 
 

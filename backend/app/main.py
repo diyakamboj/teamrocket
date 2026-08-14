@@ -1,11 +1,18 @@
-from contextlib import asynccontextmanager
-
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.config import settings
-from app.database import init_db
-from app.routes import agent, candidates, dashboard, evaluation, fraud, jobs, resumes
+from app.routes import (
+    agent,
+    candidates,
+    dashboard,
+    evaluation,
+    fraud,
+    handoff,
+    internal_marketplace,
+    jobs,
+    resumes,
+)
 from app.utils.error_handlers import setup_exception_handlers
 from app.utils.logger import get_logger, setup_logging
 
@@ -13,20 +20,9 @@ setup_logging()
 logger = get_logger(__name__)
 
 
-@asynccontextmanager
-async def lifespan(_: FastAPI):
-    try:
-        init_db()
-        logger.info("Database initialized")
-    except Exception as exc:
-        logger.warning("Database init skipped/failed: %s", exc)
-    yield
-
-
 app = FastAPI(
     title=settings.API_TITLE,
     version=settings.API_VERSION,
-    lifespan=lifespan,
 )
 
 app.add_middleware(
@@ -46,6 +42,12 @@ app.include_router(evaluation.router, prefix="/api/evaluation", tags=["Evaluatio
 app.include_router(dashboard.router, prefix="/api/dashboard", tags=["Dashboard"])
 app.include_router(agent.router, prefix="/api/agent", tags=["AI Agent"])
 app.include_router(fraud.router, prefix="/api/fraud", tags=["Fraud Detection"])
+app.include_router(handoff.router, prefix="/api/handoff", tags=["Interview Handoff"])
+app.include_router(
+    internal_marketplace.router,
+    prefix="/api/internal-marketplace",
+    tags=["Internal Talent Marketplace"],
+)
 
 
 @app.get("/health")

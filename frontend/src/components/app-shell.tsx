@@ -6,12 +6,16 @@ import {
   Columns3,
   FileText,
   LayoutDashboard,
+  LineChart,
   Moon,
+  Scale,
   Search,
+  Send,
   ShieldAlert,
   Sun,
   Trophy,
   UploadCloud,
+  Users2,
 } from "lucide-react";
 import { useState, type ReactNode } from "react";
 import { useAppState } from "@/lib/app-state";
@@ -21,11 +25,15 @@ import { Input } from "@/components/ui/input";
 
 const NAV = [
   { to: "/", label: "Dashboard", icon: LayoutDashboard },
+  { to: "/insights", label: "Hiring Insights", icon: LineChart },
   { to: "/fraud-detection", label: "Fraud Detection", icon: ShieldAlert },
   { to: "/upload", label: "Resume Upload", icon: UploadCloud },
   { to: "/job-analysis", label: "Job Description", icon: FileText },
   { to: "/candidates", label: "Candidate Ranking", icon: Trophy },
+  { to: "/talent-marketplace", label: "Talent Marketplace", icon: Users2 },
   { to: "/compare", label: "Comparison", icon: Columns3 },
+  { to: "/handoff", label: "Interview Handoff", icon: Send },
+  { to: "/ats-benchmark", label: "ATS Benchmark", icon: Scale },
 ] as const;
 
 export function AppShell({ children }: { children: ReactNode }) {

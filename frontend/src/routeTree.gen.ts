@@ -13,8 +13,13 @@ import { Route as IndexRouteImport } from './routes/index'
 import { Route as CandidatesRouteImport } from './routes/candidates'
 import { Route as CompareRouteImport } from './routes/compare'
 import { Route as FraudDetectionRouteImport } from './routes/fraud-detection'
+import { Route as InsightsRouteImport } from './routes/insights'
 import { Route as JobAnalysisRouteImport } from './routes/job-analysis'
 import { Route as UploadRouteImport } from './routes/upload'
+import { Route as AtsBenchmarkIndexRouteImport } from './routes/ats-benchmark/index'
+import { Route as HandoffIndexRouteImport } from './routes/handoff/index'
+import { Route as HandoffHandoffIdRouteImport } from './routes/handoff/$handoffId'
+import { Route as TalentMarketplaceIndexRouteImport } from './routes/talent-marketplace/index'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
@@ -36,6 +41,11 @@ const FraudDetectionRoute = FraudDetectionRouteImport.update({
   path: '/fraud-detection',
   getParentRoute: () => rootRouteImport,
 } as any)
+const InsightsRoute = InsightsRouteImport.update({
+  id: '/insights',
+  path: '/insights',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const JobAnalysisRoute = JobAnalysisRouteImport.update({
   id: '/job-analysis',
   path: '/job-analysis',
@@ -46,22 +56,52 @@ const UploadRoute = UploadRouteImport.update({
   path: '/upload',
   getParentRoute: () => rootRouteImport,
 } as any)
+const AtsBenchmarkIndexRoute = AtsBenchmarkIndexRouteImport.update({
+  id: '/ats-benchmark/',
+  path: '/ats-benchmark/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const HandoffIndexRoute = HandoffIndexRouteImport.update({
+  id: '/handoff/',
+  path: '/handoff/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const HandoffHandoffIdRoute = HandoffHandoffIdRouteImport.update({
+  id: '/handoff/$handoffId',
+  path: '/handoff/$handoffId',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const TalentMarketplaceIndexRoute = TalentMarketplaceIndexRouteImport.update({
+  id: '/talent-marketplace/',
+  path: '/talent-marketplace/',
+  getParentRoute: () => rootRouteImport,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/candidates': typeof CandidatesRoute
   '/compare': typeof CompareRoute
   '/fraud-detection': typeof FraudDetectionRoute
+  '/insights': typeof InsightsRoute
   '/job-analysis': typeof JobAnalysisRoute
   '/upload': typeof UploadRoute
+  '/handoff/$handoffId': typeof HandoffHandoffIdRoute
+  '/ats-benchmark/': typeof AtsBenchmarkIndexRoute
+  '/handoff/': typeof HandoffIndexRoute
+  '/talent-marketplace/': typeof TalentMarketplaceIndexRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/candidates': typeof CandidatesRoute
   '/compare': typeof CompareRoute
   '/fraud-detection': typeof FraudDetectionRoute
+  '/insights': typeof InsightsRoute
   '/job-analysis': typeof JobAnalysisRoute
   '/upload': typeof UploadRoute
+  '/handoff/$handoffId': typeof HandoffHandoffIdRoute
+  '/ats-benchmark': typeof AtsBenchmarkIndexRoute
+  '/handoff': typeof HandoffIndexRoute
+  '/talent-marketplace': typeof TalentMarketplaceIndexRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -69,8 +109,13 @@ export interface FileRoutesById {
   '/candidates': typeof CandidatesRoute
   '/compare': typeof CompareRoute
   '/fraud-detection': typeof FraudDetectionRoute
+  '/insights': typeof InsightsRoute
   '/job-analysis': typeof JobAnalysisRoute
   '/upload': typeof UploadRoute
+  '/handoff/$handoffId': typeof HandoffHandoffIdRoute
+  '/ats-benchmark/': typeof AtsBenchmarkIndexRoute
+  '/handoff/': typeof HandoffIndexRoute
+  '/talent-marketplace/': typeof TalentMarketplaceIndexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -79,24 +124,39 @@ export interface FileRouteTypes {
     | '/candidates'
     | '/compare'
     | '/fraud-detection'
+    | '/insights'
     | '/job-analysis'
     | '/upload'
+    | '/handoff/$handoffId'
+    | '/ats-benchmark/'
+    | '/handoff/'
+    | '/talent-marketplace/'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
     | '/candidates'
     | '/compare'
     | '/fraud-detection'
+    | '/insights'
     | '/job-analysis'
     | '/upload'
+    | '/handoff/$handoffId'
+    | '/ats-benchmark'
+    | '/handoff'
+    | '/talent-marketplace'
   id:
     | '__root__'
     | '/'
     | '/candidates'
     | '/compare'
     | '/fraud-detection'
+    | '/insights'
     | '/job-analysis'
     | '/upload'
+    | '/handoff/$handoffId'
+    | '/ats-benchmark/'
+    | '/handoff/'
+    | '/talent-marketplace/'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -104,8 +164,13 @@ export interface RootRouteChildren {
   CandidatesRoute: typeof CandidatesRoute
   CompareRoute: typeof CompareRoute
   FraudDetectionRoute: typeof FraudDetectionRoute
+  InsightsRoute: typeof InsightsRoute
   JobAnalysisRoute: typeof JobAnalysisRoute
   UploadRoute: typeof UploadRoute
+  HandoffHandoffIdRoute: typeof HandoffHandoffIdRoute
+  AtsBenchmarkIndexRoute: typeof AtsBenchmarkIndexRoute
+  HandoffIndexRoute: typeof HandoffIndexRoute
+  TalentMarketplaceIndexRoute: typeof TalentMarketplaceIndexRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -138,6 +203,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof FraudDetectionRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/insights': {
+      id: '/insights'
+      path: '/insights'
+      fullPath: '/insights'
+      preLoaderRoute: typeof InsightsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/job-analysis': {
       id: '/job-analysis'
       path: '/job-analysis'
@@ -152,6 +224,34 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof UploadRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/ats-benchmark/': {
+      id: '/ats-benchmark/'
+      path: '/ats-benchmark'
+      fullPath: '/ats-benchmark/'
+      preLoaderRoute: typeof AtsBenchmarkIndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/handoff/': {
+      id: '/handoff/'
+      path: '/handoff'
+      fullPath: '/handoff/'
+      preLoaderRoute: typeof HandoffIndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/handoff/$handoffId': {
+      id: '/handoff/$handoffId'
+      path: '/handoff/$handoffId'
+      fullPath: '/handoff/$handoffId'
+      preLoaderRoute: typeof HandoffHandoffIdRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/talent-marketplace/': {
+      id: '/talent-marketplace/'
+      path: '/talent-marketplace'
+      fullPath: '/talent-marketplace/'
+      preLoaderRoute: typeof TalentMarketplaceIndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
@@ -160,8 +260,13 @@ const rootRouteChildren: RootRouteChildren = {
   CandidatesRoute: CandidatesRoute,
   CompareRoute: CompareRoute,
   FraudDetectionRoute: FraudDetectionRoute,
+  InsightsRoute: InsightsRoute,
   JobAnalysisRoute: JobAnalysisRoute,
   UploadRoute: UploadRoute,
+  HandoffHandoffIdRoute: HandoffHandoffIdRoute,
+  AtsBenchmarkIndexRoute: AtsBenchmarkIndexRoute,
+  HandoffIndexRoute: HandoffIndexRoute,
+  TalentMarketplaceIndexRoute: TalentMarketplaceIndexRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

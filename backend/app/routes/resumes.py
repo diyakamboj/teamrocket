@@ -5,106 +5,75 @@ from pathlib import Path
 from fastapi import APIRouter, BackgroundTasks, File, UploadFile
 
 from app.config import settings
-from app.dependencies import DbSession, RecruiterEmail
-from app.models.candidate import Candidate
+from app.dependencies import AppStore, RecruiterEmail
 from app.models.evaluation import AuditLog, ResumeUpload
 from app.models.schemas import ResumeDetailResponse, ResumeUploadItem, ResumeUploadResponse
+from app.services.attachment_processor import upsert_candidate_from_parsed
 from app.services.azure_services import blob_service
 from app.services.resume_parser import resume_parser
+from app.storage.store import Store, store
 from app.utils.error_handlers import NotFoundError, ValidationAppError
 from app.utils.logger import get_logger
 from app.utils.validators import (
     ALLOWED_RESUME_EXTENSIONS,
     MAX_RESUME_SIZE_BYTES,
     is_allowed_resume_filename,
-    is_valid_email,
 )
 
 router = APIRouter()
 logger = get_logger(__name__)
 
 
-def _process_resume(upload_id: uuid.UUID) -> None:
-    from app.database import SessionLocal
-
-    db = SessionLocal()
+def _log_audit(active_store: Store, **fields) -> None:
     try:
-        upload = db.get(ResumeUpload, upload_id)
-        if not upload or not upload.blob_path:
-            return
+        active_store.audit_logs.save(AuditLog(**fields))
+    except Exception as exc:
+        logger.warning("Failed to persist audit log %s: %s", fields.get("action"), exc)
 
+
+def _process_resume(upload_id: uuid.UUID) -> None:
+    # Background tasks run outside the request/response cycle (and outside
+    # FastAPI's dependency-injection scope), so this uses the module-level
+    # `store` singleton directly rather than the per-request `AppStore` —
+    # mirrors the old code opening its own `SessionLocal()` here.
+    upload = store.resume_uploads.get(upload_id)
+    if not upload or not upload.blob_path:
+        return
+
+    try:
         upload.status = "ocr"
         upload.progress = 40
-        db.commit()
+        store.resume_uploads.save(upload)
 
         file_bytes = blob_service.download_bytes(upload.blob_path)
         text = asyncio.run(resume_parser.extract_resume_text(file_bytes, upload.filename))
 
         upload.status = "parsing"
         upload.progress = 70
-        db.commit()
+        store.resume_uploads.save(upload)
 
         parsed = asyncio.run(resume_parser.parse_resume(text))
 
-        email = parsed["email"]
-        if not is_valid_email(email):
-            email = f"candidate.{upload.id.hex[:10]}@example.com"
-            parsed["email"] = email
+        candidate = upsert_candidate_from_parsed(store, parsed, text, upload.blob_path)
 
-        existing = db.query(Candidate).filter(Candidate.email == email).first()
-        if existing:
-            candidate = existing
-            candidate.name = parsed["name"] or candidate.name
-            candidate.phone = parsed.get("phone") or candidate.phone
-            candidate.resume_file_id = upload.blob_path
-            candidate.resume_text = text
-            candidate.skills = parsed.get("skills") or candidate.skills
-            candidate.experience = parsed.get("experience") or candidate.experience
-            candidate.education = parsed.get("education") or candidate.education
-            candidate.certifications = parsed.get("certifications") or candidate.certifications
-            candidate.projects = parsed.get("projects") or candidate.projects
-            candidate.github_url = parsed.get("github_url") or candidate.github_url
-            candidate.linkedin_url = parsed.get("linkedin_url") or candidate.linkedin_url
-            candidate.portfolio_url = parsed.get("portfolio_url") or candidate.portfolio_url
-        else:
-            candidate = Candidate(
-                name=parsed["name"],
-                email=email,
-                phone=parsed.get("phone"),
-                resume_file_id=upload.blob_path,
-                resume_text=text,
-                skills=parsed.get("skills") or [],
-                experience=parsed.get("experience") or [],
-                education=parsed.get("education") or [],
-                certifications=parsed.get("certifications") or [],
-                projects=parsed.get("projects") or [],
-                github_url=parsed.get("github_url"),
-                linkedin_url=parsed.get("linkedin_url"),
-                portfolio_url=parsed.get("portfolio_url"),
-            )
-            db.add(candidate)
-
-        db.flush()
         upload.candidate_id = candidate.id
         upload.status = "complete"
         upload.progress = 100
-        db.commit()
+        store.resume_uploads.save(upload)
     except Exception as exc:
         logger.exception("Resume processing failed for %s", upload_id)
-        upload = db.get(ResumeUpload, upload_id)
+        upload = store.resume_uploads.get(upload_id)
         if upload:
             upload.status = "failed"
             upload.error = str(exc)
             upload.progress = 100
-            db.commit()
-    finally:
-        db.close()
+            store.resume_uploads.save(upload)
 
 
 @router.post("/upload", response_model=ResumeUploadResponse)
 async def upload_resumes(
     background_tasks: BackgroundTasks,
-    db: DbSession,
+    store: AppStore,
     recruiter_email: RecruiterEmail,
     files: list[UploadFile] = File(...),
 ):
@@ -114,10 +83,7 @@ async def upload_resumes(
     Path(settings.UPLOAD_DIR).mkdir(parents=True, exist_ok=True)
     batch_id = str(uuid.uuid4())
     items: list[ResumeUploadItem] = []
-    seen_names = {
-        row.filename.lower()
-        for row in db.query(ResumeUpload).all()
-    }
+    seen_names = {row.filename.lower() for row in store.resume_uploads.list_all()}
 
     for file in files:
         filename = file.filename or "resume.pdf"
@@ -128,8 +94,7 @@ async def upload_resumes(
                 progress=100,
                 error=f"Unsupported file type. Allowed: {sorted(ALLOWED_RESUME_EXTENSIONS)}",
             )
-            db.add(upload)
-            db.flush()
+            store.resume_uploads.save(upload)
             items.append(
                 ResumeUploadItem(
                     resume_id=upload.id,
@@ -149,8 +114,7 @@ async def upload_resumes(
                 progress=100,
                 error="File exceeds 15MB limit",
             )
-            db.add(upload)
-            db.flush()
+            store.resume_uploads.save(upload)
             items.append(
                 ResumeUploadItem(
                     resume_id=upload.id,
@@ -176,13 +140,12 @@ async def upload_resumes(
             status="duplicate" if is_duplicate else "queued",
             progress=10 if not is_duplicate else 0,
         )
-        db.add(upload)
-        db.flush()
+        store.resume_uploads.save(upload)
 
         if not is_duplicate:
             upload.status = "uploading"
             upload.progress = 25
-            db.flush()
+            store.resume_uploads.save(upload)
             background_tasks.add_task(_process_resume, upload.id)
 
         items.append(
@@ -195,15 +158,13 @@ async def upload_resumes(
             )
         )
 
-    db.add(
-        AuditLog(
-            recruiter_email=recruiter_email,
-            action="upload_resumes",
-            resource_type="resume_batch",
-            details={"batch_id": batch_id, "count": len(items)},
-        )
+    _log_audit(
+        store,
+        recruiter_email=recruiter_email,
+        action="upload_resumes",
+        resource_type="resume_batch",
+        details={"batch_id": batch_id, "count": len(items)},
     )
-    db.commit()
 
     return ResumeUploadResponse(
         batch_id=batch_id,
@@ -213,12 +174,12 @@ async def upload_resumes(
 
 
 @router.get("/{resume_id}", response_model=ResumeDetailResponse)
-def get_resume(resume_id: uuid.UUID, db: DbSession):
-    upload = db.get(ResumeUpload, resume_id)
+def get_resume(resume_id: uuid.UUID, store: AppStore):
+    upload = store.resume_uploads.get(resume_id)
     if not upload:
         raise NotFoundError("Resume upload not found", {"resume_id": str(resume_id)})
 
-    candidate = db.get(Candidate, upload.candidate_id) if upload.candidate_id else None
+    candidate = store.candidates.get(upload.candidate_id) if upload.candidate_id else None
     return ResumeDetailResponse(
         resume_id=upload.id,
         filename=upload.filename,
@@ -234,10 +195,10 @@ def get_resume(resume_id: uuid.UUID, db: DbSession):
 def reparse_resume(
     resume_id: uuid.UUID,
     background_tasks: BackgroundTasks,
-    db: DbSession,
+    store: AppStore,
     recruiter_email: RecruiterEmail,
 ):
-    upload = db.get(ResumeUpload, resume_id)
+    upload = store.resume_uploads.get(resume_id)
     if not upload:
         raise NotFoundError("Resume upload not found", {"resume_id": str(resume_id)})
     if not upload.blob_path:
@@ -246,15 +207,14 @@ def reparse_resume(
     upload.status = "queued"
     upload.progress = 0
     upload.error = None
-    db.add(
-        AuditLog(
-            recruiter_email=recruiter_email,
-            action="reparse_resume",
-            resource_type="resume",
-            resource_id=upload.id,
-        )
+    store.resume_uploads.save(upload)
+    _log_audit(
+        store,
+        recruiter_email=recruiter_email,
+        action="reparse_resume",
+        resource_type="resume",
+        resource_id=upload.id,
     )
-    db.commit()
     background_tasks.add_task(_process_resume, upload.id)
 
     return ResumeDetailResponse(

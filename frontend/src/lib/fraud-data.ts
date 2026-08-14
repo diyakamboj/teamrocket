@@ -1,9 +1,5 @@
 import { CANDIDATES, type Candidate } from "@/lib/mock-data";
-import type {
-  FraudCheckSource,
-  FraudScreenCandidateInput,
-  FraudScreenResult,
-} from "@/lib/api";
+import type { FraudCheckSource, FraudScreenCandidateInput, FraudScreenResult } from "@/lib/api";
 
 export type FraudStatus = "verified" | "suspicious" | "fraud";
 
@@ -27,7 +23,10 @@ export type FraudAssessment = {
     sanctions: boolean;
   };
   /** How each check was produced. Absent for pure client-side heuristic fallback. */
-  sources?: Record<"identity" | "employment" | "education" | "location" | "sanctions", FraudCheckSource>;
+  sources?: Record<
+    "identity" | "employment" | "education" | "location" | "sanctions",
+    FraudCheckSource
+  >;
   details?: FraudScreenResult["details"];
 };
 
@@ -183,10 +182,7 @@ export function toFraudScreenInput(candidate: Candidate): FraudScreenCandidateIn
 
 /** Merges a real backend screening result onto its candidate, in the same
  * shape the (offline-fallback) heuristic assessCandidate() produces. */
-export function mergeFraudResult(
-  candidate: Candidate,
-  result: FraudScreenResult,
-): FraudAssessment {
+export function mergeFraudResult(candidate: Candidate, result: FraudScreenResult): FraudAssessment {
   return {
     candidate,
     status: result.status,

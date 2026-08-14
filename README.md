@@ -46,16 +46,11 @@ pip install -r requirements.txt
 uvicorn app.main:app --reload --port 8000
 ```
 
-Default local DB is **SQLite** (`backend/resume_assistant.db`) — no Docker required.
-
-### Optional: Postgres
-
-```bash
-cd backend
-docker compose up -d
-# then set DATABASE_URL=postgresql://resume:resume@localhost:5432/resume_assistant in backend/.env
-alembic upgrade head
-```
+Structured data (candidates, jobs, evaluations, ...) is stored as JSON
+documents via the blob store — no database to set up. In mock mode
+(`USE_MOCK_AZURE=true`, the default) it writes to `backend/uploads/documents/`
+on local disk; pointing it at real Azure Blob Storage is a config change, not
+a schema migration.
 
 ### Screening API only
 

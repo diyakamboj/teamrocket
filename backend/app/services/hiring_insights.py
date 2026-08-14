@@ -2,23 +2,19 @@ from collections import Counter
 from typing import Any
 from uuid import UUID
 
-from sqlalchemy.orm import Session
-
-from app.models.candidate import Candidate
-from app.models.evaluation import Evaluation
-from app.models.job_posting import JobPosting
 from app.services.azure_services import openai_service
+from app.storage.store import Store
 from app.utils.error_handlers import NotFoundError
 
 
 class HiringInsightsService:
-    async def get_insights(self, db: Session, job_id: UUID) -> dict[str, Any]:
-        job = db.get(JobPosting, job_id)
+    async def get_insights(self, store: Store, job_id: UUID) -> dict[str, Any]:
+        job = store.jobs.get(job_id)
         if not job:
             raise NotFoundError("Job posting not found", {"job_id": str(job_id)})
 
-        evaluations = db.query(Evaluation).filter(Evaluation.job_id == job_id).all()
-        candidates = db.query(Candidate).all()
+        evaluations = store.evaluations.list_for_job(job_id)
+        candidates = store.candidates.list_all()
 
         skill_counter: Counter[str] = Counter()
         missing_counter: Counter[str] = Counter()
@@ -72,12 +68,12 @@ Keep it under 80 words.
             "pipeline_status": pipeline,
         }
 
-    async def get_distribution(self, db: Session, job_id: UUID) -> dict[str, Any]:
-        job = db.get(JobPosting, job_id)
+    async def get_distribution(self, store: Store, job_id: UUID) -> dict[str, Any]:
+        job = store.jobs.get(job_id)
         if not job:
             raise NotFoundError("Job posting not found", {"job_id": str(job_id)})
 
-        evaluations = db.query(Evaluation).filter(Evaluation.job_id == job_id).all()
+        evaluations = store.evaluations.list_for_job(job_id)
         scores = [float(e.overall_score) for e in evaluations if e.overall_score is not None]
 
         buckets = [
@@ -93,7 +89,7 @@ Keep it under 80 words.
         ]
 
         levels = {"Junior": 0, "Mid": 0, "Senior": 0, "Lead": 0}
-        candidates = db.query(Candidate).all()
+        candidates = store.candidates.list_all()
         for candidate in candidates:
             years = candidate.years_of_experience()
             if years < 3:

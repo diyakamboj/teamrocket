@@ -6,6 +6,11 @@ export type AgentAskPayload = {
   job_id?: string | null;
   session_id?: string | null;
   chatbot_conversation_id?: string | null;
+  blind_mode?: boolean;
+  weights?: Record<string, number> | null;
+  candidate_id?: string | null;
+  model_id?: string | null;
+  attachment_ids?: string[];
 };
 
 export type AgentCitation = {
@@ -17,15 +22,85 @@ export type AgentCitation = {
   metadata?: Record<string, unknown>;
 };
 
+// ---------- Structured copilot payloads ----------
+
+export type AgentCandidateCard = {
+  type: "candidate_card";
+  candidate_id?: string;
+  label: string;
+  rank?: number;
+  score?: number;
+  years?: number;
+  level?: string;
+  categories: Record<string, number>;
+  must_haves?: Record<string, unknown> | null;
+  skills: string[];
+  strengths: string[];
+  gaps: string[];
+  summary?: string;
+  source?: string | null;
+  employment_status?: string | null;
+  current_assignment?: string | null;
+};
+
+export type AgentRankingList = {
+  type: "ranking_list";
+  candidates: AgentCandidateCard[];
+};
+
+export type AgentComparisonTable = {
+  type: "comparison_table";
+  candidates: AgentCandidateCard[];
+};
+
+export type AgentRequirementVerdict = {
+  requirement?: string;
+  category?: string;
+  must: boolean;
+  status?: string;
+  score?: number;
+  justification?: string;
+};
+
+export type AgentEvaluationSummary = {
+  type: "evaluation_summary";
+  candidate: AgentCandidateCard;
+  verdicts: AgentRequirementVerdict[];
+};
+
+export type AgentMustHaveRow = {
+  requirement?: string;
+  met_count: number;
+  candidates: string[];
+};
+
+export type AgentMustHaveReport = {
+  type: "must_have_report";
+  rows: AgentMustHaveRow[];
+  candidates_meeting_all: string[];
+};
+
+export type AgentStructuredPayload =
+  | AgentCandidateCard
+  | AgentRankingList
+  | AgentComparisonTable
+  | AgentEvaluationSummary
+  | AgentMustHaveReport;
+
 export type AgentAskResponse = {
   session_id: string;
   response: string;
   candidates_referenced: string[];
   chat_turn: number;
-  source: "chatbot" | "local" | string;
+  source: "chatbot" | "local" | "agent" | string;
+  engine?: "agent" | "deterministic" | "chatbot" | "comparison" | string;
+  tools?: string[];
   citations: AgentCitation[];
   chatbot_conversation_id?: string | null;
   job_id?: string | null;
+  candidate_id?: string | null;
+  model_id: string;
+  structured?: AgentStructuredPayload | null;
 };
 
 export type AgentStatus = {
@@ -38,12 +113,64 @@ export type AgentStatus = {
   };
 };
 
+// ---------- Copilot models ----------
+
+export type CopilotModelInfo = {
+  id: string;
+  label: string;
+  description: string;
+  is_default: boolean;
+};
+
+export type AgentModelsResponse = {
+  models: CopilotModelInfo[];
+  default_model_id: string;
+};
+
+// ---------- Copilot sessions ----------
+
+export type AgentSessionSummary = {
+  id: string;
+  recruiter_email?: string | null;
+  job_id?: string | null;
+  messages: unknown[];
+  created_at: string;
+  updated_at: string;
+  candidate_id?: string | null;
+  candidate_name?: string | null;
+  title?: string | null;
+};
+
+// ---------- Chat attachments ----------
+
+export type ChatAttachmentStatus = "queued" | "processing" | "processed" | "failed";
+
+export type ChatAttachmentInfo = {
+  id: string;
+  session_id?: string | null;
+  recruiter_email?: string | null;
+  filename: string;
+  blob_path?: string | null;
+  content_type?: string | null;
+  size_bytes: number;
+  status: ChatAttachmentStatus;
+  kind?: "resume" | "job_description" | "notes" | "unknown" | null;
+  extracted_summary?: string | null;
+  candidate_id?: string | null;
+  error?: string | null;
+  created_at: string;
+};
+
+export type JobStatus = "open" | "paused" | "closed";
+
 export type JobResponse = {
   id: string;
   title: string;
   description: string;
   required_skills?: string[];
   required_experience_years?: number | null;
+  status?: JobStatus;
+  sourcing_mode?: string;
 };
 
 function recruiterHeaders(): HeadersInit {
@@ -87,6 +214,56 @@ export async function askAgent(payload: AgentAskPayload): Promise<AgentAskRespon
     method: "POST",
     body: JSON.stringify(payload),
   });
+}
+
+export async function getAgentModels(): Promise<AgentModelsResponse> {
+  return request<AgentModelsResponse>("/api/agent/models");
+}
+
+export async function listAgentSessions(
+  candidateId?: string | null,
+): Promise<AgentSessionSummary[]> {
+  const params = new URLSearchParams({ mine_only: "true" });
+  if (candidateId) params.set("candidate_id", candidateId);
+  return request<AgentSessionSummary[]>(`/api/agent/sessions?${params.toString()}`);
+}
+
+/**
+ * Multipart upload — bypasses request()'s hardcoded JSON content-type, so this
+ * builds its own fetch call (still attaching the X-Recruiter-Email header).
+ */
+export async function uploadChatAttachment(
+  file: File,
+  sessionId?: string | null,
+): Promise<ChatAttachmentInfo> {
+  const email =
+    (import.meta.env["VITE_RECRUITER_EMAIL"] as string | undefined) || "recruiter@example.com";
+  const form = new FormData();
+  form.append("file", file);
+  if (sessionId) form.append("session_id", sessionId);
+
+  const response = await fetch(`${API_BASE}/api/agent/attachments`, {
+    method: "POST",
+    headers: { "X-Recruiter-Email": email },
+    body: form,
+  });
+
+  if (!response.ok) {
+    let detail = `Upload failed (${response.status})`;
+    try {
+      const body = await response.json();
+      detail = body?.error || body?.detail || detail;
+    } catch {
+      // ignore parse errors
+    }
+    throw new Error(detail);
+  }
+
+  return response.json() as Promise<ChatAttachmentInfo>;
+}
+
+export async function getChatAttachment(id: string): Promise<ChatAttachmentInfo> {
+  return request<ChatAttachmentInfo>(`/api/agent/attachments/${encodeURIComponent(id)}`);
 }
 
 export async function listJobs(): Promise<JobResponse[]> {
@@ -159,7 +336,10 @@ export type FraudScreenResult = {
     location: boolean;
     sanctions: boolean;
   };
-  sources: Record<"identity" | "employment" | "education" | "location" | "sanctions", FraudCheckSource>;
+  sources: Record<
+    "identity" | "employment" | "education" | "location" | "sanctions",
+    FraudCheckSource
+  >;
   signals: FraudSignal[];
   details: {
     sanctions_matches?: { name: string; program: string; score: number }[];
@@ -198,6 +378,32 @@ export async function screenCandidatesForFraud(
   return byId;
 }
 
+export type ConsistencyFlag = {
+  id: string;
+  category: string;
+  label: string;
+  severity: "low" | "medium" | "high";
+  detail?: string | null;
+};
+
+export type ResumeConsistencyResult = {
+  candidate_id: string;
+  flags: ConsistencyFlag[];
+  flagged_count: number;
+  requires_review: boolean;
+  summary: string;
+  engine: string;
+};
+
+export async function checkResumeConsistency(
+  candidateId: string,
+): Promise<ResumeConsistencyResult> {
+  return request<ResumeConsistencyResult>(
+    `/api/fraud/consistency-check/${encodeURIComponent(candidateId)}`,
+    { method: "POST" },
+  );
+}
+
 export type InterviewSlot = {
   label: string;
   start: string;
@@ -226,6 +432,249 @@ export async function submitCandidateDecision(input: {
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(input),
   });
+}
+
+// ---------- Interview handoff & historical data ----------
+
+export type HistoryEvent = {
+  id: string;
+  candidate_id: string;
+  candidate_name?: string | null;
+  job_id?: string | null;
+  job_title?: string | null;
+  event_type: string;
+  actor_email?: string | null;
+  summary?: string | null;
+  details: Record<string, unknown>;
+  created_at: string;
+};
+
+export async function getCandidateHistory(
+  candidateId: string,
+  jobId?: string | null,
+): Promise<HistoryEvent[]> {
+  const qs = jobId ? `?job_id=${encodeURIComponent(jobId)}` : "";
+  return request<HistoryEvent[]>(`/api/handoff/history/${encodeURIComponent(candidateId)}${qs}`);
+}
+
+export type BriefingScorecard = {
+  overall_score?: number | null;
+  skill_score?: number | null;
+  experience_score?: number | null;
+  education_score?: number | null;
+  certification_score?: number | null;
+  project_score?: number | null;
+};
+
+export type CandidateBriefing = {
+  candidate_id: string;
+  candidate_name: string;
+  candidate_email?: string | null;
+  job_id?: string | null;
+  job_title?: string | null;
+  generated_at: string;
+  scorecard: BriefingScorecard;
+  matched_skills: unknown[];
+  missing_skills: unknown[];
+  strengths?: string | null;
+  weaknesses?: string | null;
+  transferable_skills?: string | null;
+  evidence_highlights: unknown[];
+  interview_focus_areas: string[];
+  recruiter_notes?: string | null;
+};
+
+export type HandoffStatus = "pending" | "viewed" | "acknowledged";
+
+export type InterviewHandoffRecord = {
+  id: string;
+  candidate_id: string;
+  candidate_name: string;
+  candidate_email?: string | null;
+  job_id?: string | null;
+  job_title?: string | null;
+  interviewer_name: string;
+  interviewer_email: string;
+  created_by?: string | null;
+  briefing: CandidateBriefing;
+  status: HandoffStatus;
+  interviewer_notes?: string | null;
+  email_sent: boolean;
+  email_source?: string | null;
+  created_at: string;
+  viewed_at?: string | null;
+  acknowledged_at?: string | null;
+};
+
+export async function createHandoff(input: {
+  candidate_id: string;
+  candidate_name: string;
+  candidate_email?: string | null;
+  job_id?: string | null;
+  job_title?: string | null;
+  interviewer_name: string;
+  interviewer_email: string;
+  recruiter_notes?: string | undefined;
+  scorecard?: BriefingScorecard;
+  matched_skills?: unknown[];
+  missing_skills?: unknown[];
+  strengths?: string | null;
+  weaknesses?: string | null;
+  transferable_skills?: string | null;
+  evidence_highlights?: unknown[];
+}): Promise<InterviewHandoffRecord> {
+  return request<InterviewHandoffRecord>("/api/handoff", {
+    method: "POST",
+    body: JSON.stringify(input),
+  });
+}
+
+export async function getHandoff(id: string): Promise<InterviewHandoffRecord> {
+  return request<InterviewHandoffRecord>(`/api/handoff/${id}`);
+}
+
+export async function markHandoffViewed(id: string): Promise<InterviewHandoffRecord> {
+  return request<InterviewHandoffRecord>(`/api/handoff/${id}/view`, { method: "POST" });
+}
+
+export async function acknowledgeHandoff(
+  id: string,
+  interviewerNotes?: string,
+): Promise<InterviewHandoffRecord> {
+  return request<InterviewHandoffRecord>(`/api/handoff/${id}/acknowledge`, {
+    method: "POST",
+    body: JSON.stringify({ interviewer_notes: interviewerNotes ?? null }),
+  });
+}
+
+export async function listHandoffsForCandidate(
+  candidateId: string,
+): Promise<InterviewHandoffRecord[]> {
+  return request<InterviewHandoffRecord[]>(
+    `/api/handoff/candidate/${encodeURIComponent(candidateId)}/list`,
+  );
+}
+
+// ---------- Top-level recruiter dashboard: job listings & pipeline ----------
+
+export type PipelineStage = "screened" | "interviewing" | "interviewed" | "selected" | "rejected";
+
+export type JobPipelineSummary = {
+  job_id: string;
+  title: string;
+  status: JobStatus;
+  created_at: string;
+  total_candidates: number;
+  internal_candidates: number;
+  external_candidates: number;
+  average_score: number;
+  stage_counts: Record<PipelineStage, number>;
+};
+
+export type PipelineCandidate = {
+  candidate_id: string;
+  candidate_name: string;
+  candidate_email?: string | null;
+  source: "internal" | "external";
+  overall_score?: number | null;
+  stage: PipelineStage;
+  updated_at: string;
+  employment_status?: string | null;
+};
+
+export async function listJobPipelines(): Promise<JobPipelineSummary[]> {
+  return request<JobPipelineSummary[]>("/api/dashboard/jobs");
+}
+
+export async function getJobPipeline(
+  jobId: string,
+  source?: "internal" | "external" | "all",
+): Promise<PipelineCandidate[]> {
+  const qs = source ? `?source=${source}` : "";
+  return request<PipelineCandidate[]>(`/api/dashboard/jobs/${jobId}/pipeline${qs}`);
+}
+
+export async function updateJobStatus(jobId: string, status: JobStatus): Promise<JobResponse> {
+  return request<JobResponse>(`/api/jobs/${jobId}`, {
+    method: "PUT",
+    body: JSON.stringify({ status }),
+  });
+}
+
+export async function updateCandidateSource(
+  candidateId: string,
+  source: "internal" | "external",
+): Promise<unknown> {
+  return request(`/api/candidates/${candidateId}`, {
+    method: "PUT",
+    body: JSON.stringify({ source }),
+  });
+}
+
+export async function updateJobSourcingMode(
+  jobId: string,
+  sourcingMode: string,
+): Promise<JobResponse> {
+  return request<JobResponse>(`/api/jobs/${jobId}`, {
+    method: "PUT",
+    body: JSON.stringify({ sourcing_mode: sourcingMode }),
+  });
+}
+
+// ---------- Internal talent marketplace ----------
+
+export async function getInternalMatches(
+  jobId: string,
+  benchPriority = true,
+): Promise<AgentEvaluationSummary[]> {
+  const params = new URLSearchParams({
+    job_id: jobId,
+    bench_priority: String(benchPriority),
+  });
+  return request<AgentEvaluationSummary[]>(
+    `/api/internal-marketplace/matches?${params.toString()}`,
+  );
+}
+
+// ---------- ATS Benchmark Baseline Scoring ----------
+
+export type AtsVerdict = "semantic_stronger" | "keyword_stronger" | "aligned";
+
+export type EquivalentTerm = { resume_term: string; jd_keyword: string };
+
+export type AtsBenchmark = {
+  id: string;
+  evaluation_id: string;
+  candidate_id: string;
+  job_id: string;
+  // Decimal fields serialize as JSON strings — parse with Number() to display.
+  keyword_score: string;
+  matched_keywords: string[];
+  missing_keywords: string[];
+  semantic_score: string;
+  semantic_rationale?: string | null;
+  equivalent_terms: EquivalentTerm[];
+  score_delta: string;
+  verdict: AtsVerdict;
+  created_at: string;
+  updated_at: string;
+};
+
+export async function runAtsBenchmark(candidateId: string, jobId: string): Promise<AtsBenchmark> {
+  return request<AtsBenchmark>(`/api/evaluation/${candidateId}/${jobId}/ats-benchmark`, {
+    method: "POST",
+  });
+}
+
+export async function getAtsBenchmark(
+  candidateId: string,
+  jobId: string,
+): Promise<AtsBenchmark | null> {
+  try {
+    return await request<AtsBenchmark>(`/api/evaluation/${candidateId}/${jobId}/ats-benchmark`);
+  } catch {
+    return null;
+  }
 }
 
 export { API_BASE };

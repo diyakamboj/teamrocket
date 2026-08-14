@@ -236,7 +236,10 @@ export function UploadPage() {
 
           <div className="card-surface divide-y overflow-hidden">
             {rows.map((f) => (
-              <div key={f.id} className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-4 px-5 py-3">
+              <div
+                key={f.id}
+                className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-4 px-5 py-3"
+              >
                 <div className="min-w-0">
                   <div className="flex min-w-0 items-center gap-2">
                     <p className="truncate text-sm font-semibold">{f.name}</p>
@@ -269,7 +272,12 @@ export function UploadPage() {
                 </div>
                 <div className="flex shrink-0 items-center gap-2">
                   {f.stage === "failed" && (
-                    <Button size="sm" variant="outline" className="rounded-xl" onClick={() => retry(f.id)}>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="rounded-xl"
+                      onClick={() => retry(f.id)}
+                    >
                       Retry
                     </Button>
                   )}

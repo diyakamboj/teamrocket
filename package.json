@@ -7,9 +7,11 @@
     "postinstall": "npm --prefix frontend install",
     "dev": "npm --prefix frontend run dev",
     "dev:frontend": "npm --prefix frontend run dev",
+    "dev:portfolio": "npm --prefix portfolio run dev",
     "dev:backend": "cd backend && .venv/bin/uvicorn app.main:app --reload --host 0.0.0.0 --port 8000",
     "dev:copilot": "cd copilot && uvicorn backend.app:app --reload --host 0.0.0.0 --port 8001 --app-dir src",
     "build": "npm --prefix frontend run build",
+    "build:portfolio": "npm --prefix portfolio run build",
     "lint": "npm --prefix frontend run lint",
     "test:backend": "cd backend && .venv/bin/pytest tests/ -v"
   }

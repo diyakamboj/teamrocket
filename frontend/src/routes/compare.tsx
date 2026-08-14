@@ -1,10 +1,10 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useMemo } from "react";
-import { Sparkle, X } from "lucide-react";
-import { CompareChat } from "@/components/copilot";
+import { Sparkle, Sparkles, X } from "lucide-react";
 import { MiniBar, ScoreRing } from "@/components/score-ring";
 import { Button } from "@/components/ui/button";
 import { useAppState } from "@/lib/app-state";
+import { useCopilot } from "@/lib/copilot-state";
 import { CANDIDATES, rankCandidates } from "@/lib/mock-data";
 
 export const Route = createFileRoute("/compare")({
@@ -26,6 +26,25 @@ export const Route = createFileRoute("/compare")({
   component: Compare,
 });
 
+function AskCopilotAboutComparison({ count }: { count: number }) {
+  const { setOpen, send } = useCopilot();
+
+  return (
+    <Button
+      variant="outline"
+      className="rounded-xl"
+      onClick={() => {
+        setOpen(true);
+        if (count >= 2) {
+          void send("Compare my shortlisted candidates side by side.");
+        }
+      }}
+    >
+      <Sparkles className="mr-2 h-4 w-4" /> Ask Copilot about this comparison
+    </Button>
+  );
+}
+
 function Compare() {
   const { compareIds, toggleCompare, clearCompare, weights, blindMode } = useAppState();
   const ranked = useMemo(() => rankCandidates(CANDIDATES, weights), [weights]);
@@ -39,14 +58,16 @@ function Compare() {
           <p className="mt-2 text-sm text-muted-foreground">
             Pick 2–3 candidates from the ranking to see them side by side.
           </p>
-          <Link
-            to="/candidates"
-            className="mt-6 inline-flex rounded-xl bg-primary px-4 py-2.5 text-sm font-semibold text-primary-foreground"
-          >
-            Go to ranking
-          </Link>
+          <div className="mt-6 flex flex-wrap items-center justify-center gap-3">
+            <Link
+              to="/candidates"
+              className="inline-flex rounded-xl bg-primary px-4 py-2.5 text-sm font-semibold text-primary-foreground"
+            >
+              Go to ranking
+            </Link>
+            <AskCopilotAboutComparison count={0} />
+          </div>
         </div>
-        <CompareChat candidates={[]} blindMode={blindMode} />
       </div>
     );
   }
@@ -59,12 +80,15 @@ function Compare() {
         <div className="min-w-0">
           <h1 className="truncate text-2xl font-extrabold sm:text-3xl">Candidate Comparison</h1>
           <p className="mt-1 text-sm text-muted-foreground">
-            {selected.length} candidates side by side · ask the chat below
+            {selected.length} candidates side by side
           </p>
         </div>
-        <Button variant="outline" className="shrink-0 rounded-xl" onClick={clearCompare}>
-          Clear selection
-        </Button>
+        <div className="flex shrink-0 items-center gap-2">
+          <AskCopilotAboutComparison count={selected.length} />
+          <Button variant="outline" className="rounded-xl" onClick={clearCompare}>
+            Clear selection
+          </Button>
+        </div>
       </header>
 
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
@@ -158,12 +182,9 @@ function Compare() {
           </strong>{" "}
           is the strongest overall fit at {best.score}, driven by a {best.categories.skills} skills
           match and {best.years} years of relevant delivery. The main trade-off is{" "}
-          {best.gaps[0]!.toLowerCase()} — ask the chat below for interview focus or experience
-          comparisons.
+          {best.gaps[0]!.toLowerCase()} — ask Copilot for interview focus or experience comparisons.
         </p>
       </div>
-
-      <CompareChat candidates={selected} blindMode={blindMode} />
     </div>
   );
 }
