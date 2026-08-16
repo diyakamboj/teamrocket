@@ -5,7 +5,16 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.config import settings
 from app.database import init_db
-from app.routes import agent, candidates, dashboard, evaluation, fraud, jobs, resumes
+from app.routes import (
+    agent,
+    candidates,
+    dashboard,
+    evaluation,
+    fraud,
+    jobs,
+    resumes,
+    screening,
+)
 from app.utils.error_handlers import setup_exception_handlers
 from app.utils.logger import get_logger, setup_logging
 
@@ -46,6 +55,7 @@ app.include_router(evaluation.router, prefix="/api/evaluation", tags=["Evaluatio
 app.include_router(dashboard.router, prefix="/api/dashboard", tags=["Dashboard"])
 app.include_router(agent.router, prefix="/api/agent", tags=["AI Agent"])
 app.include_router(fraud.router, prefix="/api/fraud", tags=["Fraud Detection"])
+app.include_router(screening.router, prefix="/api/screening", tags=["L1 Screening"])
 
 
 @app.get("/health")

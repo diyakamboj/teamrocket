@@ -1,8 +1,10 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import { Link } from "@tanstack/react-router";
 import { ArrowUp, Loader2, Sparkles } from "lucide-react";
-import { askAgent, getAgentStatus, type AgentCitation } from "@/lib/api";
+import { askAgent, getAgentStatus, type AgentCitation, type ScreeningSession } from "@/lib/api";
 import { useAppState } from "@/lib/app-state";
 import type { Candidate } from "@/lib/mock-data";
+import { ScreeningInlineStatus } from "@/components/screening";
 import { cn } from "@/lib/utils";
 
 const SUGGESTIONS = [
@@ -12,11 +14,17 @@ const SUGGESTIONS = [
   "What should I ask in interviews?",
 ];
 
+/** Mirrors the agent's screening intents so the shortlist shortcuts below
+ *  never intercept a screening command (see backend recruiter_agent.py). */
+const SCREENING_INTENT =
+  /\b(?:start|run|begin|conduct|open)\b[^.?!]{0,40}?\bscreen(?:ing)?\b|^\s*screen\b|\bbrief(?:ing)?\b/i;
+
 type Msg = {
   role: "user" | "assistant";
   text: string;
   source?: string;
   citations?: AgentCitation[];
+  screening?: ScreeningSession | null;
 };
 
 export type CompareChatCandidate = Pick<
@@ -190,6 +198,7 @@ export function CompareChat({ candidates, blindMode = false, className }: Compar
   const [sessionId, setSessionId] = useState<string | null>(null);
   const [chatbotConversationId, setChatbotConversationId] = useState<string | null>(null);
   const [chatSource, setChatSource] = useState<string>("connecting");
+  const [screening, setScreening] = useState<ScreeningSession | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const namesKey = names.join("|");
@@ -231,7 +240,14 @@ export function CompareChat({ candidates, blindMode = false, className }: Compar
     setInput("");
     setLoading(true);
 
-    const local = answerLocally(query, candidates, blindMode);
+    // While a screening is running this chat box belongs to the screening
+    // conversation: the candidate's answer must reach the agent verbatim, not
+    // be intercepted by the shortlist shortcuts below.
+    const screeningActive = screening?.status === "in_progress";
+    const local =
+      screeningActive || SCREENING_INTENT.test(query)
+        ? null
+        : answerLocally(query, candidates, blindMode);
     if (local) {
       setMessages((m) => [...m, { role: "assistant", text: local, source: "compare" }]);
       setChatSource("compare");
@@ -241,7 +257,12 @@ export function CompareChat({ candidates, blindMode = false, className }: Compar
     }
 
     const brief = buildCandidateBrief(candidates, blindMode);
-    const contextualQuery = `
+    // Screening turns go through untouched — the agent is talking to a
+    // candidate, and wrapping the reply in shortlist context would corrupt it.
+    const contextualQuery =
+      screeningActive || SCREENING_INTENT.test(query)
+        ? query
+        : `
 User question: ${query}
 
 You are comparing this shortlist. Answer using ONLY these candidates and be specific with names, years, and scores:
@@ -265,6 +286,7 @@ If asked who is strongest overall, pick the highest overall_score.
         setChatbotConversationId(result.chatbot_conversation_id);
       }
       if (result.source) setChatSource(result.source);
+      if (result.screening !== undefined) setScreening(result.screening ?? null);
 
       setMessages((m) => [
         ...m,
@@ -273,6 +295,7 @@ If asked who is strongest overall, pick the highest overall_score.
           text: result.response,
           source: result.source,
           citations: result.citations || [],
+          screening: result.screening ?? null,
         },
       ]);
     } catch {
@@ -343,6 +366,18 @@ If asked who is strongest overall, pick the highest overall_score.
                 ),
               )}
             </div>
+            {m.screening && (
+              <div>
+                <ScreeningInlineStatus session={m.screening} />
+                <Link
+                  to="/screening"
+                  search={{ session: m.screening.session_id }}
+                  className="mt-1 inline-block text-[11px] font-semibold text-primary hover:underline"
+                >
+                  Open the full screening view →
+                </Link>
+              </div>
+            )}
             {m.citations && m.citations.length > 0 && (
               <div className="mt-2 rounded-lg border bg-secondary/50 px-3 py-2 text-xs text-muted-foreground">
                 <p className="mb-1 font-semibold text-foreground">Sources</p>
@@ -366,6 +401,18 @@ If asked who is strongest overall, pick the highest overall_score.
 
       {messages.length <= 1 && (
         <div className="flex flex-wrap gap-2 px-4 pb-2">
+          {/* Shortlisted rows are client-side, so screening them opens the
+              screening flow directly rather than asking the agent to look up
+              a candidate it has no record of. */}
+          {candidates[0] && !blindMode && (
+            <Link
+              to="/screening"
+              search={{ candidate: candidates[0].id }}
+              className="rounded-full border border-primary/40 bg-background px-3 py-1 text-[11px] font-semibold text-primary transition-colors hover:bg-primary-soft"
+            >
+              Start L1 screening: {candidates[0].name}
+            </Link>
+          )}
           {SUGGESTIONS.map((s) => (
             <button
               key={s}

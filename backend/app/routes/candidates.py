@@ -7,12 +7,14 @@ from app.dependencies import DbSession, RecruiterEmail
 from app.models.candidate import Candidate
 from app.models.evaluation import AuditLog, CandidateDecision
 from app.models.schemas import (
+    CandidateBadgesResponse,
     CandidateDecisionRequest,
     CandidateDecisionResponse,
     CandidateResponse,
     RankedCandidate,
     WeightConfig,
 )
+from app.services.badge_service import build_badges
 from app.services.candidate_matcher import candidate_matcher
 from app.services.decision_service import process_decision
 from app.services.resume_parser import resume_parser
@@ -89,6 +91,37 @@ async def candidate_score(
     )
     return await candidate_matcher.get_candidate_score(
         db, candidate_id, job_id, weight_config=weights, persist=True
+    )
+
+
+@router.get("/{candidate_id}/badges", response_model=CandidateBadgesResponse)
+async def candidate_badges(
+    candidate_id: uuid.UUID,
+    db: DbSession,
+    job_id: uuid.UUID | None = Query(
+        None, description="Score against this job to include match-based flags"
+    ),
+):
+    """Status flags and evidence-backed skill badges for one candidate.
+
+    Without `job_id` only the job-independent badges are returned
+    (availability, profile completeness, verified skills/certifications).
+    """
+    candidate = db.get(Candidate, candidate_id)
+    if not candidate:
+        raise NotFoundError("Candidate not found", {"candidate_id": str(candidate_id)})
+
+    score = None
+    if job_id is not None:
+        score = await candidate_matcher.get_candidate_score(
+            db, candidate_id, job_id, persist=False
+        )
+
+    badges = build_badges(candidate, score)
+    return CandidateBadgesResponse(
+        candidate_id=candidate_id,
+        job_id=job_id,
+        **badges.as_dict(),
     )
 
 

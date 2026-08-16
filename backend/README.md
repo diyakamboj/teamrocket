@@ -8,6 +8,8 @@ Production-oriented FastAPI backend for the ResumeIQ / Resume Screening Assistan
 - Job description analysis and requirement extraction
 - Hybrid candidate ranking (keyword + semantic overlap + LLM explanation)
 - Evidence tracing for matched skills
+- Candidate status flags (🟢 Top Match, 👥 Bench Candidate, 🚀 Immediate Joiner, ⚠️ Incomplete Profile) and evidence-linked skill/certification badges
+- Interactive L1 preliminary screening: candidate-specific question plans, scored answers, screening evidence fed back into the evaluation, and a pre-interview briefing
 - Side-by-side candidate comparison
 - Hiring insights dashboard APIs
 - Recruiter AI copilot with chat sessions
@@ -77,16 +79,50 @@ Health: [http://localhost:8000/health](http://localhost:8000/health)
 | POST | `/api/jobs/{job_id}/analyze` | AI extract requirements |
 | GET | `/api/candidates/rank?job_id=` | Rank candidates |
 | GET | `/api/candidates/{id}/score?job_id=` | Detailed score |
+| GET | `/api/candidates/{id}/badges?job_id=` | Status flags + verified skill badges (`job_id` optional) |
 | POST | `/api/candidates/{id}/enrich` | Enrich from public profiles |
 | POST | `/api/evaluation/compare` | Compare candidates |
 | GET | `/api/evaluation/{id}/evidence` | Evidence citations |
 | POST | `/api/evaluation/{candidate_id}/{job_id}/blind-review` | Toggle blind review |
 | GET | `/api/dashboard/job/{job_id}/insights` | Hiring insights |
 | GET | `/api/dashboard/job/{job_id}/distribution` | Score distribution |
-| POST | `/api/agent/ask` | Recruiter copilot |
+| POST | `/api/agent/ask` | Recruiter copilot (also drives L1 screening — see below) |
 | GET | `/api/agent/sessions` | Copilot chat history |
+| POST | `/api/screening/sessions` | Start an L1 screening + generate its questions |
+| GET | `/api/screening/sessions` | List screenings (`?candidate_id=` to filter) |
+| GET | `/api/screening/sessions/{id}` | Session state: plan, transcript, scorecard |
+| POST | `/api/screening/sessions/{id}/answer` | Record + score an answer, return the next question |
+| POST | `/api/screening/sessions/{id}/skip` | Move past the current question |
+| POST | `/api/screening/sessions/{id}/complete` | End early and generate the briefing |
+| GET | `/api/screening/sessions/{id}/briefing` | Pre-interview briefing |
 
 Optional header for audit trail: `X-Recruiter-Email: you@company.com`
+
+## L1 preliminary screening
+
+```text
+POST /api/screening/sessions          → question plan built from THIS candidate
+   ├── candidate_id + job_id            profile + job + evaluation + prior evidence
+   └── or inline candidate + job_id     for rows that exist only client-side
+        │
+        ▼
+POST .../answer  (repeat)             → rubric scores coverage / depth / clarity,
+        │                               returns the next question. State lives in
+        │                               screening_sessions, so the conversation
+        │                               survives reloads and model outages.
+        ▼
+completed                             → scorecard + pre-interview briefing, and
+                                        screening evidence written onto the
+                                        candidate's evaluation (source section
+                                        "L1 Screening"; re-ranking preserves it)
+```
+
+The same workflow runs from the copilot chat box: “start screening for
+&lt;name&gt;” opens a session bound to that chat thread, subsequent messages are
+recorded as the candidate's answers, and “skip” / “stop screening” /
+“briefing for &lt;name&gt;” control it. Answers are scored deterministically; a
+configured model can adjust a score within a bounded range and add wording,
+but never invents the evidence.
 
 ## Mock mode
 

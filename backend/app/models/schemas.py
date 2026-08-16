@@ -62,6 +62,43 @@ class WeightConfig(BaseModel):
     projects: float = 0.05
 
 
+# ---------- Status flags / badges ----------
+
+
+class BadgeEvidenceItem(BaseModel):
+    """Pointer back to the resume or profile data that justifies a badge."""
+
+    label: str
+    detail: str
+    origin: str  # "resume" | "external_profile" | "screening"
+    confidence: Optional[float] = None
+    url: Optional[str] = None
+
+
+class CandidateStatusFlag(BaseModel):
+    id: str  # "top_match" | "bench_candidate" | "immediate_joiner" | "incomplete_profile"
+    label: str
+    emoji: str
+    tone: str  # "positive" | "neutral" | "warning"
+    reason: str
+    evidence: list[BadgeEvidenceItem] = Field(default_factory=list)
+
+
+class VerifiedSkillBadge(BaseModel):
+    name: str
+    kind: str  # "skill" | "certification"
+    level: str  # "verified" (one strong source) | "corroborated" (multiple)
+    confidence: float
+    evidence: list[BadgeEvidenceItem] = Field(default_factory=list)
+
+
+class CandidateBadgesResponse(BaseModel):
+    candidate_id: UUID
+    job_id: Optional[UUID] = None
+    status_flags: list[CandidateStatusFlag] = Field(default_factory=list)
+    skill_badges: list[VerifiedSkillBadge] = Field(default_factory=list)
+
+
 class RankedCandidate(BaseModel):
     candidate_id: UUID
     name: str
@@ -78,6 +115,8 @@ class RankedCandidate(BaseModel):
     strengths: Optional[str] = None
     weaknesses: Optional[str] = None
     transferable_skills: Optional[str] = None
+    status_flags: list[CandidateStatusFlag] = Field(default_factory=list)
+    skill_badges: list[VerifiedSkillBadge] = Field(default_factory=list)
     evaluation_id: Optional[UUID] = None
 
 
@@ -235,6 +274,92 @@ class DashboardDistribution(BaseModel):
     experience_levels: dict[str, int]
 
 
+# ---------- L1 screening ----------
+
+
+class ScreeningCandidateProfile(BaseModel):
+    """Inline candidate profile, for screening rows that have no DB record."""
+
+    id: str
+    name: str
+    title: Optional[str] = None
+    years: Optional[float] = None
+    score: Optional[float] = None
+    education: Optional[str] = None
+    skills: list[str] = Field(default_factory=list)
+    certifications: list[str] = Field(default_factory=list)
+    strengths: list[str] = Field(default_factory=list)
+    gaps: list[str] = Field(default_factory=list)
+    evidence: list[dict[str, Any]] = Field(default_factory=list)
+
+
+class ScreeningJobProfile(BaseModel):
+    title: str
+    required_skills: list[str] = Field(default_factory=list)
+    nice_to_have_skills: list[str] = Field(default_factory=list)
+    required_experience_years: Optional[int] = None
+
+
+class ScreeningStartRequest(BaseModel):
+    """Either candidate_id (+ optional job_id) or an inline candidate profile."""
+
+    candidate_id: Optional[UUID] = None
+    job_id: Optional[UUID] = None
+    candidate: Optional[ScreeningCandidateProfile] = None
+    job: Optional[ScreeningJobProfile] = None
+    question_count: int = Field(default=6, ge=3, le=10)
+
+
+class ScreeningAnswerRequest(BaseModel):
+    answer: str
+
+
+class ScreeningQuestionOut(BaseModel):
+    id: str
+    order: int
+    competency: str
+    category: str
+    question: str
+    criteria: list[str] = Field(default_factory=list)
+    signals: list[str] = Field(default_factory=list)
+    weight: float = 1.0
+    rationale: Optional[str] = None
+    citations: list[dict[str, Any]] = Field(default_factory=list)
+
+
+class ScreeningSessionResponse(BaseModel):
+    session_id: UUID
+    candidate_id: str
+    candidate_name: str
+    job_id: Optional[UUID] = None
+    job_title: Optional[str] = None
+    evaluation_id: Optional[UUID] = None
+    status: str
+    question_count: int
+    answered_count: int
+    current_question: Optional[ScreeningQuestionOut] = None
+    plan: list[ScreeningQuestionOut] = Field(default_factory=list)
+    turns: list[dict[str, Any]] = Field(default_factory=list)
+    scorecard: dict[str, Any] = Field(default_factory=dict)
+    briefing: dict[str, Any] = Field(default_factory=dict)
+    created_at: Optional[datetime] = None
+    completed_at: Optional[datetime] = None
+
+
+class ScreeningSessionSummary(BaseModel):
+    session_id: UUID
+    candidate_id: str
+    candidate_name: str
+    job_title: Optional[str] = None
+    status: str
+    question_count: int
+    answered_count: int
+    overall_score: Optional[float] = None
+    recommendation: Optional[str] = None
+    created_at: Optional[datetime] = None
+    completed_at: Optional[datetime] = None
+
+
 # ---------- Agent ----------
 
 
@@ -251,10 +376,13 @@ class AgentAskResponse(BaseModel):
     response: str
     candidates_referenced: list[UUID] = Field(default_factory=list)
     chat_turn: int
-    source: str = "local"  # "chatbot" | "local"
+    source: str = "local"  # "chatbot" | "local" | "screening"
     citations: list[Any] = Field(default_factory=list)
     chatbot_conversation_id: Optional[str] = None
     job_id: Optional[UUID] = None
+    #: Present when the turn was part of an L1 screening conversation, so the
+    #: UI can render the live scorecard/briefing instead of plain chat text.
+    screening: Optional[ScreeningSessionResponse] = None
 
 
 class AgentStatusResponse(BaseModel):

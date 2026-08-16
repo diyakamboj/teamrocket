@@ -4,6 +4,7 @@ import {
   Calendar,
   Check,
   ChevronDown,
+  ClipboardCheck,
   EyeOff,
   Loader2,
   Search,
@@ -13,7 +14,16 @@ import {
 import { toast } from "sonner";
 import { useAppState } from "@/lib/app-state";
 import { ALL_SKILLS, CANDIDATES, DEFAULT_WEIGHTS, rankCandidates, type Candidate } from "@/lib/mock-data";
+import {
+  badgesFor,
+  hasStatusFlag,
+  statusFlagCounts,
+  STATUS_FLAG_META,
+  STATUS_FLAG_ORDER,
+  type StatusFlagId,
+} from "@/lib/badges";
 import { submitCandidateDecision, type InterviewSlot } from "@/lib/api";
+import { SkillBadges, StatusFlags } from "@/components/candidate-badges";
 import { MiniBar, ScoreRing } from "@/components/score-ring";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -145,6 +155,7 @@ function Candidates() {
   const [level, setLevel] = useState<(typeof LEVELS)[number]>("All");
   const [skill, setSkill] = useState("All");
   const [minScore, setMinScore] = useState(0);
+  const [badgeFilter, setBadgeFilter] = useState<StatusFlagId | null>(null);
   const [page, setPage] = useState(1);
   const [expanded, setExpanded] = useState<string | null>(null);
   const [panelOpen, setPanelOpen] = useState(true);
@@ -191,7 +202,7 @@ function Candidates() {
     }
   }
 
-  const filtered = useMemo(
+  const matching = useMemo(
     () =>
       ranked.filter(
         (c) =>
@@ -204,6 +215,15 @@ function Candidates() {
             c.skills.some((s) => s.toLowerCase().includes(query.toLowerCase()))),
       ),
     [ranked, minScore, level, skill, query],
+  );
+
+  // Counts come from the pre-badge list so the chips keep showing what else
+  // is reachable while one of them is active.
+  const flagCounts = useMemo(() => statusFlagCounts(matching), [matching]);
+
+  const filtered = useMemo(
+    () => (badgeFilter ? matching.filter((c) => hasStatusFlag(c, badgeFilter)) : matching),
+    [matching, badgeFilter],
   );
 
   const pageCount = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
@@ -294,6 +314,48 @@ function Candidates() {
                 }}
               />
             </div>
+            <div className="flex flex-wrap items-center gap-2 sm:col-span-2 xl:col-span-4">
+              <span className="text-[11px] font-bold uppercase tracking-wide text-muted-foreground">
+                Status
+              </span>
+              {STATUS_FLAG_ORDER.map((id) => {
+                const meta = STATUS_FLAG_META[id];
+                const active = badgeFilter === id;
+                return (
+                  <button
+                    key={id}
+                    aria-pressed={active}
+                    onClick={() => {
+                      setBadgeFilter(active ? null : id);
+                      setPage(1);
+                    }}
+                    className={cn(
+                      "inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs font-semibold transition-colors",
+                      active
+                        ? "border-primary bg-primary text-primary-foreground"
+                        : "border-transparent bg-secondary text-secondary-foreground hover:bg-secondary/70",
+                    )}
+                  >
+                    <span aria-hidden="true">{meta.emoji}</span>
+                    {meta.label}
+                    <span className="tabular-nums opacity-70">{flagCounts[id]}</span>
+                  </button>
+                );
+              })}
+              {badgeFilter && (
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  className="h-7 rounded-xl px-2 text-xs"
+                  onClick={() => {
+                    setBadgeFilter(null);
+                    setPage(1);
+                  }}
+                >
+                  Clear
+                </Button>
+              )}
+            </div>
           </div>
 
           <div className="card-surface divide-y overflow-hidden">
@@ -308,6 +370,7 @@ function Candidates() {
             {rows.map((c) => {
               const isOpen = expanded === c.id;
               const displayName = blindMode ? `Candidate #${c.rank}` : c.name;
+              const { statusFlags, skillBadges } = badgesFor(c, { blind: blindMode });
               return (
                 <div key={c.id} className="transition-colors hover:bg-secondary/40">
                   <div className="grid grid-cols-[52px_minmax(0,1fr)_92px] items-center gap-4 px-5 py-4 md:grid-cols-[52px_minmax(0,1fr)_92px_minmax(0,1.3fr)_44px]">
@@ -323,6 +386,7 @@ function Candidates() {
                         <p className="truncate text-xs text-muted-foreground">
                           {c.title} · {c.years} yrs · {blindMode ? c.level : c.location}
                         </p>
+                        <StatusFlags flags={statusFlags} className="mt-1.5" />
                       </div>
                     </div>
                     <ScoreRing value={c.score} />
@@ -386,24 +450,37 @@ function Candidates() {
                           </div>
                         ))}
                       </div>
-                      <div className="flex flex-wrap gap-2">
-                        {c.evidence.map((e, i) => (
-                          <span
-                            key={i}
-                            className="rounded-full bg-primary-soft px-3 py-1 text-[11px] font-medium text-primary-soft-foreground"
-                          >
-                            {e.skill} — {e.detail} | Source: {e.source}
-                          </span>
-                        ))}
+                      <div>
+                        <p className="text-xs font-bold uppercase tracking-wide text-muted-foreground">
+                          Verified skills &amp; certifications
+                        </p>
+                        <SkillBadges badges={skillBadges} className="mt-2" />
+                        {skillBadges.length > 0 && (
+                          <p className="mt-2 text-[11px] text-muted-foreground">
+                            Open a badge to see the resume snippet, credential record, or public
+                            profile it was verified against.
+                          </p>
+                        )}
                       </div>
-                      <Button
-                        size="sm"
-                        variant={compareIds.includes(c.id) ? "default" : "outline"}
-                        className="rounded-xl"
-                        onClick={() => toggleCompare(c.id)}
-                      >
-                        {compareIds.includes(c.id) ? "Selected for comparison" : "Add to comparison"}
-                      </Button>
+                      <div className="flex flex-wrap gap-2">
+                        <Button
+                          size="sm"
+                          variant={compareIds.includes(c.id) ? "default" : "outline"}
+                          className="rounded-xl"
+                          onClick={() => toggleCompare(c.id)}
+                        >
+                          {compareIds.includes(c.id)
+                            ? "Selected for comparison"
+                            : "Add to comparison"}
+                        </Button>
+                        <Link
+                          to="/screening"
+                          search={{ candidate: c.id }}
+                          className="inline-flex items-center rounded-xl border px-3 py-1.5 text-sm font-medium transition-colors hover:bg-secondary"
+                        >
+                          <ClipboardCheck className="mr-1.5 h-3.5 w-3.5" /> Start L1 screening
+                        </Link>
+                      </div>
 
                       {(() => {
                         const state = decisions[c.id];

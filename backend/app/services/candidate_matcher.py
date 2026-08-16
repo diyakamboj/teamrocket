@@ -10,7 +10,8 @@ from app.models.evaluation import Evaluation
 from app.models.job_posting import JobPosting
 from app.models.schemas import WeightConfig
 from app.services.azure_services import openai_service, search_service
-from app.services.evidence_tracker import evidence_tracker
+from app.services.badge_service import build_badges
+from app.services.evidence_tracker import SCREENING_EVIDENCE_SECTION, evidence_tracker
 from app.utils.error_handlers import NotFoundError
 from app.utils.validators import normalize_skill, redact_pii
 
@@ -43,6 +44,7 @@ class CandidateMatcher:
             if blind_mode:
                 score["name"] = f"Candidate-{str(candidate.id)[:8]}"
                 score["email"] = None
+                self._redact_badges(score)
             scores.append(score)
 
         if persist:
@@ -100,7 +102,7 @@ class CandidateMatcher:
             projects=candidate.projects,
         )
 
-        return {
+        score = {
             "candidate_id": candidate.id,
             "name": candidate.name,
             "email": candidate.email,
@@ -117,6 +119,8 @@ class CandidateMatcher:
             "transferable_skills": explanation.get("transferable_skills"),
             "evidence": evidence,
         }
+        score.update(build_badges(candidate, score).as_dict())
+        return score
 
     async def get_candidate_score(
         self,
@@ -301,7 +305,10 @@ evidence (list of {{skill_name, resume_text_snippet, source_section, confidence_
             for key, value in payload.items():
                 setattr(evaluation, key, value)
             for item in list(evaluation.evidence_items):
-                db.delete(item)
+                # Screening evidence comes from a conversation, not the resume,
+                # so re-ranking must not discard it along with its own output.
+                if item.source_section != SCREENING_EVIDENCE_SECTION:
+                    db.delete(item)
         else:
             evaluation = Evaluation(candidate_id=candidate.id, job_id=job.id, **payload)
             db.add(evaluation)
@@ -309,6 +316,17 @@ evidence (list of {{skill_name, resume_text_snippet, source_section, confidence_
 
         evidence_tracker.persist(db, evaluation.id, score.get("evidence") or [])
         return evaluation
+
+    @staticmethod
+    def _redact_badges(score: dict[str, Any]) -> None:
+        """Badge evidence quotes the resume verbatim, so it needs the same
+        PII masking as the written explanations under blind review."""
+        for badge in [*score.get("status_flags", []), *score.get("skill_badges", [])]:
+            if badge.get("reason"):
+                badge["reason"] = redact_pii(badge["reason"])
+            for item in badge.get("evidence") or []:
+                item["detail"] = redact_pii(item.get("detail") or "")
+                item["url"] = None
 
     @staticmethod
     def _jaccard(a: list[str], b: list[str]) -> float:

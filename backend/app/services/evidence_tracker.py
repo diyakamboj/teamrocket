@@ -6,6 +6,11 @@ from sqlalchemy.orm import Session
 from app.models.evaluation import Evidence
 from app.utils.validators import normalize_skill
 
+#: Section tag for evidence produced by an L1 screening conversation rather
+#: than the resume. Ranking preserves rows carrying it (see CandidateMatcher.
+#: _upsert_evaluation) because it cannot regenerate them.
+SCREENING_EVIDENCE_SECTION = "L1 Screening"
+
 
 class EvidenceTracker:
     def find_snippet(self, resume_text: str, skill: str) -> tuple[Optional[str], str, float]:

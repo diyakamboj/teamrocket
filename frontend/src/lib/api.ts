@@ -22,10 +22,12 @@ export type AgentAskResponse = {
   response: string;
   candidates_referenced: string[];
   chat_turn: number;
-  source: "chatbot" | "local" | string;
+  source: "chatbot" | "local" | "screening" | string;
   citations: AgentCitation[];
   chatbot_conversation_id?: string | null;
   job_id?: string | null;
+  /** Set when the turn belonged to an L1 screening conversation. */
+  screening?: ScreeningSession | null;
 };
 
 export type AgentStatus = {
@@ -226,6 +228,217 @@ export async function submitCandidateDecision(input: {
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(input),
   });
+}
+
+// ---------- L1 screening ----------
+
+export type ScreeningCitation = {
+  /** Where the claim comes from, so a conclusion can be traced back. */
+  source: "resume" | "job_requirement" | "evaluation" | "screening" | string;
+  label: string;
+  detail: string;
+};
+
+export type ScreeningQuestion = {
+  id: string;
+  order: number;
+  competency: string;
+  category: string;
+  question: string;
+  criteria: string[];
+  signals: string[];
+  weight: number;
+  rationale?: string | null;
+  citations: ScreeningCitation[];
+};
+
+export type ScreeningAnswerEvaluation = {
+  score: number;
+  rating: "strong" | "adequate" | "weak" | string;
+  coverage: number;
+  depth: number;
+  clarity: number;
+  matched_signals: string[];
+  missing_signals: string[];
+  notes: string[];
+  citations: ScreeningCitation[];
+  scored_by: string;
+};
+
+export type ScreeningTurn = {
+  question_id: string;
+  order: number;
+  competency: string;
+  category: string;
+  question: string;
+  criteria?: string[];
+  citations?: ScreeningCitation[];
+  answer: string | null;
+  skipped?: boolean;
+  evaluation: ScreeningAnswerEvaluation | null;
+};
+
+export type ScreeningScorecard = {
+  overall_score: number;
+  answered: number;
+  categories: Record<
+    string,
+    { score: number; rating: string; questions: number; competencies: string[] }
+  >;
+  recommendation: string;
+  recommendation_reason: string;
+  strong_areas: string[];
+  weak_areas: string[];
+};
+
+export type BriefingPoint = { point: string; citations: ScreeningCitation[] };
+
+export type ScreeningBriefing = {
+  summary: string;
+  background: {
+    name: string;
+    title?: string | null;
+    years_experience: number;
+    education?: string | null;
+    certifications: string[];
+    skills: string[];
+    applying_for: string;
+    match_score?: number | null;
+    matched_requirements: string[];
+    unmatched_requirements: string[];
+  };
+  screening_performance: {
+    overall_score: number;
+    recommendation: string;
+    recommendation_reason: string;
+    questions_answered: number;
+    by_category: {
+      category: string;
+      label: string;
+      score: number;
+      rating: string;
+      questions: number;
+    }[];
+  };
+  strengths: BriefingPoint[];
+  weaknesses: BriefingPoint[];
+  concerns: BriefingPoint[];
+  skill_gaps: { skill: string; status: string; finding: string; citations: ScreeningCitation[] }[];
+  recommended_areas: {
+    area: string;
+    why: string;
+    suggested_question: string;
+    citations: ScreeningCitation[];
+  }[];
+  transcript: {
+    question_id: string;
+    competency: string;
+    question: string;
+    answer: string | null;
+    score?: number | null;
+    rating?: string | null;
+  }[];
+};
+
+export type ScreeningSession = {
+  session_id: string;
+  candidate_id: string;
+  candidate_name: string;
+  job_id?: string | null;
+  job_title?: string | null;
+  evaluation_id?: string | null;
+  status: "in_progress" | "completed" | "abandoned" | string;
+  question_count: number;
+  answered_count: number;
+  current_question?: ScreeningQuestion | null;
+  plan: ScreeningQuestion[];
+  turns: ScreeningTurn[];
+  scorecard: ScreeningScorecard | Record<string, never>;
+  briefing: ScreeningBriefing | Record<string, never>;
+  created_at?: string | null;
+  completed_at?: string | null;
+};
+
+export type ScreeningSessionSummary = {
+  session_id: string;
+  candidate_id: string;
+  candidate_name: string;
+  job_title?: string | null;
+  status: string;
+  question_count: number;
+  answered_count: number;
+  overall_score?: number | null;
+  recommendation?: string | null;
+  created_at?: string | null;
+  completed_at?: string | null;
+};
+
+/** Candidate profile sent inline for rows that have no backend record. */
+export type ScreeningCandidateInput = {
+  id: string;
+  name: string;
+  title?: string;
+  years?: number;
+  score?: number;
+  education?: string;
+  skills?: string[];
+  certifications?: string[];
+  strengths?: string[];
+  gaps?: string[];
+  evidence?: { skill: string; detail: string; source: string }[];
+};
+
+export type ScreeningJobInput = {
+  title: string;
+  required_skills?: string[];
+  nice_to_have_skills?: string[];
+  required_experience_years?: number;
+};
+
+export async function startScreening(input: {
+  candidate_id?: string;
+  job_id?: string | null;
+  candidate?: ScreeningCandidateInput;
+  job?: ScreeningJobInput;
+  question_count?: number;
+}): Promise<ScreeningSession> {
+  return request<ScreeningSession>("/api/screening/sessions", {
+    method: "POST",
+    body: JSON.stringify(input),
+  });
+}
+
+export async function answerScreeningQuestion(
+  sessionId: string,
+  answer: string,
+): Promise<ScreeningSession> {
+  return request<ScreeningSession>(`/api/screening/sessions/${sessionId}/answer`, {
+    method: "POST",
+    body: JSON.stringify({ answer }),
+  });
+}
+
+export async function skipScreeningQuestion(sessionId: string): Promise<ScreeningSession> {
+  return request<ScreeningSession>(`/api/screening/sessions/${sessionId}/skip`, {
+    method: "POST",
+  });
+}
+
+export async function completeScreening(sessionId: string): Promise<ScreeningSession> {
+  return request<ScreeningSession>(`/api/screening/sessions/${sessionId}/complete`, {
+    method: "POST",
+  });
+}
+
+export async function getScreeningSession(sessionId: string): Promise<ScreeningSession> {
+  return request<ScreeningSession>(`/api/screening/sessions/${sessionId}`);
+}
+
+export async function listScreeningSessions(
+  candidateId?: string,
+): Promise<ScreeningSessionSummary[]> {
+  const query = candidateId ? `?candidate_id=${encodeURIComponent(candidateId)}` : "";
+  return request<ScreeningSessionSummary[]>(`/api/screening/sessions${query}`);
 }
 
 export { API_BASE };

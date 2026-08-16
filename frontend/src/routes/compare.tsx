@@ -1,10 +1,12 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useMemo } from "react";
 import { Sparkle, X } from "lucide-react";
+import { SkillBadges, StatusFlags } from "@/components/candidate-badges";
 import { CompareChat } from "@/components/copilot";
 import { MiniBar, ScoreRing } from "@/components/score-ring";
 import { Button } from "@/components/ui/button";
 import { useAppState } from "@/lib/app-state";
+import { skillBadgesFor, statusFlagsFor } from "@/lib/badges";
 import { CANDIDATES, rankCandidates } from "@/lib/mock-data";
 
 export const Route = createFileRoute("/compare")({
@@ -91,6 +93,8 @@ function Compare() {
               </button>
             </div>
 
+            <StatusFlags flags={statusFlagsFor(c)} />
+
             <div className="space-y-2">
               <MiniBar label="Skills" value={c.categories.skills} />
               <MiniBar label="Experience" value={c.categories.experience} />
@@ -117,9 +121,20 @@ function Compare() {
 
             <div>
               <p className="text-xs font-bold uppercase tracking-wide text-muted-foreground">
+                Verified badges
+              </p>
+              <SkillBadges
+                badges={skillBadgesFor(c, { blind: blindMode })}
+                limit={6}
+                className="mt-2"
+              />
+            </div>
+
+            <div>
+              <p className="text-xs font-bold uppercase tracking-wide text-muted-foreground">
                 Education
               </p>
-              <p className="mt-1 text-sm">{c.education}</p>
+              <p className="mt-1 text-sm">{c.education || "Not stated on resume"}</p>
             </div>
 
             <div>

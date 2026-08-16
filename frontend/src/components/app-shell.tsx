@@ -3,6 +3,7 @@ import {
   Bell,
   ChevronsLeft,
   ChevronsRight,
+  ClipboardCheck,
   Columns3,
   FileText,
   LayoutDashboard,
@@ -25,6 +26,7 @@ const NAV = [
   { to: "/upload", label: "Resume Upload", icon: UploadCloud },
   { to: "/job-analysis", label: "Job Description", icon: FileText },
   { to: "/candidates", label: "Candidate Ranking", icon: Trophy },
+  { to: "/screening", label: "L1 Screening", icon: ClipboardCheck },
   { to: "/compare", label: "Comparison", icon: Columns3 },
 ] as const;
 

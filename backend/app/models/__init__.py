@@ -8,6 +8,7 @@ from app.models.evaluation import (
     ResumeUpload,
 )
 from app.models.job_posting import JobPosting
+from app.models.screening import ScreeningSession
 
 __all__ = [
     "Candidate",
@@ -18,4 +19,5 @@ __all__ = [
     "AgentSession",
     "ResumeUpload",
     "CandidateDecision",
+    "ScreeningSession",
 ]

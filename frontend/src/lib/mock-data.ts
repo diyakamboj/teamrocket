@@ -1,3 +1,21 @@
+/** Notice period as stated on the resume. "Not stated" = no signal found. */
+export type Availability = "Immediate" | "15 days" | "30 days" | "60 days" | "Not stated";
+
+export type CandidateCertification = {
+  name: string;
+  issuer: string;
+  /** Public credential record. Without one the claim can't be badged. */
+  credentialUrl?: string;
+};
+
+/** A public profile the candidate linked, used to corroborate skill claims. */
+export type ExternalProfile = {
+  label: string;
+  url: string;
+  /** Skills evidenced by that profile (repos, endorsements, public work). */
+  skills: string[];
+};
+
 export type Candidate = {
   id: string;
   rank: number;
@@ -23,6 +41,11 @@ export type Candidate = {
   gaps: string[];
   transferable: string[];
   evidence: { skill: string; detail: string; source: string }[];
+  availability: Availability;
+  /** Resume line the availability was read from — the badge cites it. */
+  availabilityNote: string;
+  certifications: CandidateCertification[];
+  externalProfile?: ExternalProfile;
 };
 
 const FIRST = [
@@ -47,6 +70,20 @@ const DEGREES = [
   "MSc Data Science","BSc Mathematics","PhD Machine Learning",
 ];
 const SOURCES = ["SWE Internship","Platform Team @ Northwind","Freelance Project","Open-source contribution","Capstone Thesis","Lead role @ Larkspur"];
+const CERTIFICATIONS: { name: string; issuer: string; skill: string }[] = [
+  { name: "AWS Solutions Architect – Associate", issuer: "Amazon Web Services", skill: "AWS" },
+  { name: "Certified Kubernetes Administrator", issuer: "CNCF", skill: "Kubernetes" },
+  { name: "Azure Administrator (AZ-104)", issuer: "Microsoft", skill: "Azure" },
+  { name: "Terraform Associate", issuer: "HashiCorp", skill: "Terraform" },
+  { name: "Professional Data Engineer", issuer: "Google Cloud", skill: "Spark" },
+];
+const AVAILABILITY: { value: Availability; note: string }[] = [
+  { value: "Immediate", note: "Availability: immediate — currently between roles" },
+  { value: "15 days", note: "Notice period: 15 days" },
+  { value: "30 days", note: "Notice period: 30 days" },
+  { value: "60 days", note: "Notice period: 60 days" },
+  { value: "Not stated", note: "No availability stated on the resume" },
+];
 
 function mulberry(seed: number) {
   return () => {
@@ -80,44 +117,76 @@ function build(): Candidate[] {
     const skills = Array.from(
       new Set(Array.from({ length: between(4, 8) }, () => pick(SKILLS))),
     );
+    const availability = pick(AVAILABILITY);
+    // Certification claims only count when they carry a public credential
+    // record — half of them deliberately don't, so badges stay earned.
+    const certifications = Array.from({ length: between(0, 2) }, () => pick(CERTIFICATIONS)).map(
+      (c, n) => ({
+        name: c.name,
+        issuer: c.issuer,
+        ...(rnd() > 0.45
+          ? { credentialUrl: `https://credentials.example.org/${i + 1}-${n + 1}` }
+          : {}),
+      }),
+    );
+    // Don't claim a missing credential trail for someone who has a badged one.
+    const gapKind = certifications.some((c) => c.credentialUrl)
+      ? pick(["formal leadership", "regulated-industry"])
+      : pick(["certification", "formal leadership", "regulated-industry"]);
+    const hasProfile = rnd() > 0.4;
+    // Roughly one in nine resumes parses badly enough to be unusable.
+    const incomplete = i % 9 === 0;
     list.push({
       id: `c-${i + 1}`,
       rank: 0,
       name,
       initials: `${first[0]}${last[0]}`,
       email: `${first.toLowerCase()}.${last.toLowerCase()}@mail.com`,
-      phone: `+1 (555) ${String(between(100, 999))}-${String(between(1000, 9999))}`,
+      phone: incomplete
+        ? ""
+        : `+1 (555) ${String(between(100, 999))}-${String(between(1000, 9999))}`,
       title: pick(TITLES),
       location: pick(CITIES),
       years,
       level,
-      education: pick(DEGREES),
+      education: incomplete ? "" : pick(DEGREES),
       score: 0,
       categories,
       skills,
+      availability: availability.value,
+      availabilityNote: availability.note,
+      certifications,
+      ...(hasProfile
+        ? {
+            externalProfile: {
+              label: "GitHub profile",
+              url: `https://github.com/${first.toLowerCase()}-${last.toLowerCase()}`,
+              skills: skills.slice(0, between(1, 3)),
+            },
+          }
+        : {}),
       strengths: [
         `${between(3, years)} years shipping ${skills[0]} services in production`,
         `Owned ${pick(["migration","observability","cost reduction","API redesign"])} initiative end-to-end`,
       ],
-      gaps: [
-        `Limited exposure to ${pick(SKILLS)}`,
-        `No ${pick(["certification","formal leadership","regulated-industry"])} evidence found`,
-      ],
+      gaps: [`Limited exposure to ${pick(SKILLS)}`, `No ${gapKind} evidence found`],
       transferable: [
         `${pick(SKILLS)} experience maps closely to the required stack`,
         `Mentoring history suggests readiness for ${level === "Lead" ? "staff" : "senior"} scope`,
       ],
-      evidence: skills.slice(0, 4).map((s) => ({
-        skill: s,
-        detail: pick([
-          "Built automation scripts",
-          "Led service migration",
-          "Designed data pipeline",
-          "Reduced p95 latency by 40%",
-          "Authored internal library",
-        ]),
-        source: pick(SOURCES),
-      })),
+      evidence: incomplete
+        ? []
+        : skills.slice(0, 4).map((s) => ({
+            skill: s,
+            detail: pick([
+              "Built automation scripts",
+              "Led service migration",
+              "Designed data pipeline",
+              "Reduced p95 latency by 40%",
+              "Authored internal library",
+            ]),
+            source: pick(SOURCES),
+          })),
     });
   }
   return list;
@@ -160,6 +229,20 @@ const DEMO_FRAUD_CANDIDATES: Candidate[] = [
       { skill: "TypeScript", detail: "Authored internal library", source: "Open-source contribution" },
       { skill: "AWS", detail: "Reduced p95 latency by 40%", source: "Capstone Thesis" },
     ],
+    availability: "Immediate",
+    availabilityNote: "Availability: immediate — currently between roles",
+    certifications: [
+      {
+        name: "AWS Solutions Architect – Associate",
+        issuer: "Amazon Web Services",
+        credentialUrl: "https://credentials.example.org/demo-1",
+      },
+    ],
+    externalProfile: {
+      label: "GitHub profile",
+      url: "https://github.com/victor-stone",
+      skills: ["React", "TypeScript"],
+    },
   },
   {
     id: "demo-2",
@@ -191,6 +274,15 @@ const DEMO_FRAUD_CANDIDATES: Candidate[] = [
       { skill: "Airflow", detail: "Built automation scripts", source: "Freelance Project" },
       { skill: "SQL", detail: "Reduced p95 latency by 40%", source: "Open-source contribution" },
     ],
+    availability: "30 days",
+    availabilityNote: "Notice period: 30 days",
+    // Claims the cert but supplied no credential record — stays unbadged.
+    certifications: [{ name: "Professional Data Engineer", issuer: "Google Cloud" }],
+    externalProfile: {
+      label: "GitHub profile",
+      url: "https://github.com/elena-marsh",
+      skills: ["Python", "Spark"],
+    },
   },
   {
     id: "demo-3",
@@ -222,6 +314,25 @@ const DEMO_FRAUD_CANDIDATES: Candidate[] = [
       { skill: "Terraform", detail: "Built automation scripts", source: "Senior role @ Quantum Fable Systems" },
       { skill: "Docker", detail: "Reduced p95 latency by 40%", source: "Capstone Thesis" },
     ],
+    availability: "15 days",
+    availabilityNote: "Notice period: 15 days",
+    certifications: [
+      {
+        name: "Certified Kubernetes Administrator",
+        issuer: "CNCF",
+        credentialUrl: "https://credentials.example.org/demo-3",
+      },
+      {
+        name: "Terraform Associate",
+        issuer: "HashiCorp",
+        credentialUrl: "https://credentials.example.org/demo-3b",
+      },
+    ],
+    externalProfile: {
+      label: "GitHub profile",
+      url: "https://github.com/derek-voss",
+      skills: ["Kubernetes", "Terraform", "Docker"],
+    },
   },
   {
     id: "demo-4",
@@ -253,6 +364,9 @@ const DEMO_FRAUD_CANDIDATES: Candidate[] = [
       { skill: "Postgres", detail: "Designed data pipeline", source: "Open-source contribution" },
       { skill: "Docker", detail: "Authored internal library", source: "Capstone Thesis" },
     ],
+    availability: "Not stated",
+    availabilityNote: "No availability stated on the resume",
+    certifications: [],
   },
 ];
 

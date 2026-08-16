@@ -14,6 +14,7 @@ import { Route as CandidatesRouteImport } from './routes/candidates'
 import { Route as CompareRouteImport } from './routes/compare'
 import { Route as FraudDetectionRouteImport } from './routes/fraud-detection'
 import { Route as JobAnalysisRouteImport } from './routes/job-analysis'
+import { Route as ScreeningRouteImport } from './routes/screening'
 import { Route as UploadRouteImport } from './routes/upload'
 
 const IndexRoute = IndexRouteImport.update({
@@ -41,6 +42,11 @@ const JobAnalysisRoute = JobAnalysisRouteImport.update({
   path: '/job-analysis',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ScreeningRoute = ScreeningRouteImport.update({
+  id: '/screening',
+  path: '/screening',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const UploadRoute = UploadRouteImport.update({
   id: '/upload',
   path: '/upload',
@@ -53,6 +59,7 @@ export interface FileRoutesByFullPath {
   '/compare': typeof CompareRoute
   '/fraud-detection': typeof FraudDetectionRoute
   '/job-analysis': typeof JobAnalysisRoute
+  '/screening': typeof ScreeningRoute
   '/upload': typeof UploadRoute
 }
 export interface FileRoutesByTo {
@@ -61,6 +68,7 @@ export interface FileRoutesByTo {
   '/compare': typeof CompareRoute
   '/fraud-detection': typeof FraudDetectionRoute
   '/job-analysis': typeof JobAnalysisRoute
+  '/screening': typeof ScreeningRoute
   '/upload': typeof UploadRoute
 }
 export interface FileRoutesById {
@@ -70,6 +78,7 @@ export interface FileRoutesById {
   '/compare': typeof CompareRoute
   '/fraud-detection': typeof FraudDetectionRoute
   '/job-analysis': typeof JobAnalysisRoute
+  '/screening': typeof ScreeningRoute
   '/upload': typeof UploadRoute
 }
 export interface FileRouteTypes {
@@ -80,6 +89,7 @@ export interface FileRouteTypes {
     | '/compare'
     | '/fraud-detection'
     | '/job-analysis'
+    | '/screening'
     | '/upload'
   fileRoutesByTo: FileRoutesByTo
   to:
@@ -88,6 +98,7 @@ export interface FileRouteTypes {
     | '/compare'
     | '/fraud-detection'
     | '/job-analysis'
+    | '/screening'
     | '/upload'
   id:
     | '__root__'
@@ -96,6 +107,7 @@ export interface FileRouteTypes {
     | '/compare'
     | '/fraud-detection'
     | '/job-analysis'
+    | '/screening'
     | '/upload'
   fileRoutesById: FileRoutesById
 }
@@ -105,6 +117,7 @@ export interface RootRouteChildren {
   CompareRoute: typeof CompareRoute
   FraudDetectionRoute: typeof FraudDetectionRoute
   JobAnalysisRoute: typeof JobAnalysisRoute
+  ScreeningRoute: typeof ScreeningRoute
   UploadRoute: typeof UploadRoute
 }
 
@@ -145,6 +158,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof JobAnalysisRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/screening': {
+      id: '/screening'
+      path: '/screening'
+      fullPath: '/screening'
+      preLoaderRoute: typeof ScreeningRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/upload': {
       id: '/upload'
       path: '/upload'
@@ -161,6 +181,7 @@ const rootRouteChildren: RootRouteChildren = {
   CompareRoute: CompareRoute,
   FraudDetectionRoute: FraudDetectionRoute,
   JobAnalysisRoute: JobAnalysisRoute,
+  ScreeningRoute: ScreeningRoute,
   UploadRoute: UploadRoute,
 }
 export const routeTree = rootRouteImport
