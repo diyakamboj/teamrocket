@@ -36,6 +36,7 @@ async def rank_candidates(
     education: float = Query(0.15),
     certifications: float = Query(0.10),
     projects: float = Query(0.05),
+    communication: float = Query(0.10),
     blind_mode: bool = Query(False),
 ):
     weights = WeightConfig(
@@ -44,6 +45,7 @@ async def rank_candidates(
         education=education,
         certifications=certifications,
         projects=projects,
+        communication=communication,
     )
     ranked = await candidate_matcher.rank_candidates(
         db, job_id, weight_config=weights, persist=True, blind_mode=blind_mode
@@ -79,6 +81,7 @@ async def candidate_score(
     education: float = Query(0.15),
     certifications: float = Query(0.10),
     projects: float = Query(0.05),
+    communication: float = Query(0.10),
 ):
     weights = WeightConfig(
         skills=skills,
@@ -86,6 +89,7 @@ async def candidate_score(
         education=education,
         certifications=certifications,
         projects=projects,
+        communication=communication,
     )
     return await candidate_matcher.get_candidate_score(
         db, candidate_id, job_id, weight_config=weights, persist=True

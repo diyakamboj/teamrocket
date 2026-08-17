@@ -14,7 +14,8 @@ import { toast } from "sonner";
 import { useAppState } from "@/lib/app-state";
 import { ALL_SKILLS, CANDIDATES, DEFAULT_WEIGHTS, rankCandidates, type Candidate } from "@/lib/mock-data";
 import { submitCandidateDecision, type InterviewSlot } from "@/lib/api";
-import { MiniBar, ScoreRing } from "@/components/score-ring";
+import { ScoreRing } from "@/components/score-ring";
+import { DimensionBreakdown } from "@/components/dimension-breakdown";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Slider } from "@/components/ui/slider";
@@ -325,12 +326,9 @@ function Candidates() {
                         </p>
                       </div>
                     </div>
-                    <ScoreRing value={c.score} />
-                    <div className="hidden grid-cols-2 gap-x-4 gap-y-1.5 md:grid">
-                      <MiniBar label="Skills" value={c.categories.skills} />
-                      <MiniBar label="Experience" value={c.categories.experience} />
-                      <MiniBar label="Education" value={c.categories.education} />
-                      <MiniBar label="Certs" value={c.categories.certifications} />
+                    <ScoreRing value={c.dimensions.overall_fit.score} />
+                    <div className="hidden md:block">
+                      <DimensionBreakdown candidate={c} />
                     </div>
                     <button
                       onClick={() => setExpanded(isOpen ? null : c.id)}

@@ -94,8 +94,12 @@ class RecruiterCopilot:
         external_conversation_id = chatbot_conversation_id
         assistant_response: Optional[str] = None
 
+        dimension_answer = self._extract_dimension_query(user_query, ranked)
         compare_ids = self._extract_compare_ids(user_query, ranked)
-        if compare_ids and len(compare_ids) >= 2:
+        if dimension_answer:
+            assistant_response = dimension_answer
+            source = "local"
+        elif compare_ids and len(compare_ids) >= 2:
             comparison = await candidate_comparison.compare(db, job.id, compare_ids)
             assistant_response = comparison["comparison"]
             source = "local"
@@ -168,6 +172,18 @@ class RecruiterCopilot:
         top: list[dict[str, Any]],
         user_query: str,
     ) -> str:
+        compact_top = []
+        for item in top:
+            dimensions = item.get("dimensions") or {}
+            compact_top.append(
+                {
+                    "name": item.get("name"),
+                    "overall_score": item.get("overall_score"),
+                    "technical_skills": (dimensions.get("technical_skills") or {}).get("score"),
+                    "communication": (dimensions.get("communication") or {}).get("score"),
+                    "role_alignment": (dimensions.get("role_alignment") or {}).get("score"),
+                }
+            )
         return f"""
 You are a recruiter assistant for ResumeIQ. Use the candidate pool and job requirements below.
 Prefer grounded answers. If using retrieved documents, cite them.
@@ -180,13 +196,49 @@ Education: {job.education_requirements}
 
 Candidate pool size: {len(ranked)}
 Top 10 ranked candidates:
-{top}
+{compact_top}
 
 User question: {user_query}
 
 Respond with specific candidate recommendations, insights, and explanations.
 Mention candidate names and overall scores when relevant.
+When the question mentions technical skills, communication, role alignment, or overall fit, reason over those dimensions directly.
 """.strip()
+
+    def _dimension_key(self, query: str) -> Optional[str]:
+        lower = query.lower()
+        for phrase, key in [
+            ("technical skills", "technical_skills"),
+            ("communication", "communication"),
+            ("role alignment", "role_alignment"),
+            ("overall fit", "overall_fit"),
+        ]:
+            if phrase in lower:
+                return key
+        return None
+
+    def _dimension_score(self, item: dict[str, Any], dimension: str) -> float:
+        dimensions = item.get("dimensions") or {}
+        if dimension == "overall_fit":
+            return float((dimensions.get("overall_fit") or {}).get("score") or item.get("overall_score") or 0)
+        return float((dimensions.get(dimension) or {}).get("score") or item.get("overall_score") or 0)
+
+    def _extract_dimension_query(self, query: str, ranked: list[dict[str, Any]]) -> Optional[str]:
+        dimension = self._dimension_key(query)
+        if not dimension:
+            return None
+
+        lower = query.lower()
+        if any(word in lower for word in ["strongest", "highest", "best", "top", "show me", "list"]):
+            ordered = sorted(ranked, key=lambda item: self._dimension_score(item, dimension), reverse=True)
+            header = dimension.replace("_", " ").title()
+            lines = []
+            for item in ordered[:5]:
+                lines.append(
+                    f"- **{item.get('name')}**: {self._dimension_score(item, dimension):.1f}"
+                )
+            return f"**{header} leaders**\n\n" + "\n".join(lines)
+        return None
 
     def _to_cwyd_messages(
         self,

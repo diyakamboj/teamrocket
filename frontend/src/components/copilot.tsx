@@ -33,7 +33,15 @@ export type CompareChatCandidate = Pick<
   | "skills"
   | "strengths"
   | "gaps"
+  | "dimensions"
 >;
+
+const DIMENSION_LABELS: Record<string, string> = {
+  overall_fit: "Overall fit",
+  technical_skills: "Technical skills",
+  communication: "Communication",
+  role_alignment: "Role alignment",
+};
 
 type CompareChatProps = {
   candidates: CompareChatCandidate[];
@@ -53,6 +61,17 @@ function buildCandidateBrief(candidates: CompareChatCandidate[], blindMode: bool
     level: c.level,
     overall_score: c.score,
     category_scores: c.categories,
+    dimensions: Object.fromEntries(
+      Object.entries(c.dimensions).map(([key, value]) => [
+        key,
+        {
+          label: DIMENSION_LABELS[key] ?? key,
+          score: value.score,
+          explanation: value.explanation,
+          evidence: value.evidence,
+        },
+      ]),
+    ),
     skills: c.skills,
     education: c.education,
     strengths: c.strengths,
@@ -74,11 +93,26 @@ function answerLocally(
   const label = (c: CompareChatCandidate) => displayName(c, blindMode);
 
   const byYears = [...candidates].sort((a, b) => b.years - a.years);
-  const byScore = [...candidates].sort((a, b) => b.score - a.score);
-  const bySkills = [...candidates].sort((a, b) => b.categories.skills - a.categories.skills);
-  const byExpScore = [...candidates].sort(
-    (a, b) => b.categories.experience - a.categories.experience,
+  const byOverallDimension = [...candidates].sort(
+    (a, b) => b.dimensions.overall_fit.score - a.dimensions.overall_fit.score,
   );
+  const byTechnical = [...candidates].sort(
+    (a, b) => b.dimensions.technical_skills.score - a.dimensions.technical_skills.score,
+  );
+  const byCommunication = [...candidates].sort(
+    (a, b) => b.dimensions.communication.score - a.dimensions.communication.score,
+  );
+  const byRoleAlignment = [...candidates].sort(
+    (a, b) => b.dimensions.role_alignment.score - a.dimensions.role_alignment.score,
+  );
+  const bySkills = [...candidates].sort((a, b) => b.categories.skills - a.categories.skills);
+  const dimensionQuery = (needle: string, sorted: CompareChatCandidate[]) => {
+    const top = sorted[0]!;
+    const lines = sorted.map(
+      (c) => `- **${label(c)}**: ${c.dimensions[needle as keyof Candidate["dimensions"]].score}`,
+    );
+    return `**${label(top)}** leads on ${DIMENSION_LABELS[needle] ?? needle.toLowerCase()} with **${top.dimensions[needle as keyof Candidate["dimensions"]].score}**.\n\n${lines.join("\n")}`;
+  };
 
   if (
     lower.includes("experience") ||
@@ -95,6 +129,9 @@ function answerLocally(
   }
 
   if (lower.includes("skill")) {
+    if (lower.includes("technical") || lower.includes("tech")) {
+      return dimensionQuery("technical_skills", byTechnical);
+    }
     if (lower.includes("gap")) {
       return candidates
         .map((c) => `**${label(c)}** gaps:\n${c.gaps.map((g) => `  • ${g}`).join("\n")}`)
@@ -114,11 +151,24 @@ function answerLocally(
     lower.includes("who should") ||
     lower.includes("recommend")
   ) {
-    const top = byScore[0]!;
-    const lines = byScore.map(
-      (c) => `- **#${c.rank} ${label(c)}** — overall ${c.score} · ${c.years} yrs · ${c.title}`,
+    const top = byOverallDimension[0]!;
+    const lines = byOverallDimension.map(
+      (c) =>
+        `- **#${c.rank} ${label(c)}** — overall fit ${c.dimensions.overall_fit.score} · ${c.years} yrs · ${c.title}`,
     );
-    return `**${label(top)}** is the strongest overall fit at **${top.score}**.\n\n${lines.join("\n")}\n\nMain trade-off for ${label(top)}: ${top.gaps[0] ?? "none noted"}.`;
+    return `**${label(top)}** is the strongest overall fit at **${top.dimensions.overall_fit.score}**.\n\n${lines.join("\n")}\n\nMain trade-off for ${label(top)}: ${top.gaps[0] ?? "none noted"}.`;
+  }
+
+  if (lower.includes("communication")) {
+    return dimensionQuery("communication", byCommunication);
+  }
+
+  if (lower.includes("role") || lower.includes("alignment")) {
+    return dimensionQuery("role_alignment", byRoleAlignment);
+  }
+
+  if (lower.includes("overall fit") || lower.includes("overall score")) {
+    return dimensionQuery("overall_fit", byOverallDimension);
   }
 
   if (lower.includes("interview") || lower.includes("ask")) {
@@ -147,7 +197,11 @@ function answerLocally(
     return candidates
       .map((c) => {
         return (
-          `**${label(c)}** (${c.score})\n` +
+          `**${label(c)}** (${c.dimensions.overall_fit.score})\n` +
+          `• Overall fit: ${c.dimensions.overall_fit.score}\n` +
+          `• Technical skills: ${c.dimensions.technical_skills.score}\n` +
+          `• Communication: ${c.dimensions.communication.score}\n` +
+          `• Role alignment: ${c.dimensions.role_alignment.score}\n` +
           `• Experience: ${c.years} yrs · score ${c.categories.experience}\n` +
           `• Skills: ${c.skills.join(", ")}\n` +
           `• Strength: ${c.strengths[0]}\n` +
@@ -161,7 +215,10 @@ function answerLocally(
   const mentioned = candidates.find((c) => lower.includes(c.name.split(" ")[0]!.toLowerCase()));
   if (mentioned) {
     return (
-      `**${label(mentioned)}** ranks #${mentioned.rank} with score ${mentioned.score}.\n` +
+      `**${label(mentioned)}** ranks #${mentioned.rank} with overall fit ${mentioned.dimensions.overall_fit.score}.\n` +
+      `• Technical skills: ${mentioned.dimensions.technical_skills.score}\n` +
+      `• Communication: ${mentioned.dimensions.communication.score}\n` +
+      `• Role alignment: ${mentioned.dimensions.role_alignment.score}\n` +
       `• ${mentioned.years} years experience (${mentioned.level})\n` +
       `• Skills: ${mentioned.skills.join(", ")}\n` +
       `• Strength: ${mentioned.strengths[0]}\n` +
@@ -181,7 +238,7 @@ export function CompareChat({ candidates, blindMode = false, className }: Compar
 
   const intro =
     candidates.length > 0
-      ? `Ready to compare **${names.join("**, **")}**. Ask things like “Which candidate has more experience?” or “Who is the best fit?”`
+      ? `Ready to compare **${names.join("**, **")}**. Ask things like “Which candidate has more experience?”, “Who has the strongest communication?”, or “Who is the best overall fit?”`
       : "Select 2–3 candidates from Ranking, then ask comparison questions here.";
 
   const [messages, setMessages] = useState<Msg[]>([{ role: "assistant", text: intro }]);
@@ -303,7 +360,7 @@ If asked who is strongest overall, pick the highest overall_score.
   return (
     <section
       className={cn(
-        "flex h-[340px] w-full flex-col overflow-hidden rounded-2xl border bg-card shadow-[var(--shadow-soft)]",
+        "flex h-85 w-full flex-col overflow-hidden rounded-2xl border bg-card shadow-(--shadow-soft)",
         className,
       )}
     >
@@ -402,7 +459,7 @@ If asked who is strongest overall, pick the highest overall_score.
             disabled={loading}
             autoFocus
             placeholder="e.g. Which candidate has more experience?"
-            className="pointer-events-auto relative z-10 max-h-36 min-h-[48px] w-full resize-none bg-transparent px-3.5 pt-3 pb-2 text-sm text-foreground caret-foreground outline-none placeholder:text-muted-foreground disabled:cursor-not-allowed disabled:opacity-60"
+            className="pointer-events-auto relative z-10 max-h-36 min-h-12 w-full resize-none bg-transparent px-3.5 pt-3 pb-2 text-sm text-foreground caret-foreground outline-none placeholder:text-muted-foreground disabled:cursor-not-allowed disabled:opacity-60"
           />
           <div className="flex items-center justify-between gap-2 px-2 pb-2">
             <p className="px-1.5 text-[10px] text-muted-foreground">

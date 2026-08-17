@@ -23,7 +23,24 @@ export type Candidate = {
   gaps: string[];
   transferable: string[];
   evidence: { skill: string; detail: string; source: string }[];
+  dimensions: CandidateDimensions;
 };
+
+export type DimensionKey = "overall_fit" | "technical_skills" | "communication" | "role_alignment";
+
+export type DimensionEvidence = {
+  skill: string;
+  detail: string;
+  source: string;
+};
+
+export type DimensionBreakdown = {
+  score: number;
+  explanation: string;
+  evidence: DimensionEvidence[];
+};
+
+export type CandidateDimensions = Record<DimensionKey, DimensionBreakdown>;
 
 const FIRST = [
   "Amara","Priya","Diego","Lena","Noah","Yusuf","Mei","Tomas","Ines","Kofi","Sofia","Elias",
@@ -55,6 +72,81 @@ function mulberry(seed: number) {
     let t = Math.imul(seed ^ (seed >>> 15), 1 | seed);
     t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
     return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+
+function clampScore(value: number) {
+  return Math.max(0, Math.min(100, Math.round(value)));
+}
+
+function quantifyCommunication(candidate: Pick<Candidate, "strengths" | "gaps" | "evidence" | "education">) {
+  const evidenceText = candidate.evidence.map((item) => `${item.skill} ${item.detail} ${item.source}`).join(" ");
+  const quantified = (evidenceText.match(/\b\d+(?:\.\d+)?%?|\$\d+|p95|p50|\b\d+x\b/gi) || []).length;
+  const bulletish = candidate.strengths.length + candidate.gaps.length;
+  return clampScore(55 + quantified * 4 + bulletish * 2 + Math.min(10, candidate.evidence.length * 2));
+}
+
+function titleAlignment(title: string, skills: string[]) {
+  const lower = title.toLowerCase();
+  const signal = ["backend", "platform", "devops", "cloud", "data", "ml", "full-stack", "frontend"];
+  const hits = signal.filter((token) => lower.includes(token)).length;
+  const skillHits = skills.filter((skill) => lower.includes(skill.toLowerCase())).length;
+  return clampScore(60 + hits * 8 + skillHits * 6);
+}
+
+function buildDimensions(candidate: Candidate, categories: Candidate["categories"]): CandidateDimensions {
+  const technical = clampScore((categories.skills * 0.55 + categories.certifications * 0.2 + categories.projects * 0.25));
+  const roleAlignment = clampScore(
+    (categories.experience * 0.58 + categories.education * 0.27 + titleAlignment(candidate.title, candidate.skills) * 0.15),
+  );
+  const communication = quantifyCommunication(candidate);
+  const overallFit = clampScore(
+    technical * 0.45 + roleAlignment * 0.35 + communication * 0.2,
+  );
+
+  const technicalEvidence = candidate.evidence.slice(0, 3);
+  const roleEvidence: DimensionEvidence[] = [
+    { skill: "Experience", detail: candidate.strengths[0] ?? candidate.gaps[0] ?? "Relevant experience noted", source: candidate.transferable[0] ?? candidate.title },
+    { skill: "Education", detail: candidate.education, source: candidate.education },
+  ];
+  const communicationEvidence: DimensionEvidence[] = [
+    candidate.evidence.find((item) => /\d|%|\$|p95|p50/i.test(item.detail)) ?? candidate.evidence[0] ?? {
+      skill: "Communication",
+      detail: candidate.strengths[0] ?? "Resume text is concise but limited.",
+      source: candidate.title,
+    },
+  ];
+
+  return {
+    overall_fit: {
+      score: overallFit,
+      explanation: "Overall fit balances technical skills, communication, and role alignment.",
+      evidence: [...technicalEvidence, ...roleEvidence, ...communicationEvidence],
+    },
+    technical_skills: {
+      score: technical,
+      explanation: "Technical skills reflect the strength of skills, certifications, and project evidence.",
+      evidence: technicalEvidence,
+    },
+    communication: {
+      score: communication,
+      explanation: "Communication is inferred from resume structure, quantified impact, and clarity markers.",
+      evidence: communicationEvidence,
+    },
+    role_alignment: {
+      score: roleAlignment,
+      explanation: "Role alignment blends experience depth, education, and job-title/domain match.",
+      evidence: roleEvidence,
+    },
+  };
+}
+
+function applyDimensions(candidate: Candidate): Candidate {
+  const dimensions = buildDimensions(candidate, candidate.categories);
+  return {
+    ...candidate,
+    score: dimensions.overall_fit.score,
+    dimensions,
   };
 }
 
@@ -118,9 +210,10 @@ function build(): Candidate[] {
         ]),
         source: pick(SOURCES),
       })),
+      dimensions: {} as CandidateDimensions,
     });
   }
-  return list;
+  return list.map(applyDimensions);
 }
 
 /**
@@ -160,6 +253,7 @@ const DEMO_FRAUD_CANDIDATES: Candidate[] = [
       { skill: "TypeScript", detail: "Authored internal library", source: "Open-source contribution" },
       { skill: "AWS", detail: "Reduced p95 latency by 40%", source: "Capstone Thesis" },
     ],
+    dimensions: {} as CandidateDimensions,
   },
   {
     id: "demo-2",
@@ -191,6 +285,7 @@ const DEMO_FRAUD_CANDIDATES: Candidate[] = [
       { skill: "Airflow", detail: "Built automation scripts", source: "Freelance Project" },
       { skill: "SQL", detail: "Reduced p95 latency by 40%", source: "Open-source contribution" },
     ],
+    dimensions: {} as CandidateDimensions,
   },
   {
     id: "demo-3",
@@ -222,6 +317,7 @@ const DEMO_FRAUD_CANDIDATES: Candidate[] = [
       { skill: "Terraform", detail: "Built automation scripts", source: "Senior role @ Quantum Fable Systems" },
       { skill: "Docker", detail: "Reduced p95 latency by 40%", source: "Capstone Thesis" },
     ],
+    dimensions: {} as CandidateDimensions,
   },
   {
     id: "demo-4",
@@ -253,10 +349,11 @@ const DEMO_FRAUD_CANDIDATES: Candidate[] = [
       { skill: "Postgres", detail: "Designed data pipeline", source: "Open-source contribution" },
       { skill: "Docker", detail: "Authored internal library", source: "Capstone Thesis" },
     ],
+    dimensions: {} as CandidateDimensions,
   },
 ];
 
-export const CANDIDATES: Candidate[] = [...build(), ...DEMO_FRAUD_CANDIDATES];
+export const CANDIDATES: Candidate[] = [...build(), ...DEMO_FRAUD_CANDIDATES].map(applyDimensions);
 
 export type Weights = {
   skills: number;
@@ -264,6 +361,7 @@ export type Weights = {
   education: number;
   certifications: number;
   projects: number;
+  communication: number;
 };
 
 export const DEFAULT_WEIGHTS: Weights = {
@@ -272,23 +370,21 @@ export const DEFAULT_WEIGHTS: Weights = {
   education: 15,
   certifications: 10,
   projects: 10,
+  communication: 10,
 };
 
 export function scoreOf(c: Candidate, w: Weights) {
-  const total = w.skills + w.experience + w.education + w.certifications + w.projects || 1;
-  return Math.round(
-    (c.categories.skills * w.skills +
-      c.categories.experience * w.experience +
-      c.categories.education * w.education +
-      c.categories.certifications * w.certifications +
-      c.categories.projects * w.projects) /
-      total,
-  );
+  const dimensions = c.dimensions ?? buildDimensions(c, c.categories);
+  return dimensions.overall_fit.score;
 }
 
 export function rankCandidates(list: Candidate[], w: Weights): Candidate[] {
   return list
-    .map((c) => ({ ...c, score: scoreOf(c, w) }))
+    .map((c) => {
+      const dimensions = c.dimensions ?? buildDimensions(c, c.categories);
+      const score = scoreOf({ ...c, dimensions }, w);
+      return { ...c, score, dimensions };
+    })
     .sort((a, b) => b.score - a.score)
     .map((c, i) => ({ ...c, rank: i + 1 }));
 }

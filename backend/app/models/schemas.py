@@ -60,6 +60,7 @@ class WeightConfig(BaseModel):
     education: float = 0.15
     certifications: float = 0.10
     projects: float = 0.05
+    communication: float = 0.10
 
 
 class RankedCandidate(BaseModel):
@@ -79,6 +80,7 @@ class RankedCandidate(BaseModel):
     weaknesses: Optional[str] = None
     transferable_skills: Optional[str] = None
     evaluation_id: Optional[UUID] = None
+    dimensions: Optional[dict[str, Any]] = None
 
 
 # ---------- Jobs ----------
@@ -136,7 +138,21 @@ class EvidenceResponse(ORMModel):
     resume_text_snippet: Optional[str] = None
     source_section: Optional[str] = None
     confidence_score: Optional[Decimal] = None
+    dimension: Optional[str] = None
     created_at: datetime
+
+
+class DimensionDetail(BaseModel):
+    score: float
+    explanation: str
+    evidence: list[EvidenceResponse] = Field(default_factory=list)
+
+
+class CandidateDimensions(BaseModel):
+    overall_fit: DimensionDetail
+    technical_skills: DimensionDetail
+    communication: DimensionDetail
+    role_alignment: DimensionDetail
 
 
 class EvaluationResponse(ORMModel):
@@ -149,6 +165,9 @@ class EvaluationResponse(ORMModel):
     education_match_score: Optional[Decimal] = None
     certification_match_score: Optional[Decimal] = None
     project_match_score: Optional[Decimal] = None
+    technical_skills_score: Optional[Decimal] = None
+    communication_score: Optional[Decimal] = None
+    role_alignment_score: Optional[Decimal] = None
     matched_skills: Optional[list[Any]] = None
     missing_skills: Optional[list[Any]] = None
     strengths: Optional[str] = None
@@ -157,6 +176,7 @@ class EvaluationResponse(ORMModel):
     blind_review_mode: bool = False
     created_at: datetime
     evidence: list[EvidenceResponse] = Field(default_factory=list)
+    dimensions: Optional[CandidateDimensions] = None
 
 
 class CompareRequest(BaseModel):

@@ -43,6 +43,9 @@ class Evaluation(Base):
     education_match_score: Mapped[Optional[Decimal]] = mapped_column(Numeric(5, 2))
     certification_match_score: Mapped[Optional[Decimal]] = mapped_column(Numeric(5, 2))
     project_match_score: Mapped[Optional[Decimal]] = mapped_column(Numeric(5, 2))
+    technical_skills_score: Mapped[Optional[Decimal]] = mapped_column(Numeric(5, 2))
+    communication_score: Mapped[Optional[Decimal]] = mapped_column(Numeric(5, 2))
+    role_alignment_score: Mapped[Optional[Decimal]] = mapped_column(Numeric(5, 2))
     matched_skills: Mapped[Optional[list[Any]]] = mapped_column(JSONType, default=list)
     missing_skills: Mapped[Optional[list[Any]]] = mapped_column(JSONType, default=list)
     strengths: Mapped[Optional[str]] = mapped_column(Text)
@@ -76,6 +79,7 @@ class Evidence(Base):
     resume_text_snippet: Mapped[Optional[str]] = mapped_column(Text)
     source_section: Mapped[Optional[str]] = mapped_column(String(100))
     confidence_score: Mapped[Optional[Decimal]] = mapped_column(Numeric(3, 2))
+    dimension: Mapped[Optional[str]] = mapped_column(String(50))
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=False), server_default=func.now()
     )

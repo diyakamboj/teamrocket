@@ -1,4 +1,5 @@
 import json
+import re
 from decimal import Decimal
 from typing import Any, Optional
 from uuid import UUID
@@ -19,6 +20,182 @@ DEFAULT_WEIGHTS = WeightConfig()
 
 
 class CandidateMatcher:
+    def _to_text(self, value: Any) -> str:
+        if isinstance(value, dict):
+            return " ".join(str(v) for v in value.values() if isinstance(v, (str, int, float)))
+        if isinstance(value, list):
+            return " ".join(self._to_text(item) for item in value)
+        return str(value or "")
+
+    def _normalize_weight(self, values: list[float], weights: list[float]) -> float:
+        total = sum(weights) or 1.0
+        return round(sum(v * w for v, w in zip(values, weights, strict=False)) / total, 2)
+
+    def _title_alignment_score(self, candidate: Candidate, job: JobPosting) -> float:
+        job_blob = normalize_skill(job.title)
+        candidate_blob = normalize_skill(
+            " ".join(
+                [
+                    candidate.resume_text or "",
+                    self._to_text(candidate.experience),
+                    self._to_text(candidate.projects),
+                    self._to_text(candidate.enriched_profile),
+                ]
+            )
+        )
+        if not candidate_blob:
+            return 50.0
+        job_tokens = [token for token in re.split(r"[^a-z0-9]+", job_blob) if len(token) > 2]
+        hits = sum(1 for token in job_tokens if token in candidate_blob)
+        if hits >= 2:
+            return 95.0
+        if hits == 1:
+            return 80.0
+        domain_markers = ["backend", "frontend", "platform", "data", "ml", "devops", "cloud", "sre"]
+        if any(marker in candidate_blob for marker in domain_markers) and any(marker in job_blob for marker in domain_markers):
+            return 75.0
+        return 60.0
+
+    def _communication_text(self, candidate: Candidate) -> str:
+        profile = candidate.enriched_profile or {}
+        profile_parts: list[str] = []
+        for key in ("about", "summary", "bio", "headline", "description"):
+            value = profile.get(key)
+            if value:
+                profile_parts.append(str(value))
+        return "\n".join([candidate.resume_text or "", *profile_parts]).strip()
+
+    def _heuristic_communication(self, text: str) -> dict[str, Any]:
+        if not text.strip():
+            return {
+                "score": 50.0,
+                "explanation": "Not enough text to assess communication style.",
+                "evidence": [],
+            }
+
+        sentences = [s.strip() for s in re.split(r"(?<=[.!?])\s+", text) if s.strip()]
+        bullets = len(re.findall(r"(^|\n)\s*[-*•]", text))
+        quantified = len(re.findall(r"\b\d+(?:\.\d+)?%?|\$\d+|p95|p50|x\b", text, re.I))
+        avg_len = sum(len(s) for s in sentences) / max(len(sentences), 1)
+        variance = sum((len(s) - avg_len) ** 2 for s in sentences) / max(len(sentences), 1)
+
+        score = 55.0
+        score += min(15.0, bullets * 2.5)
+        score += min(15.0, quantified * 2.0)
+        score += 8.0 if len(sentences) >= 4 else 0.0
+        score += 8.0 if avg_len <= 220 else 0.0
+        score += 6.0 if variance > 1500 else 0.0
+        score = round(min(95.0, max(35.0, score)), 2)
+
+        snippet = next((s for s in sentences if re.search(r"\b\d|%|\$|p95|p50", s, re.I)), None)
+        if not snippet:
+            snippet = sentences[0] if sentences else text[:160]
+
+        return {
+            "score": score,
+            "explanation": "Communication is inferred from resume structure, quantified impact, and clarity markers.",
+            "evidence": [
+                {
+                    "skill_name": "Communication",
+                    "resume_text_snippet": snippet[:180],
+                    "source_section": "Resume",
+                    "confidence_score": 0.72,
+                    "dimension": "communication",
+                }
+            ],
+        }
+
+    async def _match_communication(self, candidate: Candidate, job: JobPosting) -> dict[str, Any]:
+        text = self._communication_text(candidate)
+        if not text:
+            return self._heuristic_communication("")
+
+        prompt = f"""
+Score the candidate's communication quality from 0 to 100 based on resume/profile text only.
+
+Role: {job.title}
+
+Candidate text:
+{text[:12000]}
+
+Return valid JSON with keys:
+score (number), explanation (short string), evidence (list of snippets with skill_name, resume_text_snippet, source_section, confidence_score).
+Focus on structure, clarity, quantified impact, and concise presentation.
+"""
+        try:
+            result = openai_service.chat_json(prompt, temperature=0.2)
+        except Exception:
+            return self._heuristic_communication(text)
+
+        try:
+            score = float(result.get("score"))
+        except (TypeError, ValueError):
+            return self._heuristic_communication(text)
+
+        evidence = result.get("evidence") or []
+        if not isinstance(evidence, list) or not evidence:
+            evidence = self._heuristic_communication(text)["evidence"]
+        else:
+            for item in evidence:
+                if isinstance(item, dict):
+                    item["dimension"] = "communication"
+        return {
+            "score": round(min(100.0, max(0.0, score)), 2),
+            "explanation": str(result.get("explanation") or "Communication quality inferred from resume/profile text."),
+            "evidence": evidence,
+        }
+
+    def _role_alignment_evidence(self, candidate: Candidate, job: JobPosting) -> list[dict[str, Any]]:
+        evidence: list[dict[str, Any]] = []
+        if candidate.experience:
+            first = candidate.experience[0]
+            snippet = self._to_text(first)[:180]
+            evidence.append(
+                {
+                    "skill_name": "Experience",
+                    "resume_text_snippet": snippet,
+                    "source_section": "Experience",
+                    "confidence_score": 0.78,
+                    "dimension": "role_alignment",
+                }
+            )
+        if candidate.education:
+            first = candidate.education[0]
+            snippet = self._to_text(first)[:180]
+            evidence.append(
+                {
+                    "skill_name": "Education",
+                    "resume_text_snippet": snippet,
+                    "source_section": "Education",
+                    "confidence_score": 0.7,
+                    "dimension": "role_alignment",
+                }
+            )
+        title_hint = self._title_alignment_score(candidate, job)
+        evidence.append(
+            {
+                "skill_name": "Role fit",
+                "resume_text_snippet": f"Job title/domain alignment scored at {title_hint} based on {job.title}.",
+                "source_section": "Unknown",
+                "confidence_score": round(title_hint / 100, 2),
+                "dimension": "role_alignment",
+            }
+        )
+        return evidence
+
+    def _dimension_detail(
+        self,
+        *,
+        score: float,
+        explanation: str,
+        evidence: list[dict[str, Any]],
+    ) -> dict[str, Any]:
+        return {
+            "score": round(float(score), 2),
+            "explanation": explanation,
+            "evidence": evidence,
+        }
+
     async def rank_candidates(
         self,
         db: Session,
@@ -64,21 +241,28 @@ class CandidateMatcher:
         edu_score = await self._match_education(candidate, job)
         cert_score = await self._match_certifications(candidate, job)
         proj_score = await self._match_projects(candidate, job)
+        communication = await self._match_communication(candidate, job)
+        title_score = self._title_alignment_score(candidate, job)
+
+        technical_score = self._normalize_weight(
+            [skill_score, cert_score, proj_score],
+            [weights.skills, weights.certifications, weights.projects],
+        )
+        role_alignment_score = self._normalize_weight(
+            [exp_score, edu_score, title_score],
+            [weights.experience, weights.education, 0.15],
+        )
 
         total_weight = (
-            weights.skills
-            + weights.experience
-            + weights.education
-            + weights.certifications
-            + weights.projects
+            (weights.skills + weights.certifications + weights.projects)
+            + (weights.experience + weights.education)
+            + weights.communication
         ) or 1.0
 
         overall = (
-            skill_score * weights.skills
-            + exp_score * weights.experience
-            + edu_score * weights.education
-            + cert_score * weights.certifications
-            + proj_score * weights.projects
+            technical_score * (weights.skills + weights.certifications + weights.projects)
+            + role_alignment_score * (weights.experience + weights.education)
+            + communication["score"] * weights.communication
         ) / total_weight
 
         explanation = await self._generate_explanation(
@@ -90,15 +274,50 @@ class CandidateMatcher:
                 "education_score": edu_score,
                 "certification_score": cert_score,
                 "project_score": proj_score,
+                "technical_skills_score": technical_score,
+                "communication_score": communication["score"],
+                "role_alignment_score": role_alignment_score,
+                "overall_fit_score": round(float(overall), 2),
             },
         )
 
-        evidence = explanation.get("evidence") or evidence_tracker.build_evidence(
+        technical_evidence = evidence_tracker.build_evidence(
             resume_text=candidate.resume_text or "",
             matched_skills=explanation.get("matched_skills") or [],
             experience=candidate.experience,
             projects=candidate.projects,
+            dimension="technical_skills",
         )
+
+        communication_evidence = communication["evidence"]
+        role_evidence = self._role_alignment_evidence(candidate, job)
+        overall_evidence = [*technical_evidence, *role_evidence, *communication_evidence]
+
+        dimension_details = {
+            "overall_fit": self._dimension_detail(
+                score=round(float(overall), 2),
+                explanation=explanation.get("overall_fit_explanation")
+                or f"Overall fit combines technical skills ({technical_score}), role alignment ({role_alignment_score}), and communication ({communication['score']}).",
+                evidence=overall_evidence,
+            ),
+            "technical_skills": self._dimension_detail(
+                score=technical_score,
+                explanation=explanation.get("technical_skills_explanation")
+                or f"Technical skill evidence comes from skills, certifications, and projects; higher is better when those scores are stronger.",
+                evidence=technical_evidence,
+            ),
+            "communication": self._dimension_detail(
+                score=communication["score"],
+                explanation=communication["explanation"],
+                evidence=communication_evidence,
+            ),
+            "role_alignment": self._dimension_detail(
+                score=role_alignment_score,
+                explanation=explanation.get("role_alignment_explanation")
+                or f"Role alignment combines experience, education, and job-title/domain similarity (title match score {title_score}).",
+                evidence=role_evidence,
+            ),
+        }
 
         return {
             "candidate_id": candidate.id,
@@ -110,12 +329,16 @@ class CandidateMatcher:
             "education_score": edu_score,
             "certification_score": cert_score,
             "project_score": proj_score,
+            "technical_skills_score": technical_score,
+            "communication_score": communication["score"],
+            "role_alignment_score": role_alignment_score,
             "matched_skills": explanation.get("matched_skills") or [],
             "missing_skills": explanation.get("missing_skills") or [],
             "strengths": explanation.get("strengths"),
             "weaknesses": explanation.get("weaknesses"),
             "transferable_skills": explanation.get("transferable_skills"),
-            "evidence": evidence,
+            "evidence": overall_evidence,
+            "dimensions": dimension_details,
         }
 
     async def get_candidate_score(
@@ -231,6 +454,10 @@ Scores:
 - Education Match: {scores['education_score']}/100
 - Certification Match: {scores['certification_score']}/100
 - Project Match: {scores['project_score']}/100
+- Technical Skills: {scores['technical_skills_score']}/100
+- Communication: {scores['communication_score']}/100
+- Role Alignment: {scores['role_alignment_score']}/100
+- Overall Fit: {scores['overall_fit_score']}/100
 
 Generate JSON with keys:
 matched_skills (list of {{skill, source}}),
@@ -238,7 +465,11 @@ missing_skills (list),
 strengths (string),
 weaknesses (string),
 transferable_skills (string),
-evidence (list of {{skill_name, resume_text_snippet, source_section, confidence_score}}).
+technical_skills_explanation (string),
+communication_explanation (string),
+role_alignment_explanation (string),
+overall_fit_explanation (string),
+dimensions (object with the four keys above containing short explanations).
 """
         result = openai_service.chat_json(prompt, temperature=0.3)
 

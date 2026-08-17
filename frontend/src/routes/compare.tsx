@@ -2,7 +2,8 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { useMemo } from "react";
 import { Sparkle, X } from "lucide-react";
 import { CompareChat } from "@/components/copilot";
-import { MiniBar, ScoreRing } from "@/components/score-ring";
+import { DimensionBreakdown } from "@/components/dimension-breakdown";
+import { ScoreRing } from "@/components/score-ring";
 import { Button } from "@/components/ui/button";
 import { useAppState } from "@/lib/app-state";
 import { CANDIDATES, rankCandidates } from "@/lib/mock-data";
@@ -52,6 +53,13 @@ function Compare() {
   }
 
   const best = selected.reduce((a, b) => (b.score > a.score ? b : a));
+  const bestDimension = (() => {
+    const entries = Object.entries(best.dimensions)
+      .filter(([key]) => key !== "overall_fit")
+      .map(([key, value]) => [key, value.score] as const)
+      .sort((a, b) => b[1] - a[1]);
+    return entries[0] ?? (["technical_skills", best.dimensions.technical_skills.score] as const);
+  })();
 
   return (
     <div className="mx-auto flex max-w-7xl flex-col gap-6">
@@ -72,7 +80,7 @@ function Compare() {
           <div key={c.id} className="card-surface flex flex-col gap-5 p-5">
             <div className="grid grid-cols-[minmax(0,1fr)_auto] items-start gap-3">
               <div className="flex min-w-0 items-center gap-3">
-                <ScoreRing value={c.score} size={56} />
+                <ScoreRing value={c.dimensions.overall_fit.score} size={56} />
                 <div className="min-w-0">
                   <p className="truncate font-bold">
                     {blindMode ? `Candidate #${c.rank}` : c.name}
@@ -90,14 +98,7 @@ function Compare() {
                 <X className="h-4 w-4" />
               </button>
             </div>
-
-            <div className="space-y-2">
-              <MiniBar label="Skills" value={c.categories.skills} />
-              <MiniBar label="Experience" value={c.categories.experience} />
-              <MiniBar label="Education" value={c.categories.education} />
-              <MiniBar label="Certifications" value={c.categories.certifications} />
-              <MiniBar label="Projects" value={c.categories.projects} />
-            </div>
+            <DimensionBreakdown candidate={c} />
 
             <div>
               <p className="text-xs font-bold uppercase tracking-wide text-muted-foreground">
@@ -156,10 +157,10 @@ function Compare() {
           <strong className="text-foreground">
             {blindMode ? `Candidate #${best.rank}` : best.name}
           </strong>{" "}
-          is the strongest overall fit at {best.score}, driven by a {best.categories.skills} skills
-          match and {best.years} years of relevant delivery. The main trade-off is{" "}
-          {best.gaps[0]!.toLowerCase()} — ask the chat below for interview focus or experience
-          comparisons.
+          has an overall-fit score of {best.dimensions.overall_fit.score} and a top{" "}
+          {bestDimension[0].replace(/_/g, " ")} result of {bestDimension[1]}.
+          The main trade-off is {best.gaps[0]!.toLowerCase()} — ask the chat below for interview
+          focus or experience comparisons.
         </p>
       </div>
 
