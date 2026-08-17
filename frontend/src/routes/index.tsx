@@ -1,5 +1,5 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   Bar,
   BarChart,
@@ -10,7 +10,27 @@ import {
   XAxis,
   YAxis,
 } from "recharts";
-import { ArrowUpRight, Brain, FileCheck2, Gauge, Sparkle, Users } from "lucide-react";
+import {
+  ArrowUpRight,
+  BadgeCheck,
+  Brain,
+  CircleAlert,
+  FileCheck2,
+  Gauge,
+  Sparkle,
+  TrendingDown,
+  TrendingUp,
+  Users,
+} from "lucide-react";
+import { useAppState } from "@/lib/app-state";
+import {
+  getDashboardInsights,
+  getJdOptimization,
+  type DashboardInsights,
+  type JDOptimizationResponse,
+  type JDSuggestion,
+} from "@/lib/api";
+import { cn } from "@/lib/utils";
 import {
   CANDIDATES,
   EXPERIENCE_BREAKDOWN,
@@ -18,7 +38,6 @@ import {
   rankCandidates,
   scoreBuckets,
 } from "@/lib/mock-data";
-import { useAppState } from "@/lib/app-state";
 
 export const Route = createFileRoute("/")({
   head: () => ({
@@ -51,7 +70,7 @@ function StatCard({
   delta: string;
 }) {
   return (
-    <div className="card-surface p-5 transition-shadow duration-300 hover:shadow-[var(--shadow-lift)]">
+    <div className="card-surface p-5 transition-shadow duration-300 hover:shadow-(--shadow-lift)">
       <div className="flex items-start justify-between gap-3">
         <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-primary-soft text-primary-soft-foreground">
           <Icon className="h-5 w-5" />
@@ -79,7 +98,7 @@ function ChartCard({
     <div className="card-surface p-5">
       <h2 className="text-base font-bold">{title}</h2>
       <p className="mb-4 text-xs text-muted-foreground">{subtitle}</p>
-      <div className="h-[240px] w-full">{children}</div>
+      <div className="h-60 w-full">{children}</div>
     </div>
   );
 }
@@ -92,11 +111,109 @@ const tooltipStyle = {
   fontSize: 12,
 };
 
+const CLASSIFICATION_META: Record<
+  JDSuggestion["classification"],
+  { label: string; icon: typeof CircleAlert; className: string }
+> = {
+  too_strict: {
+    label: "Too Strict",
+    icon: TrendingDown,
+    className: "bg-rose-100 text-rose-700 dark:bg-rose-500/15 dark:text-rose-300",
+  },
+  low_signal: {
+    label: "Low Signal",
+    icon: CircleAlert,
+    className: "bg-amber-100 text-amber-700 dark:bg-amber-500/15 dark:text-amber-300",
+  },
+  under_filtered: {
+    label: "Under-filtered",
+    icon: TrendingUp,
+    className: "bg-emerald-100 text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-300",
+  },
+  balanced: {
+    label: "Balanced",
+    icon: BadgeCheck,
+    className: "bg-sky-100 text-sky-700 dark:bg-sky-500/15 dark:text-sky-300",
+  },
+  insufficient_data: {
+    label: "Insufficient Data",
+    icon: CircleAlert,
+    className: "bg-secondary text-muted-foreground",
+  },
+};
+
+function classificationPriority(value: JDSuggestion["classification"]) {
+  switch (value) {
+    case "too_strict":
+      return 0;
+    case "under_filtered":
+      return 1;
+    case "low_signal":
+      return 2;
+    case "insufficient_data":
+      return 3;
+    default:
+      return 4;
+  }
+}
+
 function Dashboard() {
-  const { weights } = useAppState();
+  const { weights, activeJobId, backendReady, setActiveJobId } = useAppState();
   const ranked = useMemo(() => rankCandidates(CANDIDATES, weights), [weights]);
   const avg = Math.round(ranked.reduce((s, c) => s + c.score, 0) / ranked.length);
   const buckets = useMemo(() => scoreBuckets(ranked), [ranked]);
+  const [insights, setInsights] = useState<DashboardInsights | null>(null);
+  const [optimization, setOptimization] = useState<JDOptimizationResponse | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function load() {
+      if (!backendReady || !activeJobId) {
+        setInsights(null);
+        setOptimization(null);
+        return;
+      }
+
+      try {
+        const [nextInsights, nextOptimization] = await Promise.all([
+          getDashboardInsights(activeJobId),
+          getJdOptimization(activeJobId),
+        ]);
+        if (cancelled) return;
+        setInsights(nextInsights);
+        setOptimization(nextOptimization);
+      } catch {
+        if (!cancelled) {
+          setInsights(null);
+          setOptimization(null);
+        }
+      }
+    }
+
+    void load();
+    return () => {
+      cancelled = true;
+    };
+  }, [activeJobId, backendReady]);
+
+  const suggestions = useMemo(
+    () =>
+      [...(optimization?.suggestions ?? [])].sort(
+        (a, b) =>
+          classificationPriority(a.classification) - classificationPriority(b.classification) ||
+          a.coverage_pct - b.coverage_pct,
+      ),
+    [optimization],
+  );
+  const coverageData = useMemo(
+    () => [...suggestions].sort((a, b) => a.coverage_pct - b.coverage_pct),
+    [suggestions],
+  );
+  const summary = optimization?.summary?.trim() ?? "";
+  const needsJobAnalysis = summary.toLowerCase().startsWith("analyze the job description first");
+  const emptySuggestions = suggestions.length === 0;
+  const topFlag = insights?.jd_top_flag as JDSuggestion["classification"] | null | undefined;
 
   return (
     <div className="mx-auto max-w-7xl space-y-6">
@@ -157,7 +274,7 @@ function Dashboard() {
         </ChartCard>
       </div>
 
-      <div className="grid gap-4 lg:grid-cols-[1fr_1.2fr]">
+      <div className="grid gap-4 lg:grid-cols-2">
         <ChartCard title="Experience levels" subtitle="Seniority breakdown of the pool">
           <ResponsiveContainer width="100%" height="100%">
             <BarChart data={EXPERIENCE_BREAKDOWN} layout="vertical">
@@ -176,33 +293,136 @@ function Dashboard() {
           </ResponsiveContainer>
         </ChartCard>
 
-        <div className="card-surface p-6">
+        <ChartCard title="Requirement coverage" subtitle="Coverage % per requirement, sorted ascending">
+          <ResponsiveContainer width="100%" height="100%">
+            <BarChart data={coverageData} layout="vertical" margin={{ left: 8, right: 12 }}>
+              <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="var(--border)" />
+              <XAxis
+                type="number"
+                domain={[0, 100]}
+                tickFormatter={(value) => `${value}%`}
+                tick={{ fontSize: 11 }}
+                stroke="var(--muted-foreground)"
+              />
+              <YAxis
+                type="category"
+                dataKey="skill"
+                width={120}
+                tick={{ fontSize: 11 }}
+                stroke="var(--muted-foreground)"
+              />
+              <Tooltip
+                contentStyle={tooltipStyle}
+                formatter={(value, name) => [
+                  `${Number(value).toFixed(1)}%`,
+                  name === "coverage_pct" ? "Coverage" : String(name),
+                ]}
+                labelFormatter={(label) => String(label)}
+                cursor={{ fill: "var(--muted)" }}
+              />
+              <Bar dataKey="coverage_pct" radius={[0, 8, 8, 0]}>
+                {coverageData.map((item) => (
+                  <Cell
+                    key={item.skill}
+                    fill={
+                      item.classification === "too_strict"
+                        ? "var(--chart-4)"
+                        : item.classification === "under_filtered"
+                          ? "var(--chart-1)"
+                          : item.classification === "low_signal"
+                            ? "var(--chart-2)"
+                            : item.classification === "insufficient_data"
+                              ? "var(--muted)"
+                              : "var(--chart-3)"
+                    }
+                  />
+                ))}
+              </Bar>
+            </BarChart>
+          </ResponsiveContainer>
+        </ChartCard>
+      </div>
+
+      <div className="card-surface p-6">
+        <div className="flex flex-wrap items-center justify-between gap-3">
           <div className="flex items-center gap-2 text-primary-soft-foreground">
             <Sparkle className="h-4 w-4" />
             <span className="text-xs font-bold uppercase tracking-wide">AI insight</span>
           </div>
-          <h2 className="mt-3 text-lg font-bold">Qualification gaps</h2>
-          <p className="mt-3 text-sm leading-relaxed text-muted-foreground">
-            The pool is strong on core engineering fundamentals — {SKILL_DISTRIBUTION[0]!.count}{" "}
-            candidates show {SKILL_DISTRIBUTION[0]!.skill} evidence and{" "}
-            {EXPERIENCE_BREAKDOWN[2]!.count + EXPERIENCE_BREAKDOWN[3]!.count} are senior or above.
-            The recurring shortfall is production-grade cloud infrastructure: only{" "}
-            {SKILL_DISTRIBUTION.find((s) => s.skill === "Kubernetes")?.count ?? 0} candidates show
-            Kubernetes ownership, and certification evidence is sparse across the board.
-          </p>
-          <ul className="mt-4 space-y-2 text-sm">
-            {[
-              "Consider lowering the certification weight — it is filtering out otherwise strong profiles.",
-              "Terraform and Kafka appear mostly as transferable, not primary, experience.",
-              "Mid-level candidates outperform seniors on projects evidence.",
-            ].map((t) => (
-              <li key={t} className="flex gap-2 text-muted-foreground">
-                <span className="mt-2 h-1.5 w-1.5 shrink-0 rounded-full bg-primary" />
-                {t}
-              </li>
-            ))}
-          </ul>
+          <div className="flex flex-wrap items-center gap-2">
+            {topFlag ? (
+              <span
+                className={cn(
+                  "inline-flex items-center rounded-full px-2.5 py-0.5 text-[11px] font-semibold",
+                  CLASSIFICATION_META[topFlag].className,
+                )}
+              >
+                {CLASSIFICATION_META[topFlag].label}
+              </span>
+            ) : null}
+            <span className="rounded-full bg-secondary px-2.5 py-0.5 text-[11px] font-semibold text-muted-foreground">
+              {insights?.jd_suggestions_count ?? suggestions.length} suggestions
+            </span>
+          </div>
         </div>
+
+        <h2 className="mt-3 text-lg font-bold">JD Optimization</h2>
+
+        {summary ? <p className="mt-3 text-sm leading-relaxed text-muted-foreground">{summary}</p> : null}
+
+        {emptySuggestions ? (
+          <div className="mt-4 rounded-xl border border-dashed px-4 py-5 text-center text-sm text-muted-foreground">
+            {needsJobAnalysis
+              ? "Visit Job Description Analysis first to extract requirements."
+              : "Run some candidates through screening to see JD suggestions."}
+          </div>
+        ) : (
+          <div className="mt-4 space-y-3">
+            {suggestions.map((item) => {
+              const meta = CLASSIFICATION_META[item.classification];
+              const Icon = meta.icon;
+              return (
+                <div key={item.skill} className="rounded-2xl border bg-background/70 p-4 shadow-sm">
+                  <div className="flex flex-wrap items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <p className="truncate text-sm font-semibold">{item.skill}</p>
+                      <p className="mt-1 text-xs tabular-nums text-muted-foreground">
+                        {item.candidates_matching}/{item.total_candidates} candidates ({item.coverage_pct.toFixed(1)}%)
+                      </p>
+                    </div>
+                    <span
+                      className={cn(
+                        "inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-[10px] font-bold",
+                        meta.className,
+                      )}
+                    >
+                      <Icon className="h-3 w-3" />
+                      {meta.label}
+                    </span>
+                  </div>
+
+                  <div className="mt-3 h-2 overflow-hidden rounded-full bg-secondary/70">
+                    <div
+                      className="h-full rounded-full bg-primary"
+                      style={{ width: `${Math.min(100, Math.max(0, item.coverage_pct))}%` }}
+                    />
+                  </div>
+
+                  <p className="mt-3 text-sm leading-relaxed text-muted-foreground">{item.suggestion}</p>
+
+                  <Link
+                    to="/job-analysis"
+                    onClick={() => setActiveJobId(activeJobId)}
+                    className="mt-3 inline-flex items-center gap-1 rounded-full bg-primary-soft px-3 py-1.5 text-xs font-semibold text-primary-soft-foreground transition-opacity hover:opacity-90"
+                  >
+                    Review in Job Description
+                    <ArrowUpRight className="h-3.5 w-3.5" />
+                  </Link>
+                </div>
+              );
+            })}
+          </div>
+        )}
       </div>
     </div>
   );

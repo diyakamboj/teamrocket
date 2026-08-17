@@ -127,6 +127,51 @@ export type JobAnalyzeResponse = {
   summary?: string | null;
 };
 
+export type DashboardInsights = {
+  job_id: string;
+  total_candidates: number;
+  evaluated_candidates: number;
+  average_score: number;
+  top_skills: { skill: string; count: number }[];
+  common_missing_skills: { skill: string; count: number }[];
+  average_experience_years: number;
+  qualification_gaps_summary: string;
+  pipeline_status: Record<string, number>;
+  jd_suggestions_count: number;
+  jd_top_flag?: string | null;
+};
+
+export type JDSuggestion = {
+  skill: string;
+  is_must_have: boolean;
+  coverage_pct: number;
+  candidates_matching: number;
+  total_candidates: number;
+  classification:
+    | "too_strict"
+    | "low_signal"
+    | "under_filtered"
+    | "balanced"
+    | "insufficient_data";
+  suggestion: string;
+};
+
+export type JDOptimizationResponse = {
+  job_id: string;
+  job_title: string;
+  suggestions: JDSuggestion[];
+  summary: string;
+  generated_at: string;
+};
+
+export async function getDashboardInsights(jobId: string): Promise<DashboardInsights> {
+  return request<DashboardInsights>(`/api/dashboard/job/${jobId}/insights`);
+}
+
+export async function getJdOptimization(jobId: string): Promise<JDOptimizationResponse> {
+  return request<JDOptimizationResponse>(`/api/dashboard/job/${jobId}/jd-optimization`);
+}
+
 export async function analyzeJobDescriptionApi(input: {
   title: string;
   description: string;

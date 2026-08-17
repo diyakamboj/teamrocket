@@ -8,6 +8,7 @@ from app.models.candidate import Candidate
 from app.models.evaluation import Evaluation
 from app.models.job_posting import JobPosting
 from app.services.azure_services import openai_service
+from app.services.jd_optimizer import jd_optimizer
 from app.utils.error_handlers import NotFoundError
 
 
@@ -42,6 +43,16 @@ class HiringInsightsService:
 
         top_skills = [{"skill": s, "count": c} for s, c in skill_counter.most_common(10)]
         common_missing = [{"skill": s, "count": c} for s, c in missing_counter.most_common(10)]
+        jd_optimization = await jd_optimizer.get_optimization(db, job_id, include_summary=False)
+        jd_suggestions = jd_optimization.get("suggestions", [])
+        jd_top_flag = next(
+            (
+                item["classification"]
+                for item in jd_suggestions
+                if item["classification"] in {"too_strict", "under_filtered", "low_signal", "insufficient_data"}
+            ),
+            None,
+        )
 
         prompt = f"""
 Write a short recruiter-facing summary of qualification gaps for role '{job.title}'.
@@ -70,6 +81,8 @@ Keep it under 80 words.
             "average_experience_years": avg_exp,
             "qualification_gaps_summary": gaps_summary,
             "pipeline_status": pipeline,
+            "jd_suggestions_count": len(jd_suggestions),
+            "jd_top_flag": jd_top_flag,
         }
 
     async def get_distribution(self, db: Session, job_id: UUID) -> dict[str, Any]:

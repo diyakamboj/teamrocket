@@ -1,6 +1,6 @@
 from datetime import datetime
 from decimal import Decimal
-from typing import Any, Optional
+from typing import Any, Literal, Optional
 from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, EmailStr, Field
@@ -227,6 +227,32 @@ class DashboardInsights(BaseModel):
     average_experience_years: float
     qualification_gaps_summary: str
     pipeline_status: dict[str, int]
+    jd_suggestions_count: int = 0
+    jd_top_flag: Optional[str] = None
+
+
+class JDSuggestion(BaseModel):
+    skill: str
+    is_must_have: bool
+    coverage_pct: float
+    candidates_matching: int
+    total_candidates: int
+    classification: Literal[
+        "too_strict",
+        "low_signal",
+        "under_filtered",
+        "balanced",
+        "insufficient_data",
+    ]
+    suggestion: str
+
+
+class JDOptimizationResponse(BaseModel):
+    job_id: UUID
+    job_title: str
+    suggestions: list[JDSuggestion]
+    summary: str
+    generated_at: datetime
 
 
 class DashboardDistribution(BaseModel):
