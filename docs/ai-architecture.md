@@ -1,4 +1,4 @@
-﻿# ResumeIQ ΓÇö AI Architecture
+# ResumeIQ ΓÇö AI Architecture
 
 How intelligence is structured: the provider seams, prompts and schemas, the three-signal scoring model, cost controls, fallback behavior, and the copilot agent. Companion docs: [architecture.md](architecture.md) (overall design), [development.md](development.md) (local dev), [deployment.md](deployment.md) (deploy/ops).
 
@@ -178,10 +178,14 @@ Recruiter question + jobId + weights + blind flag
        compare(candidateIds[])
        gap_summary()
        must_have_report()
-   ΓåÆ step 2: model writes the answer, citing evidence by id (copilotAnswerSchema)
-   ΓåÆ server resolves ids ONLY against the evidence the tool actually returned
-   ΓåÆ response: { answer, citations[], tools[], engine: "agent" | "deterministic" }
+       schedule_interview(candidateId, durationMinutes, interviewers)
+   -> step 2: model writes the answer, citing evidence by id (copilotAnswerSchema)
+   -> server resolves ids ONLY against the evidence the tool actually returned
+   -> response: { answer, citations[], tools[], structured: interview_proposal, engine: "agent" | "deterministic" }
 ```
+
+- **AI Interview Scheduling Seam:** The `schedule_interview` tool and natural-language intent handler parse participant names (e.g. Alex, Priya), duration (30/45/60 mins), and interview types (Technical, Recruiter Screen, System Design) to calculate overlapping interviewer calendar availability (`calendar_service.py`). Returns an interactive `interview_proposal` structured payload allowing recruiters to review proposed slots and confirm booking with Microsoft Teams link auto-generation (`https://teams.microsoft.com/l/meetup-join/...`) and Outlook calendar invites.
+
 
 - **Bounded by design:** at most two chat calls (tool selection Γëê400 tokens, answer Γëê800 tokens). No agentic loop; the pool is the stored `MatchRecord`s, so the scoring engine is never re-run.
 - **No-fabrication guarantee:** the model only ever sees the tool output; citations resolve against *that* output's evidence, so it cannot cite ΓÇö or claim ΓÇö evidence it was never shown. Evidence items carry claim + quote + source + provenance, keeping answers traceable.

@@ -13,8 +13,9 @@ quadrant final poject/
 
 | Folder | Role |
 |--------|------|
-| `frontend` | Recruiter UI (dashboard, upload, ranking, compare, copilot panel) |
-| `backend` | FastAPI: resume parsing, jobs, ranking, evaluation, dashboard + **chat BFF** |
+| `frontend` | Recruiter UI (dashboard, upload, ranking, compare, AI interview scheduling, copilot panel) |
+| `backend` | FastAPI: resume parsing, jobs, ranking, evaluation, AI interview scheduling (Teams & Outlook), dashboard + **chat BFF** |
+
 | `copilot` | Microsoft CWYD RAG chatbot (`POST /api/conversation`) |
 
 ## How the chatbot is connected

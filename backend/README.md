@@ -11,9 +11,11 @@ Production-oriented FastAPI backend for the ResumeIQ / Resume Screening Assistan
 - Side-by-side candidate comparison
 - Hiring insights dashboard APIs
 - Recruiter AI copilot with chat sessions
+- AI-powered interview scheduling with Outlook calendar availability & Microsoft Teams meeting link generation
 - Blind-review mode helpers and audit logging
 
 ## Stack
+
 
 - Python 3.11+ / FastAPI / SQLAlchemy / Alembic
 - PostgreSQL
@@ -88,6 +90,14 @@ Health: [http://localhost:8000/health](http://localhost:8000/health)
 | GET | `/api/dashboard/job/{job_id}/distribution` | Score distribution |
 | POST | `/api/agent/ask` | Recruiter copilot |
 | GET | `/api/agent/sessions` | Copilot chat history |
+| GET | `/api/interviews/interviewers` | List available internal interviewers |
+| POST | `/api/interviews/propose` | AI calculate available interview slots |
+| POST | `/api/interviews/confirm` | Confirm booking, create Teams link & Outlook invite |
+| GET | `/api/interviews/candidate/{id}` | List interviews for a candidate |
+| POST | `/api/interviews/{id}/reschedule-propose` | Propose new slots for rescheduling |
+| POST | `/api/interviews/{id}/reschedule-confirm` | Confirm rescheduled time slot |
+| POST | `/api/interviews/{id}/cancel` | Cancel interview and notify participants |
+
 
 Optional header for audit trail: `X-Recruiter-Email: you@company.com`
 
