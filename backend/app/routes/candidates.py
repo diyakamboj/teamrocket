@@ -162,6 +162,9 @@ async def candidate_score(
     )
 
 
+from app.services.profile_enrichment_service import profile_enrichment_service
+
+
 @router.post("/{candidate_id}/enrich", response_model=CandidateResponse)
 async def enrich_candidate(
     candidate_id: uuid.UUID,
@@ -172,12 +175,18 @@ async def enrich_candidate(
     if not candidate:
         raise NotFoundError("Candidate not found", {"candidate_id": str(candidate_id)})
 
-    enriched = await resume_parser.enrich_from_public_profiles(
+    enriched_obj = await profile_enrichment_service.enrich_candidate_profile(
+        resume_text=candidate.resume_text or "",
         github_url=candidate.github_url,
         linkedin_url=candidate.linkedin_url,
+        portfolio_url=candidate.portfolio_url,
+        hackerrank_url=candidate.hackerrank_url,
     )
-    candidate.enriched_profile = enriched
-    inferred = enriched.get("inferred_skills") or []
+    enriched_dict = enriched_obj.model_dump(mode="json")
+    candidate.enriched_profile = enriched_dict
+
+    # Safely merge inferred skills into candidate.skills without overwriting resume skills
+    inferred = [s.name for s in enriched_obj.inferred_skills]
     if inferred:
         merged = list(dict.fromkeys([*(candidate.skills or []), *inferred]))
         candidate.skills = merged
@@ -189,8 +198,10 @@ async def enrich_candidate(
         action="enrich_candidate",
         resource_type="candidate",
         resource_id=candidate.id,
+        details={"links_count": len(enriched_obj.external_links), "repos_count": len(enriched_obj.repositories)},
     )
     return candidate
+
 
 
 @router.post("/decision", response_model=CandidateDecisionResponse)

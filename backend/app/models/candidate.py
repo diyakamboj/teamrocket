@@ -24,7 +24,9 @@ class Candidate(BaseModel):
     github_url: Optional[str] = None
     linkedin_url: Optional[str] = None
     portfolio_url: Optional[str] = None
+    hackerrank_url: Optional[str] = None
     enriched_profile: Optional[dict[str, Any]] = Field(default_factory=dict)
+
     # "internal" (existing employee applying/referred) vs "external" (outside applicant).
     source: str = "external"
     employment_status: Optional[str] = None   # "bench" | "assigned" | None — only meaningful when source == "internal"

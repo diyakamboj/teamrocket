@@ -26,7 +26,9 @@ class CandidateBase(BaseModel):
     github_url: Optional[str] = None
     linkedin_url: Optional[str] = None
     portfolio_url: Optional[str] = None
+    hackerrank_url: Optional[str] = None
     source: str = "external"  # "internal" | "external"
+
     employment_status: Optional[str] = None  # "bench" | "assigned" | None
     current_assignment: Optional[str] = None
     bench_since: Optional[datetime] = None

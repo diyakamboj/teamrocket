@@ -24,7 +24,9 @@ import { MiniBar, ScoreRing } from "@/components/score-ring";
 import { CandidateInterviewSection } from "@/components/interview-card";
 import { CandidateScreeningSection } from "@/components/screening";
 import { CandidateStatusBadges } from "@/components/candidate-badges";
+import { CandidateEnrichmentCard } from "@/components/candidate-enrichment-card";
 import { Button } from "@/components/ui/button";
+
 
 
 import { Input } from "@/components/ui/input";
@@ -513,6 +515,8 @@ function Candidates() {
                         candidateId={c.id}
                         candidateName={blindMode ? displayName : c.name}
                       />
+
+                      <CandidateEnrichmentCard candidate={c} />
                     </div>
                   )}
                 </div>

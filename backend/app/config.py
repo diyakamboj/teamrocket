@@ -70,7 +70,12 @@ class Settings(BaseSettings):
     SMTP_FROM_NAME: str = "ResumeIQ Recruiting"
     SMTP_FROM_EMAIL: Optional[str] = None  # defaults to SMTP_USERNAME
 
+    # External Profile Enrichment Optional Credentials
+    GITHUB_TOKEN: Optional[str] = None
+    HACKERRANK_API_KEY: Optional[str] = None
+
     # Public URL of the recruiter frontend (used to build interview handoff
+
     # briefing links included in interviewer notification emails).
     FRONTEND_URL: str = "http://localhost:8080"
 

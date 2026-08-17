@@ -27,7 +27,9 @@
 | **Fraud & Timeline Check** | [`backend/app/services/resume_consistency_service.py`](file:///d:/github/teamrocket/backend/app/services/resume_consistency_service.py) | Overlapping date gaps, fluffing anomaly detection |
 | **Interviewer Handoff** | [`backend/app/services/handoff_service.py`](file:///d:/github/teamrocket/backend/app/services/handoff_service.py) | Handoff briefing packs & candidate history event logging |
 | **Internal Talent Mobility** | [`backend/app/services/internal_marketplace_service.py`](file:///d:/github/teamrocket/backend/app/services/internal_marketplace_service.py) | Bench candidate auto-matching for open internal positions |
+| **Profile Enrichment** | [`backend/app/services/profile_enrichment_service.py`](file:///d:/github/teamrocket/backend/app/services/profile_enrichment_service.py) | External profile link detection (GitHub, LinkedIn, HackerRank, Portfolio), GitHub REST retrieval, source attribution |
 | **Evidence Line Tracking** | [`backend/app/services/evidence_tracker.py`](file:///d:/github/teamrocket/backend/app/services/evidence_tracker.py) | Snippet extraction quoting exact resume text for scores |
+
 
 ---
 

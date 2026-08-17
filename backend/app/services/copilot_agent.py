@@ -36,6 +36,7 @@ COPILOT_TOOLS = (
     "gap_summary",
     "must_have_report",
     "schedule_interview",
+    "get_enriched_profile",
 )
 
 CITES_PER_ROW = 3
@@ -50,7 +51,9 @@ Tools:
 - gap_summary: args {} — common qualification gaps across the pool.
 - must_have_report: args {} — which candidates satisfy each must-have requirement.
 - schedule_interview: args {candidateId, durationMinutes?, interviewers?: []} — schedule an interview with candidate and required interviewers.
+- get_enriched_profile: args {candidateId} — view external GitHub repositories, LinkedIn, HackerRank, portfolio signals for a candidate.
 When the question is generic (pool health, wide shortlists), prefer gap_summary or must_have_report over search_candidates."""
+
 
 
 SYNTHESIS_SYSTEM = """You are a recruiting copilot answering a recruiter's question about a scored candidate pool. Write a concise, recruiter-friendly answer using ONLY the tool output provided. Markdown bullet lists are fine.
@@ -347,9 +350,38 @@ def run_copilot_tool(
         return compare_candidates(pool, args)
     if tool == "gap_summary":
         return gap_summary(pool, requirements)
-    if tool == "must_have_report":
-        return must_have_report(pool, requirements)
+    if tool == "schedule_interview":
+        cid = str(args.get("candidateId") or "")
+        dur = int(args.get("durationMinutes") or 45)
+        interviewers = args.get("interviewers") or []
+        proposal = calendar_service.find_available_slots(pool, candidate_id=cid, duration_minutes=dur, required_interviewers=interviewers)
+        return {
+            "text": json.dumps({"proposalId": str(proposal.id), "slots": [s.model_dump(mode="json") for s in proposal.proposed_slots]}),
+            "evidence": [],
+            "structured": {
+                "type": "interview_proposal",
+                "proposal": proposal.model_dump(mode="json"),
+            },
+        }
+    if tool == "get_enriched_profile":
+        cid = str(args.get("candidateId") or "")
+        member = resolve_pool_member(pool, cid)
+        if not member:
+            return {"text": json.dumps({"error": f"Candidate '{cid}' not found"}), "evidence": []}
+        enriched = member.get("enriched_profile") or {}
+        return {
+            "text": json.dumps({
+                "candidate": member["label"],
+                "github_summary": enriched.get("github_summary"),
+                "linkedin_summary": enriched.get("linkedin_summary"),
+                "repositories": enriched.get("repositories") or [],
+                "inferred_skills": enriched.get("inferred_skills") or [],
+                "summary": enriched.get("summary"),
+            }),
+            "evidence": member.get("evidence") or [],
+        }
     raise CopilotToolError(f"Unknown copilot tool: {tool}")
+
 
 
 def _pool_preview(pool: list[dict[str, Any]]) -> str:

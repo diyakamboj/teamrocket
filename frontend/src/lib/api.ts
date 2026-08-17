@@ -846,6 +846,50 @@ export async function listCandidateScreeningSessions(candidateId: string): Promi
   return request(`/api/screening/candidate/${encodeURIComponent(candidateId)}`);
 }
 
+// ---------- External Profile Enrichment & Source Attribution ----------
+
+export type ExternalLink = {
+  platform: "github" | "linkedin" | "hackerrank" | "portfolio";
+  url: string;
+  username?: string | null;
+  status: string;
+};
+
+export type ExternalRepository = {
+  name: string;
+  description?: string | null;
+  stars: number;
+  language?: string | null;
+  url: string;
+  origin: string;
+};
+
+export type InferredSkill = {
+  name: string;
+  origin: string;
+  confidence: number;
+  url?: string | null;
+};
+
+export type EnrichedProfileData = {
+  external_links: ExternalLink[];
+  inferred_skills: InferredSkill[];
+  repositories: ExternalRepository[];
+  github_summary?: string | null;
+  linkedin_summary?: string | null;
+  hackerrank_summary?: string | null;
+  portfolio_summary?: string | null;
+  summary?: string | null;
+  enriched_at: string;
+};
+
+export async function enrichCandidate(candidateId: string): Promise<Candidate> {
+  return request(`/api/candidates/${encodeURIComponent(candidateId)}/enrich`, {
+    method: "POST",
+  });
+}
+
 export { API_BASE };
+
 
 
