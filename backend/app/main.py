@@ -13,6 +13,7 @@ from app.routes import (
     interviews,
     jobs,
     resumes,
+    screening,
 )
 from app.utils.error_handlers import setup_exception_handlers
 from app.utils.logger import get_logger, setup_logging
@@ -45,11 +46,13 @@ app.include_router(agent.router, prefix="/api/agent", tags=["AI Agent"])
 app.include_router(fraud.router, prefix="/api/fraud", tags=["Fraud Detection"])
 app.include_router(handoff.router, prefix="/api/handoff", tags=["Interview Handoff"])
 app.include_router(interviews.router, prefix="/api/interviews", tags=["Interviews"])
+app.include_router(screening.router, prefix="/api/screening", tags=["Preliminary Screening"])
 app.include_router(
     internal_marketplace.router,
     prefix="/api/internal-marketplace",
     tags=["Internal Talent Marketplace"],
 )
+
 
 
 

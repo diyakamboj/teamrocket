@@ -791,5 +791,61 @@ export async function cancelInterview(interviewId: string, reason?: string): Pro
   });
 }
 
+// ---------- L1 Preliminary Screening & Briefing Packs ----------
+
+export type ScreeningQuestion = {
+  id: string;
+  question: string;
+  category: string;
+  intent: string;
+  rubric?: string | null;
+};
+
+export type ScreeningAnswer = {
+  question_id: string;
+  answer_text: string;
+  score: number;
+  feedback?: string | null;
+  evaluated_at: string;
+};
+
+export type ScreeningSession = {
+  id: string;
+  candidate_id: string;
+  candidate_name: string;
+  job_id?: string | null;
+  job_title?: string | null;
+  status: "pending" | "in_progress" | "completed";
+  questions: ScreeningQuestion[];
+  answers: ScreeningAnswer[];
+  overall_score: number;
+  summary_pack?: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+export async function createScreeningSession(candidateId: string, jobId?: string | null): Promise<ScreeningSession> {
+  return request("/api/screening/session", {
+    method: "POST",
+    body: JSON.stringify({ candidate_id: candidateId, job_id: jobId || null }),
+  });
+}
+
+export async function submitScreeningAnswer(input: {
+  session_id: string;
+  question_id: string;
+  answer_text: string;
+}): Promise<ScreeningSession> {
+  return request("/api/screening/answer", {
+    method: "POST",
+    body: JSON.stringify(input),
+  });
+}
+
+export async function listCandidateScreeningSessions(candidateId: string): Promise<ScreeningSession[]> {
+  return request(`/api/screening/candidate/${encodeURIComponent(candidateId)}`);
+}
+
 export { API_BASE };
+
 

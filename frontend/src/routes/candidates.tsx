@@ -22,7 +22,10 @@ import {
 import { submitCandidateDecision, type InterviewSlot } from "@/lib/api";
 import { MiniBar, ScoreRing } from "@/components/score-ring";
 import { CandidateInterviewSection } from "@/components/interview-card";
+import { CandidateScreeningSection } from "@/components/screening";
+import { CandidateStatusBadges } from "@/components/candidate-badges";
 import { Button } from "@/components/ui/button";
+
 
 import { Input } from "@/components/ui/input";
 import { Slider } from "@/components/ui/slider";
@@ -504,6 +507,11 @@ function Candidates() {
                         candidateId={c.id}
                         candidateName={blindMode ? displayName : c.name}
                         candidateEmail={c.email}
+                      />
+
+                      <CandidateScreeningSection
+                        candidateId={c.id}
+                        candidateName={blindMode ? displayName : c.name}
                       />
                     </div>
                   )}

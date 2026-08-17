@@ -15,6 +15,7 @@ import { Route as CompareRouteImport } from './routes/compare'
 import { Route as FraudDetectionRouteImport } from './routes/fraud-detection'
 import { Route as InsightsRouteImport } from './routes/insights'
 import { Route as JobAnalysisRouteImport } from './routes/job-analysis'
+import { Route as ScreeningRouteImport } from './routes/screening'
 import { Route as UploadRouteImport } from './routes/upload'
 import { Route as AtsBenchmarkIndexRouteImport } from './routes/ats-benchmark/index'
 import { Route as HandoffIndexRouteImport } from './routes/handoff/index'
@@ -51,6 +52,11 @@ const JobAnalysisRoute = JobAnalysisRouteImport.update({
   path: '/job-analysis',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ScreeningRoute = ScreeningRouteImport.update({
+  id: '/screening',
+  path: '/screening',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const UploadRoute = UploadRouteImport.update({
   id: '/upload',
   path: '/upload',
@@ -84,6 +90,7 @@ export interface FileRoutesByFullPath {
   '/fraud-detection': typeof FraudDetectionRoute
   '/insights': typeof InsightsRoute
   '/job-analysis': typeof JobAnalysisRoute
+  '/screening': typeof ScreeningRoute
   '/upload': typeof UploadRoute
   '/handoff/$handoffId': typeof HandoffHandoffIdRoute
   '/ats-benchmark/': typeof AtsBenchmarkIndexRoute
@@ -97,6 +104,7 @@ export interface FileRoutesByTo {
   '/fraud-detection': typeof FraudDetectionRoute
   '/insights': typeof InsightsRoute
   '/job-analysis': typeof JobAnalysisRoute
+  '/screening': typeof ScreeningRoute
   '/upload': typeof UploadRoute
   '/handoff/$handoffId': typeof HandoffHandoffIdRoute
   '/ats-benchmark': typeof AtsBenchmarkIndexRoute
@@ -111,6 +119,7 @@ export interface FileRoutesById {
   '/fraud-detection': typeof FraudDetectionRoute
   '/insights': typeof InsightsRoute
   '/job-analysis': typeof JobAnalysisRoute
+  '/screening': typeof ScreeningRoute
   '/upload': typeof UploadRoute
   '/handoff/$handoffId': typeof HandoffHandoffIdRoute
   '/ats-benchmark/': typeof AtsBenchmarkIndexRoute
@@ -126,6 +135,7 @@ export interface FileRouteTypes {
     | '/fraud-detection'
     | '/insights'
     | '/job-analysis'
+    | '/screening'
     | '/upload'
     | '/handoff/$handoffId'
     | '/ats-benchmark/'
@@ -139,6 +149,7 @@ export interface FileRouteTypes {
     | '/fraud-detection'
     | '/insights'
     | '/job-analysis'
+    | '/screening'
     | '/upload'
     | '/handoff/$handoffId'
     | '/ats-benchmark'
@@ -152,6 +163,7 @@ export interface FileRouteTypes {
     | '/fraud-detection'
     | '/insights'
     | '/job-analysis'
+    | '/screening'
     | '/upload'
     | '/handoff/$handoffId'
     | '/ats-benchmark/'
@@ -166,6 +178,7 @@ export interface RootRouteChildren {
   FraudDetectionRoute: typeof FraudDetectionRoute
   InsightsRoute: typeof InsightsRoute
   JobAnalysisRoute: typeof JobAnalysisRoute
+  ScreeningRoute: typeof ScreeningRoute
   UploadRoute: typeof UploadRoute
   HandoffHandoffIdRoute: typeof HandoffHandoffIdRoute
   AtsBenchmarkIndexRoute: typeof AtsBenchmarkIndexRoute
@@ -217,6 +230,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof JobAnalysisRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/screening': {
+      id: '/screening'
+      path: '/screening'
+      fullPath: '/screening'
+      preLoaderRoute: typeof ScreeningRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/upload': {
       id: '/upload'
       path: '/upload'
@@ -262,6 +282,7 @@ const rootRouteChildren: RootRouteChildren = {
   FraudDetectionRoute: FraudDetectionRoute,
   InsightsRoute: InsightsRoute,
   JobAnalysisRoute: JobAnalysisRoute,
+  ScreeningRoute: ScreeningRoute,
   UploadRoute: UploadRoute,
   HandoffHandoffIdRoute: HandoffHandoffIdRoute,
   AtsBenchmarkIndexRoute: AtsBenchmarkIndexRoute,

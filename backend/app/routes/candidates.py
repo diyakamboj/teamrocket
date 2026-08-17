@@ -119,7 +119,27 @@ def update_candidate(
     return candidate
 
 
+from app.services.badge_service import build_badges
+
+
+@router.get("/{candidate_id}/badges")
+async def candidate_badges(
+    candidate_id: uuid.UUID,
+    store: AppStore,
+    job_id: Optional[uuid.UUID] = Query(None),
+):
+    candidate = store.candidates.get(candidate_id)
+    if not candidate:
+        raise NotFoundError("Candidate not found", {"candidate_id": str(candidate_id)})
+
+    score = None
+    if job_id:
+        score = await candidate_matcher.get_candidate_score(store, candidate_id, job_id)
+    return build_badges(candidate, score)
+
+
 @router.get("/{candidate_id}/score")
+
 async def candidate_score(
     candidate_id: uuid.UUID,
     store: AppStore,

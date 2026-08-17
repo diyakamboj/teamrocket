@@ -132,3 +132,15 @@ async def analyze_job(
         requirements=analysis.get("requirements") or [],
         analyzed_by=analysis.get("analyzed_by"),
     )
+
+
+from app.services.jd_optimizer import jd_optimizer
+
+
+@router.get("/{job_id}/optimization")
+async def job_optimization(
+    job_id: uuid.UUID,
+    store: AppStore,
+):
+    return await jd_optimizer.get_optimization(store, job_id)
+

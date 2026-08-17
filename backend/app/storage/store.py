@@ -21,6 +21,7 @@ from app.models.evaluation import (
 from app.models.handoff import CandidateHistoryEvent, InterviewHandoff
 from app.models.interview import ScheduledInterview
 from app.models.job_posting import JobPosting
+from app.models.screening import ScreeningSession
 from app.services.azure_services import JsonBlobStore, document_store
 from app.storage.repository import (
     AppendOnlyRepository,
@@ -72,6 +73,10 @@ class Store:
         self.interviews: Repository[ScheduledInterview] = Repository(
             backing, ScheduledInterview, "scheduled_interviews"
         )
+        self.screening_sessions: Repository[ScreeningSession] = Repository(
+            backing, ScreeningSession, "screening_sessions"
+        )
+
 
 
 
