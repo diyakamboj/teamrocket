@@ -19,6 +19,7 @@ from app.models.evaluation import (
     ResumeUpload,
 )
 from app.models.handoff import CandidateHistoryEvent, InterviewHandoff
+from app.models.interview import ScheduledInterview
 from app.models.job_posting import JobPosting
 from app.services.azure_services import JsonBlobStore, document_store
 from app.storage.repository import (
@@ -31,7 +32,7 @@ from app.storage.repository import (
 
 
 class Store:
-    """Bundles all 12 repositories over a single `JsonBlobStore`.
+    """Bundles all repositories over a single `JsonBlobStore`.
 
     Defaults to the module-level `document_store` (mock-local-disk or real
     Azure Blob depending on `settings.USE_MOCK_AZURE`). Tests construct
@@ -68,6 +69,10 @@ class Store:
             backing, InterviewHandoff, "interview_handoffs"
         )
         self.ats_benchmarks: AtsBenchmarkRepository = AtsBenchmarkRepository(backing)
+        self.interviews: Repository[ScheduledInterview] = Repository(
+            backing, ScheduledInterview, "scheduled_interviews"
+        )
+
 
 
 # Module-level singleton, matching the existing `blob_service = AzureBlobService()`

@@ -10,11 +10,14 @@ from __future__ import annotations
 
 import json
 import re
+import uuid
 from typing import Any
+
 
 from app.services.azure_services import openai_service
 from app.services.copilot_pool import build_pool, job_requirements, resolve_pool_member
 from app.services.candidate_matcher import candidate_matcher
+from app.services import calendar_service
 from app.models.schemas import (
     AgentCandidateCard,
     AgentComparisonTable,
@@ -32,6 +35,7 @@ COPILOT_TOOLS = (
     "compare",
     "gap_summary",
     "must_have_report",
+    "schedule_interview",
 )
 
 CITES_PER_ROW = 3
@@ -45,7 +49,9 @@ Tools:
 - compare: args {candidateIds: [<=3]} — side-by-side comparison of up to 3 candidates. Use labels from the pool.
 - gap_summary: args {} — common qualification gaps across the pool.
 - must_have_report: args {} — which candidates satisfy each must-have requirement.
+- schedule_interview: args {candidateId, durationMinutes?, interviewers?: []} — schedule an interview with candidate and required interviewers.
 When the question is generic (pool health, wide shortlists), prefer gap_summary or must_have_report over search_candidates."""
+
 
 SYNTHESIS_SYSTEM = """You are a recruiting copilot answering a recruiter's question about a scored candidate pool. Write a concise, recruiter-friendly answer using ONLY the tool output provided. Markdown bullet lists are fine.
 Never invent candidates, scores, verdicts, or quotes — everything you assert must be in the tool output. Support claims by citing evidence ids in the "evidenceIds" array, using ONLY ids shown in the tool output. If nothing in the output supports a claim, don't make it. If a candidate is labelled "Candidate #N", keep using that label and never reveal a name, file name or contact detail.
@@ -411,11 +417,95 @@ def deterministic_answer(
             for e in (c.get("evidence") or [])[:1]
         ]
 
+    # Natural Language Scheduling Intent Detection
+    if any(k in lower for k in ("schedule", "interview", "book meeting", "calendar", "availability", "reschedule")):
+        # Target candidate
+        target_cand = focus_candidate or pool[0]
+        for c in pool:
+            c_name = str(c.get("label", "")).lower()
+            if c_name and c_name != "candidate" and any(part in lower for part in c_name.split()):
+                target_cand = c
+                break
+
+        # Duration
+        dur_match = re.search(r"(\d+)\s*(?:min|minute)", lower)
+        duration = int(dur_match.group(1)) if dur_match else 45
+
+        # Interviewers
+        known_interviewers = [
+            ("alex", "Alex Chen"),
+            ("priya", "Priya Sharma"),
+            ("sarah", "Sarah Jenkins"),
+            ("david", "David Kim"),
+        ]
+        interviewers = [full for kw, full in known_interviewers if kw in lower]
+        if not interviewers:
+            interviewers = ["Alex Chen", "Priya Sharma"]
+
+        # Interview Type
+        itype = "Technical Interview"
+        if "screen" in lower or "recruiter" in lower:
+            itype = "Recruiter Screen"
+        elif "system design" in lower or "architecture" in lower:
+            itype = "System Design Interview"
+        elif "hiring manager" in lower or "final" in lower:
+            itype = "Hiring Manager Interview"
+
+        slots = calendar_service.find_available_slots(
+            required_interviewers=interviewers,
+            duration_minutes=duration,
+            candidate_name=target_cand.get("label", "Candidate"),
+            job_title="Software Role",
+        )
+
+        slots_payload = [
+            {
+                "slot_id": s.slot_id,
+                "start_time": s.start_time.isoformat(),
+                "end_time": s.end_time.isoformat(),
+                "label": s.label,
+                "available_interviewers": s.available_interviewers,
+                "is_recommended": s.is_recommended,
+                "outlook_url": s.outlook_url,
+            }
+            for s in slots
+        ]
+
+        structured = {
+            "type": "interview_proposal",
+            "proposal_id": str(uuid.uuid4()),
+            "candidate_id": str(target_cand.get("id") or target_cand.get("candidate_id") or ""),
+            "candidate_name": target_cand.get("label", "Candidate"),
+            "job_title": "Software Role",
+            "interview_type": itype,
+            "duration_minutes": duration,
+            "required_interviewers": interviewers,
+            "proposed_slots": slots_payload,
+            "notes": f"Proposed via Copilot: {question}",
+        }
+
+        inv_str = " and ".join(interviewers)
+        answer = (
+            f"I checked calendar availability for **{target_cand.get('label', 'Candidate')}** "
+            f"and required interviewers ({inv_str}).\n\n"
+            f"Here are top proposed **{duration}-minute {itype}** slots with Microsoft Teams links. "
+            f"Please select and confirm your preferred time:"
+        )
+
+        return {
+            "answer": answer,
+            "citations": cite([target_cand], 1),
+            "tools": ["schedule_interview"],
+            "engine": "deterministic",
+            "structured": structured,
+        }
+
     # First priority: the recruiter is looking at a specific candidate
     # (`focus_candidate`, resolved from `AgentAskRequest.candidate_id`) and
     # the question uses a pronoun/rank reference ("this candidate", "why
     # was they ranked", ...) instead of naming anyone — resolve straight to
     # that member rather than falling through to the generic branches below.
+
     if focus_candidate is not None and FOCUS_CANDIDATE_PATTERN.search(lower):
         c = focus_candidate
         summary = c.get("summary")

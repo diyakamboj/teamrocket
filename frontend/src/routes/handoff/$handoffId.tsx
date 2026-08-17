@@ -7,6 +7,8 @@ import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { MiniBar, ScoreRing } from "@/components/score-ring";
 import { acknowledgeHandoff, markHandoffViewed, type InterviewHandoffRecord } from "@/lib/api";
+import { CandidateInterviewSection } from "@/components/interview-card";
+
 
 export const Route = createFileRoute("/handoff/$handoffId")({
   head: () => ({
@@ -233,7 +235,16 @@ function HandoffView() {
         </section>
       )}
 
+      <CandidateInterviewSection
+        candidateId={b.candidate_id}
+        candidateName={b.candidate_name}
+        candidateEmail={b.candidate_email}
+        jobId={b.job_id}
+        jobTitle={b.job_title}
+      />
+
       <section className="card-surface space-y-3 p-5">
+
         <p className="text-xs font-bold uppercase tracking-wide text-muted-foreground">
           Your notes
         </p>

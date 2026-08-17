@@ -21,7 +21,9 @@ import {
 } from "@/lib/mock-data";
 import { submitCandidateDecision, type InterviewSlot } from "@/lib/api";
 import { MiniBar, ScoreRing } from "@/components/score-ring";
+import { CandidateInterviewSection } from "@/components/interview-card";
 import { Button } from "@/components/ui/button";
+
 import { Input } from "@/components/ui/input";
 import { Slider } from "@/components/ui/slider";
 import { Switch } from "@/components/ui/switch";
@@ -496,6 +498,13 @@ function Candidates() {
                           </div>
                         );
                       })()}
+
+
+                      <CandidateInterviewSection
+                        candidateId={c.id}
+                        candidateName={blindMode ? displayName : c.name}
+                        candidateEmail={c.email}
+                      />
                     </div>
                   )}
                 </div>

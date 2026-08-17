@@ -677,4 +677,119 @@ export async function getAtsBenchmark(
   }
 }
 
+// ---------- Interview & Calendar Scheduling ----------
+
+export type TimeSlot = {
+  slot_id: string;
+  start_time: string;
+  end_time: string;
+  label: string;
+  available_interviewers: string[];
+  is_recommended: boolean;
+  outlook_url?: string | null;
+};
+
+export type InterviewProposal = {
+  type?: "interview_proposal";
+  proposal_id: string;
+  candidate_id: string;
+  candidate_name: string;
+  candidate_email?: string | null;
+  job_id?: string | null;
+  job_title?: string | null;
+  interview_type: string;
+  duration_minutes: number;
+  required_interviewers: string[];
+  proposed_slots: TimeSlot[];
+  notes?: string | null;
+  created_at?: string;
+};
+
+export type ScheduledInterview = {
+  id: string;
+  proposal_id?: string | null;
+  candidate_id: string;
+  candidate_name: string;
+  candidate_email?: string | null;
+  job_id?: string | null;
+  job_title?: string | null;
+  recruiter_email: string;
+  interviewers: string[];
+  interview_type: string;
+  duration_minutes: number;
+  status: "proposed" | "confirmed" | "rescheduled" | "cancelled";
+  start_time: string;
+  end_time: string;
+  teams_link: string;
+  teams_meeting_id: string;
+  teams_passcode: string;
+  location: string;
+  notes?: string | null;
+  outlook_deeplink?: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+export async function getKnownInterviewers(): Promise<Array<{ name: string; email: string; title: string }>> {
+  return request("/api/interviews/interviewers");
+}
+
+export async function proposeInterview(input: {
+  candidate_id: string;
+  job_id?: string | null;
+  interview_type?: string;
+  duration_minutes?: number;
+  required_interviewers?: string[];
+  notes?: string | null;
+}): Promise<InterviewProposal> {
+  return request("/api/interviews/propose", {
+    method: "POST",
+    body: JSON.stringify(input),
+  });
+}
+
+export async function confirmInterview(input: {
+  proposal_id?: string | null;
+  candidate_id: string;
+  job_id?: string | null;
+  interview_type?: string;
+  duration_minutes?: number;
+  interviewers: string[];
+  start_time: string;
+  end_time: string;
+  notes?: string | null;
+}): Promise<ScheduledInterview> {
+  return request("/api/interviews/confirm", {
+    method: "POST",
+    body: JSON.stringify(input),
+  });
+}
+
+export async function listCandidateInterviews(candidateId: string): Promise<ScheduledInterview[]> {
+  return request(`/api/interviews/candidate/${encodeURIComponent(candidateId)}`);
+}
+
+export async function rescheduleInterviewPropose(interviewId: string): Promise<InterviewProposal> {
+  return request(`/api/interviews/${interviewId}/reschedule-propose`, { method: "POST" });
+}
+
+export async function confirmRescheduleInterview(
+  interviewId: string,
+  startTime: string,
+  endTime: string,
+): Promise<ScheduledInterview> {
+  return request(`/api/interviews/${interviewId}/reschedule-confirm`, {
+    method: "POST",
+    body: JSON.stringify({ start_time: startTime, end_time: endTime }),
+  });
+}
+
+export async function cancelInterview(interviewId: string, reason?: string): Promise<ScheduledInterview> {
+  return request(`/api/interviews/${interviewId}/cancel`, {
+    method: "POST",
+    body: JSON.stringify({ reason: reason || null }),
+  });
+}
+
 export { API_BASE };
+

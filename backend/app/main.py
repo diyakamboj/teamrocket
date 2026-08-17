@@ -10,6 +10,7 @@ from app.routes import (
     fraud,
     handoff,
     internal_marketplace,
+    interviews,
     jobs,
     resumes,
 )
@@ -43,11 +44,13 @@ app.include_router(dashboard.router, prefix="/api/dashboard", tags=["Dashboard"]
 app.include_router(agent.router, prefix="/api/agent", tags=["AI Agent"])
 app.include_router(fraud.router, prefix="/api/fraud", tags=["Fraud Detection"])
 app.include_router(handoff.router, prefix="/api/handoff", tags=["Interview Handoff"])
+app.include_router(interviews.router, prefix="/api/interviews", tags=["Interviews"])
 app.include_router(
     internal_marketplace.router,
     prefix="/api/internal-marketplace",
     tags=["Internal Talent Marketplace"],
 )
+
 
 
 @app.get("/health")

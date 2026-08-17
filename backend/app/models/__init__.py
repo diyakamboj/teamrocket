@@ -9,6 +9,7 @@ from app.models.evaluation import (
     ResumeUpload,
 )
 from app.models.handoff import CandidateHistoryEvent, InterviewHandoff
+from app.models.interview import InterviewProposal, ScheduledInterview, TimeSlot
 from app.models.job_posting import JobPosting
 
 __all__ = [
@@ -23,4 +24,8 @@ __all__ = [
     "CandidateHistoryEvent",
     "InterviewHandoff",
     "AtsBenchmarkScore",
+    "ScheduledInterview",
+    "InterviewProposal",
+    "TimeSlot",
 ]
+
