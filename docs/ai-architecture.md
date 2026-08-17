@@ -180,20 +180,49 @@ Recruiter question + jobId + weights + blind flag
        must_have_report()
        schedule_interview(candidateId, durationMinutes, interviewers)
    -> step 2: model writes the answer, citing evidence by id (copilotAnswerSchema)
-   -> server resolves ids ONLY against the evidence the tool actually returned
-   -> response: { answer, citations[], tools[], structured: interview_proposal, engine: "agent" | "deterministic" }
+   -> server resolves ids - **AI Interview Scheduling Seam:** The `schedule_interview` tool and natural-language intent handler parse participant names (e.g. Alex, Priya), duration (30/45/60 mins), and interview types (Technical, Recruiter Screen, System Design) to calculate overlapping interviewer calendar availability (`calendar_service.py`). Returns an interactive `interview_proposal` structured payload allowing recruiters to review proposed slots and confirm booking with Microsoft Teams link auto-generation (`https://teams.microsoft.com/l/meetup-join/...`) and Outlook calendar invites.
+- **Public Agent API Endpoint (`POST /api/agent`):** Exposes `query_candidates` to third-party clients and integrations. Accepts flexible JSON request payloads (`"query"` or `"question"`) with optional job/candidate context, returning structured response cards, citations, and tools used.
+
+- **Bounded by design:** at most two chat calls (tool selection ≈400 tokens, answer ≈800 tokens). No agentic loop; the pool is the stored `MatchRecord`s, so the scoring engine is never re-run.
+- **No-fabrication guarantee:** the model only ever sees the tool output; citations resolve against *that* output's evidence, so it cannot cite — or claim — evidence it was never shown. Evidence items carry claim + quote + source + provenance, keeping answers traceable.
+- **Weights-respecting pool:** the pool is ranked under the recruiter's current weights (`scoreOf`, default `DEFAULT_WEIGHTS`), so the agent agrees with the ranking the UI shows.
+- **Blind mode:** the pool is the single anonymization point — `Candidate #N` labels, no name/file/contact reaches the model (§7).
+- **Graceful degradation:** with no chat capability, or when the agent path throws, `deterministicAnswer` answers from the same pool with rule-based intents (compare, must-have, gaps, certification, by-name, skill-term) and still cites stored evidence. The `engine` field lets the UI label the answer as LLM agent or offline rules.
 ```
 
-- **AI Interview Scheduling Seam:** The `schedule_interview` tool and natural-language intent handler parse participant names (e.g. Alex, Priya), duration (30/45/60 mins), and interview types (Technical, Recruiter Screen, System Design) to calculate overlapping interviewer calendar availability (`calendar_service.py`). Returns an interactive `interview_proposal` structured payload allowing recruiters to review proposed slots and confirm booking with Microsoft Teams link auto-generation (`https://teams.microsoft.com/l/meetup-join/...`) and Outlook calendar invites.
+---
 
+## 9. Visual Status Flags & Verified Skill Badges (`badge_service.py`)
 
-- **Bounded by design:** at most two chat calls (tool selection Γëê400 tokens, answer Γëê800 tokens). No agentic loop; the pool is the stored `MatchRecord`s, so the scoring engine is never re-run.
-- **No-fabrication guarantee:** the model only ever sees the tool output; citations resolve against *that* output's evidence, so it cannot cite ΓÇö or claim ΓÇö evidence it was never shown. Evidence items carry claim + quote + source + provenance, keeping answers traceable.
-- **Weights-respecting pool:** the pool is ranked under the recruiter's current weights (`scoreOf`, default `DEFAULT_WEIGHTS`), so the agent agrees with the ranking the UI shows.
-- **Blind mode:** the pool is the single anonymization point ΓÇö `Candidate #N` labels, no name/file/contact reaches the model (┬º7).
-- **Graceful degradation:** with no chat capability, or when the agent path throws, `deterministicAnswer` answers from the same pool with rule-based intents (compare, must-have, gaps, certification, by-name, skill-term) and still cites stored evidence. The `engine` field lets the UI label the answer as LLM agent or offline rules.
+- **Status Flags Engine**: Computes visual indicators based on candidate completeness, match scores, and text evidence:
+  - 🟢 **Top Match**: Overall score ≥ 80 and skill score ≥ 75.
+  - 👥 **Bench Candidate**: Overall score ≥ 60.
+  - 🚀 **Immediate Joiner**: Detected regex availability snippet ("immediate", "0 days notice").
+  - ⚠️ **Incomplete Profile**: Missing parsed experience or education data.
+- **Skill Verification Engine**: Cross-references parsed skills against exact evidence snippets (confidence ≥ 70%) and linked public profiles (GitHub / LinkedIn) to assign verified skill badges.
 
-## 9. Evaluating AI quality (when we add it)
+---
+
+## 10. L1 Preliminary Screening & Briefings (`screening_service.py`)
+
+- **Adaptive Question Generation**: Synthesizes customized screening questions based on job requirement gaps and candidate background across Technical Depth, Problem Solving, and Behavioral/Collaboration categories.
+- **Answer Evaluation**: Scores candidate responses (0–100) againstrubrics and evaluates communication depth.
+- **Pre-Interview Briefing Pack**: Compiles an executive summary pack for technical interviewers (`summary_pack`) containing candidate scores and key interview focus areas.
+
+---
+
+## 11. JD Calibration & Requirement Optimization (`jd_optimizer.py`)
+
+- **Coverage Analysis**: Analyzes candidate pool matches per job requirement to classify requirements:
+  - `too_strict`: < 25% match rate on required skill (consider moving to nice-to-have).
+  - `low_signal`: > 85% match rate on required skill (not differentiating pool).
+  - `under_filtered`: < 25% match rate on nice-to-have skill (consider elevating to required).
+  - `balanced`: Requirement is filtering pool as expected.
+- **LLM Summary Generation**: Produces a concise recruiter guidance paragraph calibrating job description parameters.
+
+---
+
+## 12. Evaluating AI quality (when we add it)
 
 Because the pipeline is split deterministic/AI, quality can be tuned without touching storage or UI contracts. Proposed harness (Phase 2+):
 - **Fixture resumes** (synthetic + real, consented) with hand-labeled ground truth for skills/years/verdicts.

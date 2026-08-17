@@ -18,7 +18,18 @@ quadrant final poject/
 
 | `copilot` | Microsoft CWYD RAG chatbot (`POST /api/conversation`) |
 
+## Documentation for Developers & AI Assistants
+
+Full technical and product documentation lives in the [`docs/`](docs/) directory:
+
+- 🤖 **[AI Assistant Technical Guide & Repository Map](docs/ai-context.md)**: Dedicated context guide for AI coding assistants (Store facade access, service map, API directory, testing rules).
+- 📋 **[Product Requirements & Feature Specifications](docs/product-requirements-and-features.md)**: Complete PM specification covering all MVP, Level 1, and Level 2 features.
+- 🧠 **[AI Architecture & Engine Specs](docs/ai-architecture.md)**: AI seams, provider interfaces, 3-signal scoring engine, Copilot tools, and prompt schemas.
+- 🏗️ **[System Architecture](docs/architecture.md)**: System layout, service boundaries, and data persistence design.
+- 🛠️ **[Development Guide](docs/development.md)**: Local setup, mock vs Azure modes, test execution (`pytest`), and Vite builds.
+
 ## How the chatbot is connected
+
 
 ```text
 frontend (Copilot panel) / external clients

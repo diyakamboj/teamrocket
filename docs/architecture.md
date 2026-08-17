@@ -1,9 +1,10 @@
-﻿# ResumeIQ — Target Architecture
+# ResumeIQ — Target Architecture
 
-> **Status:** phase-1 — monorepo implemented (`frontend/` + `backend/` + `copilot/`). AI pipeline and copilot agent live in `backend/app/services/`.
-> **Audience:** the engineering team, and any Claude Code session working in this repo.
+> **Status:** `phase-2` — Monorepo fully integrated (`frontend/` TanStack Start + `backend/` FastAPI + `copilot/` RAG). Domain entities persisted via `JsonBlobStore` repository pattern.
+> **Audience:** Product Managers, System Architects, Software Engineers.
 
-This document describes the **target** architecture for ResumeIQ: service boundaries, the AI pipeline, Azure infrastructure, and phased roadmap. The **phase-1** branch implements the core screening workflow; see [development.md](development.md) for how to run it locally.
+This document describes the **`phase-2`** target architecture for ResumeIQ: service boundaries, storage facade design, the AI pipeline, Azure infrastructure, and system integration.
+
 
 ---
 
