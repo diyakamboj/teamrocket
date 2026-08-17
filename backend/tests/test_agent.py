@@ -149,3 +149,46 @@ def test_create_job_endpoint(client):
     )
     assert response.status_code == 200
     assert response.json()["title"] == "Data Engineer"
+
+
+def test_public_agent_endpoint_query(client, sample_job, sample_candidate):
+    response = client.post(
+        "/api/agent",
+        json={
+            "query": "Show me top candidates for Backend Engineer",
+            "job_id": str(sample_job.id),
+        },
+        headers={"X-Recruiter-Email": "recruiter@example.com"},
+    )
+    assert response.status_code == 200
+    body = response.json()
+    assert "session_id" in body
+    assert "response" in body
+    assert isinstance(body["response"], str)
+    assert len(body["response"]) > 0
+
+
+def test_public_agent_endpoint_question(client, sample_job, sample_candidate):
+    response = client.post(
+        "/api/agent",
+        json={
+            "question": "Which candidates meet must-have requirements?",
+            "job_id": str(sample_job.id),
+        },
+        headers={"X-Recruiter-Email": "recruiter@example.com"},
+    )
+    assert response.status_code == 200
+    body = response.json()
+    assert "session_id" in body
+    assert "response" in body
+
+
+def test_public_agent_endpoint_invalid_request(client):
+    # Missing both 'query' and 'question'
+    response = client.post(
+        "/api/agent",
+        json={"blind_mode": True},
+        headers={"X-Recruiter-Email": "recruiter@example.com"},
+    )
+    assert response.status_code == 422
+

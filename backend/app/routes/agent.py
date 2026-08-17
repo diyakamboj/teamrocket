@@ -54,7 +54,9 @@ def get_models(recruiter_email: RecruiterEmail):
     )
 
 
-@router.post("/ask", response_model=AgentAskResponse)
+@router.post("", response_model=AgentAskResponse)
+@router.post("/", response_model=AgentAskResponse, include_in_schema=False)
+@router.post("/ask", response_model=AgentAskResponse, include_in_schema=False)
 async def ask_agent(
     payload: AgentAskRequest,
     store: AppStore,
@@ -67,7 +69,7 @@ async def ask_agent(
 
     result = await recruiter_agent.query_candidates(
         store,
-        user_query=payload.query,
+        user_query=payload.prompt_text,
         recruiter_email=recruiter_email,
         job_id=payload.job_id,
         session_id=payload.session_id,
@@ -93,6 +95,7 @@ async def ask_agent(
         },
     )
     return result
+
 
 
 @router.get("/sessions", response_model=list[AgentSessionResponse])

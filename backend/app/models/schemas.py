@@ -3,7 +3,8 @@ from decimal import Decimal
 from typing import Any, Literal, Optional
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict, EmailStr, Field
+from pydantic import BaseModel, ConfigDict, EmailStr, Field, model_validator
+
 
 
 class ORMModel(BaseModel):
@@ -308,7 +309,8 @@ class PipelineCandidate(BaseModel):
 
 
 class AgentAskRequest(BaseModel):
-    query: str
+    query: Optional[str] = None
+    question: Optional[str] = None
     job_id: Optional[UUID] = None
     session_id: Optional[UUID] = None
     chatbot_conversation_id: Optional[str] = None
@@ -317,6 +319,19 @@ class AgentAskRequest(BaseModel):
     candidate_id: Optional[UUID] = None
     model_id: Optional[str] = None
     attachment_ids: list[UUID] = Field(default_factory=list)
+
+    @model_validator(mode="after")
+    def validate_prompt(self) -> "AgentAskRequest":
+        text = self.query or self.question
+        if not text or not str(text).strip():
+            raise ValueError("Field 'query' or 'question' is required.")
+        return self
+
+    @property
+    def prompt_text(self) -> str:
+        text = self.query or self.question or ""
+        return text.strip()
+
 
 
 class AgentAskResponse(BaseModel):

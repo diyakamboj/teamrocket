@@ -21,10 +21,11 @@ quadrant final poject/
 ## How the chatbot is connected
 
 ```text
-frontend (Copilot panel)
-        │  POST /api/agent/ask
+frontend (Copilot panel) / external clients
+        │  POST /api/agent  (or POST /api/agent/ask)
         ▼
 backend (screening + BFF)
+
         │  enriches query with ranked candidates / job requirements
         │  POST /api/conversation  (when CHATBOT_ENABLED=true)
         ▼
