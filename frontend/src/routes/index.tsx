@@ -1,5 +1,5 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import {
   Bar,
   BarChart,
@@ -10,34 +10,72 @@ import {
   XAxis,
   YAxis,
 } from "recharts";
-import { ArrowUpRight, Brain, FileCheck2, Gauge, Sparkle, Users } from "lucide-react";
 import {
+  ArrowUpRight,
+  Briefcase,
+  Columns3,
+  EyeOff,
+  FileCheck2,
+  FileText,
+  Gauge,
+  Search,
+  SlidersHorizontal,
+  Sparkle,
+  Sparkles,
+  Trophy,
+  UploadCloud,
+  Users,
+} from "lucide-react";
+import {
+  BASELINE_RESUMES_PROCESSED,
   CANDIDATES,
+  DEFAULT_WEIGHTS,
   EXPERIENCE_BREAKDOWN,
   SKILL_DISTRIBUTION,
   rankCandidates,
   scoreBuckets,
 } from "@/lib/mock-data";
 import { useAppState } from "@/lib/app-state";
+import {
+  JOBS,
+  JOB_STATUS_LABEL,
+  summarizeJobPipeline,
+  totalCandidatesInPipelines,
+  type JobStatus,
+} from "@/lib/jobs-data";
+import { JobCard } from "@/components/job-card";
+import { WeightsEditor } from "@/components/weights-editor";
+import { EmptyState } from "@/components/empty-state";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Switch } from "@/components/ui/switch";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { cn } from "@/lib/utils";
 
 export const Route = createFileRoute("/")({
   head: () => ({
     meta: [
-      { title: "Hiring Insights — ResumeIQ" },
+      { title: "Recruiter Dashboard — ResumeIQ" },
       {
         name: "description",
         content:
-          "Live hiring insights: candidate volume, average match score, skill distribution and AI-detected qualification gaps.",
+          "Your recruiting workspace: active jobs, hiring pipelines, candidate counts and one-click access to screening, comparison and the Recruiter Copilot.",
       },
-      { property: "og:title", content: "Hiring Insights — ResumeIQ" },
+      { property: "og:title", content: "Recruiter Dashboard — ResumeIQ" },
       {
         property: "og:description",
-        content: "Candidate volume, match scores, skill distribution and AI qualification gaps.",
+        content: "Active jobs, hiring pipelines and quick actions for the full screening workflow.",
       },
     ],
   }),
   component: Dashboard,
 });
+
+const JOB_FILTERS = ["All", "Active", "On hold", "Closed"] as const;
+
+function isActiveStatus(status: JobStatus) {
+  return status === "open" || status === "interviewing" || status === "offer_stage";
+}
 
 function StatCard({
   icon: Icon,
@@ -84,6 +122,51 @@ function ChartCard({
   );
 }
 
+type QuickAction =
+  | {
+      kind: "link";
+      to: "/upload" | "/job-analysis" | "/candidates" | "/compare";
+      search?: { job: string } | undefined;
+      icon: typeof Users;
+      label: string;
+      hint: string;
+    }
+  | { kind: "button"; onClick: () => void; icon: typeof Users; label: string; hint: string };
+
+function QuickActionTile({ action }: { action: QuickAction }) {
+  const Icon = action.icon;
+  const body = (
+    <>
+      <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-primary-soft text-primary-soft-foreground">
+        <Icon className="h-5 w-5" />
+      </span>
+      <div className="min-w-0">
+        <p className="truncate text-sm font-bold">{action.label}</p>
+        <p className="truncate text-xs text-muted-foreground">{action.hint}</p>
+      </div>
+    </>
+  );
+  const className =
+    "card-surface flex w-full items-center gap-3 p-4 text-left transition-shadow duration-200 hover:shadow-[var(--shadow-lift)]";
+
+  if (action.kind === "link") {
+    return action.search ? (
+      <Link to={action.to} search={action.search} className={className}>
+        {body}
+      </Link>
+    ) : (
+      <Link to={action.to} className={className}>
+        {body}
+      </Link>
+    );
+  }
+  return (
+    <button type="button" onClick={action.onClick} className={className}>
+      {body}
+    </button>
+  );
+}
+
 const tooltipStyle = {
   borderRadius: 14,
   border: "1px solid var(--border)",
@@ -93,69 +176,238 @@ const tooltipStyle = {
 };
 
 function Dashboard() {
-  const { weights } = useAppState();
+  const {
+    weights,
+    setWeights,
+    blindMode,
+    setBlindMode,
+    compareIds,
+    openCopilot,
+    selectedJobId,
+    counts,
+  } = useAppState();
   const ranked = useMemo(() => rankCandidates(CANDIDATES, weights), [weights]);
   const avg = Math.round(ranked.reduce((s, c) => s + c.score, 0) / ranked.length);
   const buckets = useMemo(() => scoreBuckets(ranked), [ranked]);
+
+  const [jobFilter, setJobFilter] = useState<(typeof JOB_FILTERS)[number]>("All");
+  const [jobQuery, setJobQuery] = useState("");
+
+  const jobSummaries = useMemo(
+    () => new Map(JOBS.map((job) => [job.id, summarizeJobPipeline(job.id, ranked)])),
+    [ranked],
+  );
+
+  const filteredJobs = useMemo(
+    () =>
+      JOBS.filter((job) => {
+        if (jobFilter === "Active" && !isActiveStatus(job.status)) return false;
+        if (jobFilter === "On hold" && job.status !== "on_hold") return false;
+        if (jobFilter === "Closed" && job.status !== "closed") return false;
+        if (jobQuery && !job.title.toLowerCase().includes(jobQuery.toLowerCase())) return false;
+        return true;
+      }),
+    [jobFilter, jobQuery],
+  );
+
+  const activeJobsCount = JOBS.filter((j) => isActiveStatus(j.status)).length;
+  const candidatesInPipeline = useMemo(() => totalCandidatesInPipelines(ranked), [ranked]);
+
+  const quickActions: QuickAction[] = [
+    {
+      kind: "link",
+      to: "/upload",
+      search: selectedJobId ? { job: selectedJobId } : undefined,
+      icon: UploadCloud,
+      label: "Upload resumes",
+      hint: "Bulk-parse new candidates",
+    },
+    {
+      kind: "link",
+      to: "/job-analysis",
+      search: selectedJobId ? { job: selectedJobId } : undefined,
+      icon: FileText,
+      label: "Analyze a JD",
+      hint: "Extract skills & requirements",
+    },
+    {
+      kind: "link",
+      to: "/candidates",
+      search: selectedJobId ? { job: selectedJobId } : undefined,
+      icon: Trophy,
+      label: "View rankings",
+      hint: "Full candidate ranking",
+    },
+    {
+      kind: "link",
+      to: "/compare",
+      icon: Columns3,
+      label: "Compare candidates",
+      hint: compareIds.length > 0 ? `${compareIds.length} selected` : "Select candidates first",
+    },
+    {
+      kind: "button",
+      onClick: () => openCopilot({ jobId: selectedJobId }),
+      icon: Sparkles,
+      label: "Recruiter Copilot",
+      hint: "Ask about jobs & candidates",
+    },
+  ];
 
   return (
     <div className="mx-auto max-w-7xl space-y-6">
       <header className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-4">
         <div className="min-w-0">
-          <h1 className="truncate text-2xl font-extrabold sm:text-3xl">Hiring Insights</h1>
+          <h1 className="truncate text-2xl font-extrabold sm:text-3xl">Recruiter Dashboard</h1>
           <p className="mt-1 text-sm text-muted-foreground">
-            Senior Backend Engineer · pipeline snapshot
+            {activeJobsCount} active {activeJobsCount === 1 ? "role" : "roles"} ·{" "}
+            {candidatesInPipeline} candidates across your pipelines
           </p>
         </div>
-        <Link
-          to="/candidates"
-          className="shrink-0 rounded-xl bg-primary px-4 py-2.5 text-sm font-semibold text-primary-foreground transition-opacity hover:opacity-90"
+        <Button
+          className="shrink-0 rounded-xl"
+          onClick={() => openCopilot({ jobId: selectedJobId })}
         >
-          View ranking
-        </Link>
+          <Sparkles className="mr-2 h-4 w-4" /> Ask Copilot
+        </Button>
       </header>
 
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        <StatCard icon={Users} label="Total candidates" value={String(ranked.length)} delta="12%" />
+        <StatCard
+          icon={Briefcase}
+          label="Active jobs"
+          value={String(activeJobsCount)}
+          delta={`${JOBS.length} total`}
+        />
+        <StatCard
+          icon={Users}
+          label="Candidates in pipeline"
+          value={String(candidatesInPipeline)}
+          delta="12%"
+        />
         <StatCard icon={Gauge} label="Average match score" value={`${avg}`} delta="4 pts" />
         <StatCard
-          icon={Brain}
-          label={`Top skill · ${SKILL_DISTRIBUTION[0]!.skill}`}
-          value={`${SKILL_DISTRIBUTION[0]!.count}`}
-          delta="8%"
+          icon={FileCheck2}
+          label="Resumes processed"
+          value={String(BASELINE_RESUMES_PROCESSED + counts.completed)}
+          delta={counts.completed > 0 ? `${counts.completed} today` : "no uploads today"}
         />
-        <StatCard icon={FileCheck2} label="Resumes processed" value="1,486" delta="230 today" />
       </div>
 
-      <div className="grid gap-4 lg:grid-cols-2">
-        <ChartCard title="Skill distribution" subtitle="Candidates per detected skill">
-          <ResponsiveContainer width="100%" height="100%">
-            <BarChart data={SKILL_DISTRIBUTION.slice(0, 10)}>
-              <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="var(--border)" />
-              <XAxis dataKey="skill" tick={{ fontSize: 11 }} stroke="var(--muted-foreground)" />
-              <YAxis tick={{ fontSize: 11 }} stroke="var(--muted-foreground)" />
-              <Tooltip contentStyle={tooltipStyle} cursor={{ fill: "var(--muted)" }} />
-              <Bar dataKey="count" radius={[8, 8, 0, 0]} fill="var(--chart-1)" />
-            </BarChart>
-          </ResponsiveContainer>
-        </ChartCard>
+      <section aria-labelledby="quick-actions-heading" className="space-y-3">
+        <h2
+          id="quick-actions-heading"
+          className="text-sm font-bold uppercase tracking-wide text-muted-foreground"
+        >
+          Quick actions
+        </h2>
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
+          {quickActions.map((action) => (
+            <QuickActionTile key={action.label} action={action} />
+          ))}
 
-        <ChartCard title="Score distribution" subtitle="Candidates per match-score band">
-          <ResponsiveContainer width="100%" height="100%">
-            <BarChart data={buckets}>
-              <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="var(--border)" />
-              <XAxis dataKey="bucket" tick={{ fontSize: 11 }} stroke="var(--muted-foreground)" />
-              <YAxis tick={{ fontSize: 11 }} stroke="var(--muted-foreground)" />
-              <Tooltip contentStyle={tooltipStyle} cursor={{ fill: "var(--muted)" }} />
-              <Bar dataKey="count" radius={[8, 8, 0, 0]}>
-                {buckets.map((_, i) => (
-                  <Cell key={i} fill={i >= 3 ? "var(--chart-1)" : "var(--chart-2)"} />
-                ))}
-              </Bar>
-            </BarChart>
-          </ResponsiveContainer>
-        </ChartCard>
-      </div>
+          <Popover>
+            <PopoverTrigger asChild>
+              <button
+                type="button"
+                className="card-surface flex w-full items-center gap-3 p-4 text-left transition-shadow duration-200 hover:shadow-[var(--shadow-lift)]"
+              >
+                <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-primary-soft text-primary-soft-foreground">
+                  <SlidersHorizontal className="h-5 w-5" />
+                </span>
+                <div className="min-w-0">
+                  <p className="truncate text-sm font-bold">Adjust score weights</p>
+                  <p className="truncate text-xs text-muted-foreground">Re-rank instantly</p>
+                </div>
+              </button>
+            </PopoverTrigger>
+            <PopoverContent align="start" className="w-80">
+              <WeightsEditor
+                weights={weights}
+                setWeights={setWeights}
+                onReset={() => setWeights(DEFAULT_WEIGHTS)}
+              />
+            </PopoverContent>
+          </Popover>
+
+          <div className="card-surface flex w-full items-center gap-3 p-4">
+            <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-primary-soft text-primary-soft-foreground">
+              <EyeOff className="h-5 w-5" />
+            </span>
+            <div className="min-w-0 flex-1">
+              <p className="truncate text-sm font-bold">Blind review mode</p>
+              <p className="truncate text-xs text-muted-foreground">
+                {blindMode ? "Enabled — names hidden" : "Hides names & contact info"}
+              </p>
+            </div>
+            <Switch checked={blindMode} onCheckedChange={setBlindMode} />
+          </div>
+        </div>
+      </section>
+
+      <section aria-labelledby="active-jobs-heading" className="space-y-3">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <h2
+            id="active-jobs-heading"
+            className="text-sm font-bold uppercase tracking-wide text-muted-foreground"
+          >
+            Active jobs &amp; hiring pipeline
+          </h2>
+          <div className="flex flex-wrap items-center gap-2">
+            <div className="relative">
+              <Search className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
+              <Input
+                value={jobQuery}
+                onChange={(e) => setJobQuery(e.target.value)}
+                placeholder="Search jobs"
+                className="h-8 w-40 rounded-xl pl-8 text-xs"
+              />
+            </div>
+            <div className="flex gap-1 rounded-xl bg-secondary p-1">
+              {JOB_FILTERS.map((f) => (
+                <button
+                  key={f}
+                  onClick={() => setJobFilter(f)}
+                  className={cn(
+                    "rounded-lg px-2.5 py-1 text-xs font-semibold transition-colors",
+                    jobFilter === f
+                      ? "bg-background text-foreground shadow-sm"
+                      : "text-muted-foreground hover:text-foreground",
+                  )}
+                >
+                  {f}
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+
+        {filteredJobs.length === 0 ? (
+          <EmptyState
+            icon={Briefcase}
+            title="No jobs match these filters"
+            description="Try a different status filter or clear your search to see all active roles."
+            action={{
+              label: "Clear filters",
+              onClick: () => {
+                setJobFilter("All");
+                setJobQuery("");
+              },
+            }}
+          />
+        ) : (
+          <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+            {filteredJobs.map((job) => (
+              <JobCard
+                key={job.id}
+                job={job}
+                summary={jobSummaries.get(job.id)!}
+                onAskCopilot={() => openCopilot({ jobId: job.id })}
+              />
+            ))}
+          </div>
+        )}
+      </section>
 
       <div className="grid gap-4 lg:grid-cols-[1fr_1.2fr]">
         <ChartCard title="Experience levels" subtitle="Seniority breakdown of the pool">
@@ -203,6 +455,36 @@ function Dashboard() {
             ))}
           </ul>
         </div>
+      </div>
+
+      <div className="grid gap-4 lg:grid-cols-2">
+        <ChartCard title="Skill distribution" subtitle="Candidates per detected skill">
+          <ResponsiveContainer width="100%" height="100%">
+            <BarChart data={SKILL_DISTRIBUTION.slice(0, 10)}>
+              <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="var(--border)" />
+              <XAxis dataKey="skill" tick={{ fontSize: 11 }} stroke="var(--muted-foreground)" />
+              <YAxis tick={{ fontSize: 11 }} stroke="var(--muted-foreground)" />
+              <Tooltip contentStyle={tooltipStyle} cursor={{ fill: "var(--muted)" }} />
+              <Bar dataKey="count" radius={[8, 8, 0, 0]} fill="var(--chart-1)" />
+            </BarChart>
+          </ResponsiveContainer>
+        </ChartCard>
+
+        <ChartCard title="Score distribution" subtitle="Candidates per match-score band">
+          <ResponsiveContainer width="100%" height="100%">
+            <BarChart data={buckets}>
+              <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="var(--border)" />
+              <XAxis dataKey="bucket" tick={{ fontSize: 11 }} stroke="var(--muted-foreground)" />
+              <YAxis tick={{ fontSize: 11 }} stroke="var(--muted-foreground)" />
+              <Tooltip contentStyle={tooltipStyle} cursor={{ fill: "var(--muted)" }} />
+              <Bar dataKey="count" radius={[8, 8, 0, 0]}>
+                {buckets.map((_, i) => (
+                  <Cell key={i} fill={i >= 3 ? "var(--chart-1)" : "var(--chart-2)"} />
+                ))}
+              </Bar>
+            </BarChart>
+          </ResponsiveContainer>
+        </ChartCard>
       </div>
     </div>
   );

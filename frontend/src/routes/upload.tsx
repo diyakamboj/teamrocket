@@ -1,5 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   AlertTriangle,
   Ban,
@@ -8,12 +8,16 @@ import {
   FolderUp,
   RotateCw,
   UploadCloud,
+  X,
 } from "lucide-react";
 import { useAppState, type UploadStage } from "@/lib/app-state";
+import { getJob } from "@/lib/jobs-data";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
 export const Route = createFileRoute("/upload")({
+  validateSearch: (search: Record<string, unknown>): { job?: string } =>
+    typeof search["job"] === "string" ? { job: search["job"] } : {},
   head: () => ({
     meta: [
       { title: "Resume Upload — ResumeIQ" },
@@ -68,7 +72,16 @@ export function UploadPage() {
     clearAll,
     counts,
     overallProgress,
+    setSelectedJobId,
   } = useAppState();
+  const { job: jobParam } = Route.useSearch();
+  const navigate = Route.useNavigate();
+  const job = getJob(jobParam);
+
+  useEffect(() => {
+    if (jobParam) setSelectedJobId(jobParam);
+  }, [jobParam, setSelectedJobId]);
+
   const [filter, setFilter] = useState<(typeof FILTERS)[number]>("all");
   const [page, setPage] = useState(1);
   const [dragging, setDragging] = useState(false);
@@ -102,6 +115,20 @@ export function UploadPage() {
           Drop entire folders of PDFs — scanned documents are routed through OCR automatically.
         </p>
       </header>
+
+      {job && (
+        <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl bg-primary-soft px-4 py-2.5 text-sm text-primary-soft-foreground">
+          <span>
+            Uploading resumes for <strong>{job.title}</strong>
+          </span>
+          <button
+            onClick={() => void navigate({ search: {} })}
+            className="inline-flex items-center gap-1 text-xs font-semibold underline-offset-2 hover:underline"
+          >
+            Dismiss <X className="h-3 w-3" />
+          </button>
+        </div>
+      )}
 
       <div
         onDragOver={(e) => {
@@ -236,7 +263,10 @@ export function UploadPage() {
 
           <div className="card-surface divide-y overflow-hidden">
             {rows.map((f) => (
-              <div key={f.id} className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-4 px-5 py-3">
+              <div
+                key={f.id}
+                className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-4 px-5 py-3"
+              >
                 <div className="min-w-0">
                   <div className="flex min-w-0 items-center gap-2">
                     <p className="truncate text-sm font-semibold">{f.name}</p>
@@ -269,7 +299,12 @@ export function UploadPage() {
                 </div>
                 <div className="flex shrink-0 items-center gap-2">
                   {f.stage === "failed" && (
-                    <Button size="sm" variant="outline" className="rounded-xl" onClick={() => retry(f.id)}>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="rounded-xl"
+                      onClick={() => retry(f.id)}
+                    >
                       Retry
                     </Button>
                   )}

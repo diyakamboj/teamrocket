@@ -1,11 +1,12 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useRef, useState } from "react";
-import { ArrowUp, Loader2, Plus, Sparkles, Trash2 } from "lucide-react";
+import { ArrowUp, Loader2, Plus, Sparkles, Trash2, X } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { analyzeJobDescriptionApi } from "@/lib/api";
 import { useAppState } from "@/lib/app-state";
+import { getJob } from "@/lib/jobs-data";
 import {
   analyzeJobDescription,
   type ExtractedRequirement,
@@ -14,6 +15,8 @@ import {
 import { cn } from "@/lib/utils";
 
 export const Route = createFileRoute("/job-analysis")({
+  validateSearch: (search: Record<string, unknown>): { job?: string } =>
+    typeof search["job"] === "string" ? { job: search["job"] } : {},
   head: () => ({
     meta: [
       { title: "Job Description Analysis — ResumeIQ" },
@@ -25,19 +28,15 @@ export const Route = createFileRoute("/job-analysis")({
       { property: "og:title", content: "Job Description Analysis — ResumeIQ" },
       {
         property: "og:description",
-        content: "Chat to extract job requirements into Skills, Experience, Education, Certifications.",
+        content:
+          "Chat to extract job requirements into Skills, Experience, Education, Certifications.",
       },
     ],
   }),
   component: JobAnalysis,
 });
 
-const CATEGORIES: RequirementCategory[] = [
-  "Skills",
-  "Experience",
-  "Education",
-  "Certifications",
-];
+const CATEGORIES: RequirementCategory[] = ["Skills", "Experience", "Education", "Certifications"];
 
 const SUGGESTIONS = [
   "What skills are needed for a software engineer?",
@@ -68,10 +67,17 @@ function requestedCategories(query: string): RequirementCategory[] | "all" {
 }
 
 function JobAnalysis() {
-  const { setActiveJobId } = useAppState();
+  const { setActiveJobId, setSelectedJobId } = useAppState();
+  const { job: jobParam } = Route.useSearch();
+  const navigate = Route.useNavigate();
+  const job = getJob(jobParam);
   const sectionsRef = useRef<HTMLDivElement>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+
+  useEffect(() => {
+    if (jobParam) setSelectedJobId(jobParam);
+  }, [jobParam, setSelectedJobId]);
 
   const [reqs, setReqs] = useState<ExtractedRequirement[]>([]);
   const [detectedTitle, setDetectedTitle] = useState("");
@@ -112,8 +118,7 @@ function JobAnalysis() {
     try {
       const local = analyzeJobDescription(query);
       const want = requestedCategories(query);
-      const categories: RequirementCategory[] =
-        want === "all" ? [...CATEGORIES] : want;
+      const categories: RequirementCategory[] = want === "all" ? [...CATEGORIES] : want;
 
       // Keep other sections; replace only what the user asked for
       setReqs((prev) => {
@@ -206,6 +211,20 @@ function JobAnalysis() {
           {detectedTitle ? ` Last role: ${detectedTitle}.` : ""}
         </p>
       </header>
+
+      {job && (
+        <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl bg-primary-soft px-4 py-2.5 text-sm text-primary-soft-foreground">
+          <span>
+            Analyzing requirements — linked to <strong>{job.title}</strong> ({job.department})
+          </span>
+          <button
+            onClick={() => void navigate({ search: {} })}
+            className="inline-flex items-center gap-1 text-xs font-semibold underline-offset-2 hover:underline"
+          >
+            Dismiss <X className="h-3 w-3" />
+          </button>
+        </div>
+      )}
 
       {/* Chatbox — only this triggers filling sections */}
       <section className="flex h-[320px] w-full flex-col overflow-hidden rounded-2xl border bg-card shadow-[var(--shadow-soft)]">
@@ -403,7 +422,12 @@ function JobAnalysis() {
                     placeholder={`Add ${cat.toLowerCase()} manually`}
                     className="rounded-xl text-sm"
                   />
-                  <Button type="submit" size="icon" variant="outline" className="shrink-0 rounded-xl">
+                  <Button
+                    type="submit"
+                    size="icon"
+                    variant="outline"
+                    className="shrink-0 rounded-xl"
+                  >
                     <Plus className="h-4 w-4" />
                   </Button>
                 </form>

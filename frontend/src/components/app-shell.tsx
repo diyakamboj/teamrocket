@@ -9,6 +9,7 @@ import {
   Moon,
   Search,
   ShieldAlert,
+  Sparkles,
   Sun,
   Trophy,
   UploadCloud,
@@ -18,6 +19,7 @@ import { useAppState } from "@/lib/app-state";
 import { useTheme } from "@/lib/theme";
 import { cn } from "@/lib/utils";
 import { Input } from "@/components/ui/input";
+import { RecruiterCopilot } from "@/components/recruiter-copilot";
 
 const NAV = [
   { to: "/", label: "Dashboard", icon: LayoutDashboard },
@@ -31,7 +33,7 @@ const NAV = [
 export function AppShell({ children }: { children: ReactNode }) {
   const [collapsed, setCollapsed] = useState(false);
   const { theme, toggle } = useTheme();
-  const { active, counts, overallProgress } = useAppState();
+  const { active, counts, overallProgress, openCopilot } = useAppState();
   const pathname = useRouterState({ select: (s) => s.location.pathname });
 
   return (
@@ -124,6 +126,14 @@ export function AppShell({ children }: { children: ReactNode }) {
           </div>
           <div className="flex shrink-0 items-center gap-1.5">
             <button
+              onClick={() => openCopilot()}
+              aria-label="Open Recruiter Copilot"
+              title="Recruiter Copilot"
+              className="grid h-9 w-9 place-items-center rounded-xl text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground"
+            >
+              <Sparkles className="h-4 w-4" />
+            </button>
+            <button
               onClick={toggle}
               aria-label="Toggle theme"
               className="grid h-9 w-9 place-items-center rounded-xl text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground"
@@ -145,6 +155,8 @@ export function AppShell({ children }: { children: ReactNode }) {
 
         <main className="flex-1 px-4 py-6 sm:px-6 lg:px-8">{children}</main>
       </div>
+
+      <RecruiterCopilot />
     </div>
   );
 }

@@ -23,30 +23,116 @@ export type Candidate = {
   gaps: string[];
   transferable: string[];
   evidence: { skill: string; detail: string; source: string }[];
+  /** Frontend-only synthetic classification — no backend field backs this. */
+  origin: "internal" | "external";
 };
 
 const FIRST = [
-  "Amara","Priya","Diego","Lena","Noah","Yusuf","Mei","Tomas","Ines","Kofi","Sofia","Elias",
-  "Nadia","Ravi","Clara","Marek","Aisha","Jonas","Leila","Hugo","Zara","Otto","Maya","Idris",
+  "Amara",
+  "Priya",
+  "Diego",
+  "Lena",
+  "Noah",
+  "Yusuf",
+  "Mei",
+  "Tomas",
+  "Ines",
+  "Kofi",
+  "Sofia",
+  "Elias",
+  "Nadia",
+  "Ravi",
+  "Clara",
+  "Marek",
+  "Aisha",
+  "Jonas",
+  "Leila",
+  "Hugo",
+  "Zara",
+  "Otto",
+  "Maya",
+  "Idris",
 ];
 const LAST = [
-  "Okonkwo","Sharma","Ferreira","Bergman","Whitfield","Demir","Tanaka","Novak","Rivera","Mensah",
-  "Castellano","Vogel","Haddad","Iyer","Lindqvist","Kowalski","Diallo","Weber","Barakat","Almeida",
+  "Okonkwo",
+  "Sharma",
+  "Ferreira",
+  "Bergman",
+  "Whitfield",
+  "Demir",
+  "Tanaka",
+  "Novak",
+  "Rivera",
+  "Mensah",
+  "Castellano",
+  "Vogel",
+  "Haddad",
+  "Iyer",
+  "Lindqvist",
+  "Kowalski",
+  "Diallo",
+  "Weber",
+  "Barakat",
+  "Almeida",
 ];
 const TITLES = [
-  "Backend Engineer","Data Engineer","ML Engineer","Cloud Architect","Full-Stack Engineer",
-  "DevOps Engineer","Platform Engineer","Analytics Engineer","Site Reliability Engineer",
+  "Backend Engineer",
+  "Data Engineer",
+  "ML Engineer",
+  "Cloud Architect",
+  "Full-Stack Engineer",
+  "DevOps Engineer",
+  "Platform Engineer",
+  "Analytics Engineer",
+  "Site Reliability Engineer",
 ];
-const CITIES = ["Berlin","Lisbon","Toronto","Austin","Bengaluru","Nairobi","Amsterdam","Warsaw","Dublin"];
+const CITIES = [
+  "Berlin",
+  "Lisbon",
+  "Toronto",
+  "Austin",
+  "Bengaluru",
+  "Nairobi",
+  "Amsterdam",
+  "Warsaw",
+  "Dublin",
+];
 const SKILLS = [
-  "Python","TypeScript","AWS","Azure","Kubernetes","SQL","React","Terraform","Docker","Spark",
-  "Go","PyTorch","GraphQL","Airflow","Postgres","CI/CD","Rust","Kafka",
+  "Python",
+  "TypeScript",
+  "AWS",
+  "Azure",
+  "Kubernetes",
+  "SQL",
+  "React",
+  "Terraform",
+  "Docker",
+  "Spark",
+  "Go",
+  "PyTorch",
+  "GraphQL",
+  "Airflow",
+  "Postgres",
+  "CI/CD",
+  "Rust",
+  "Kafka",
 ];
 const DEGREES = [
-  "BSc Computer Science","MSc Software Engineering","BEng Information Systems",
-  "MSc Data Science","BSc Mathematics","PhD Machine Learning",
+  "BSc Computer Science",
+  "MSc Software Engineering",
+  "BEng Information Systems",
+  "MSc Data Science",
+  "BSc Mathematics",
+  "PhD Machine Learning",
 ];
-const SOURCES = ["SWE Internship","Platform Team @ Northwind","Freelance Project","Open-source contribution","Capstone Thesis","Lead role @ Larkspur"];
+const SOURCES = [
+  "SWE Internship",
+  "Platform Team @ Northwind",
+  "Freelance Project",
+  "Open-source contribution",
+  "Capstone Thesis",
+  "Lead role @ Larkspur",
+];
 
 function mulberry(seed: number) {
   return () => {
@@ -60,7 +146,7 @@ function mulberry(seed: number) {
 
 function build(): Candidate[] {
   const rnd = mulberry(20260801);
-  const pick = <T,>(arr: T[]) => arr[Math.floor(rnd() * arr.length)]!;
+  const pick = <T>(arr: T[]) => arr[Math.floor(rnd() * arr.length)]!;
   const between = (a: number, b: number) => Math.round(a + rnd() * (b - a));
 
   const list: Candidate[] = [];
@@ -77,9 +163,7 @@ function build(): Candidate[] {
       certifications: between(20, 97),
       projects: between(30, 99),
     };
-    const skills = Array.from(
-      new Set(Array.from({ length: between(4, 8) }, () => pick(SKILLS))),
-    );
+    const skills = Array.from(new Set(Array.from({ length: between(4, 8) }, () => pick(SKILLS))));
     list.push({
       id: `c-${i + 1}`,
       rank: 0,
@@ -97,11 +181,11 @@ function build(): Candidate[] {
       skills,
       strengths: [
         `${between(3, years)} years shipping ${skills[0]} services in production`,
-        `Owned ${pick(["migration","observability","cost reduction","API redesign"])} initiative end-to-end`,
+        `Owned ${pick(["migration", "observability", "cost reduction", "API redesign"])} initiative end-to-end`,
       ],
       gaps: [
         `Limited exposure to ${pick(SKILLS)}`,
-        `No ${pick(["certification","formal leadership","regulated-industry"])} evidence found`,
+        `No ${pick(["certification", "formal leadership", "regulated-industry"])} evidence found`,
       ],
       transferable: [
         `${pick(SKILLS)} experience maps closely to the required stack`,
@@ -118,6 +202,9 @@ function build(): Candidate[] {
         ]),
         source: pick(SOURCES),
       })),
+      // Deterministic (seeded by the same rnd() as the rest of this record) —
+      // roughly a fifth of the pool are internal transfers/referrals.
+      origin: rnd() < 0.24 ? "internal" : "external",
     });
   }
   return list;
@@ -155,11 +242,20 @@ const DEMO_FRAUD_CANDIDATES: Candidate[] = [
       "Mentoring history suggests readiness for senior scope",
     ],
     evidence: [
-      { skill: "React", detail: "Led service migration", source: "Platform Team @ Vantablack Dynamics Group" },
+      {
+        skill: "React",
+        detail: "Led service migration",
+        source: "Platform Team @ Vantablack Dynamics Group",
+      },
       { skill: "Node.js", detail: "Built automation scripts", source: "Freelance Project" },
-      { skill: "TypeScript", detail: "Authored internal library", source: "Open-source contribution" },
+      {
+        skill: "TypeScript",
+        detail: "Authored internal library",
+        source: "Open-source contribution",
+      },
       { skill: "AWS", detail: "Reduced p95 latency by 40%", source: "Capstone Thesis" },
     ],
+    origin: "external",
   },
   {
     id: "demo-2",
@@ -186,11 +282,20 @@ const DEMO_FRAUD_CANDIDATES: Candidate[] = [
       "Mentoring history suggests readiness for staff scope",
     ],
     evidence: [
-      { skill: "Python", detail: "Designed data pipeline", source: "Platform Team @ Vantablack Dynamics Group" },
-      { skill: "Spark", detail: "Led service migration", source: "Lead role @ Zephyrion Nexus Holdings" },
+      {
+        skill: "Python",
+        detail: "Designed data pipeline",
+        source: "Platform Team @ Vantablack Dynamics Group",
+      },
+      {
+        skill: "Spark",
+        detail: "Led service migration",
+        source: "Lead role @ Zephyrion Nexus Holdings",
+      },
       { skill: "Airflow", detail: "Built automation scripts", source: "Freelance Project" },
       { skill: "SQL", detail: "Reduced p95 latency by 40%", source: "Open-source contribution" },
     ],
+    origin: "external",
   },
   {
     id: "demo-3",
@@ -217,11 +322,24 @@ const DEMO_FRAUD_CANDIDATES: Candidate[] = [
       "Mentoring history suggests readiness for staff scope",
     ],
     evidence: [
-      { skill: "Azure", detail: "Led service migration", source: "Platform Team @ Vantablack Dynamics Group" },
-      { skill: "Kubernetes", detail: "Designed data pipeline", source: "Lead role @ Zephyrion Nexus Holdings" },
-      { skill: "Terraform", detail: "Built automation scripts", source: "Senior role @ Quantum Fable Systems" },
+      {
+        skill: "Azure",
+        detail: "Led service migration",
+        source: "Platform Team @ Vantablack Dynamics Group",
+      },
+      {
+        skill: "Kubernetes",
+        detail: "Designed data pipeline",
+        source: "Lead role @ Zephyrion Nexus Holdings",
+      },
+      {
+        skill: "Terraform",
+        detail: "Built automation scripts",
+        source: "Senior role @ Quantum Fable Systems",
+      },
       { skill: "Docker", detail: "Reduced p95 latency by 40%", source: "Capstone Thesis" },
     ],
+    origin: "internal",
   },
   {
     id: "demo-4",
@@ -248,15 +366,23 @@ const DEMO_FRAUD_CANDIDATES: Candidate[] = [
       "Mentoring history suggests readiness for senior scope",
     ],
     evidence: [
-      { skill: "Python", detail: "Built automation scripts", source: "Platform Team @ Umbra Cascade Technologies" },
+      {
+        skill: "Python",
+        detail: "Built automation scripts",
+        source: "Platform Team @ Umbra Cascade Technologies",
+      },
       { skill: "Go", detail: "Led service migration", source: "Freelance Project" },
       { skill: "Postgres", detail: "Designed data pipeline", source: "Open-source contribution" },
       { skill: "Docker", detail: "Authored internal library", source: "Capstone Thesis" },
     ],
+    origin: "external",
   },
 ];
 
 export const CANDIDATES: Candidate[] = [...build(), ...DEMO_FRAUD_CANDIDATES];
+
+/** Historical baseline the dashboard adds live upload counts on top of. */
+export const BASELINE_RESUMES_PROCESSED = 1256;
 
 export type Weights = {
   skills: number;

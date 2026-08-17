@@ -8,9 +8,11 @@ import {
   useState,
   type ReactNode,
 } from "react";
+import { useRouter } from "@tanstack/react-router";
 import { toast } from "sonner";
 import { ensureActiveJob } from "./api";
 import { DEFAULT_WEIGHTS, type Weights } from "./mock-data";
+import { JOBS } from "./jobs-data";
 
 export type UploadStage =
   "queued" | "uploading" | "ocr" | "parsing" | "complete" | "failed" | "duplicate" | "skipped";
@@ -53,6 +55,16 @@ type Ctx = {
   activeJobId: string | null;
   setActiveJobId: (id: string | null) => void;
   backendReady: boolean;
+  /** Which synthetic dashboard job (lib/jobs-data.ts) the recruiter is currently focused on. */
+  selectedJobId: string | null;
+  setSelectedJobId: (id: string | null) => void;
+  copilotOpen: boolean;
+  copilotContext: { jobId?: string | null | undefined; candidateIds?: string[] | undefined } | null;
+  openCopilot: (context?: {
+    jobId?: string | null | undefined;
+    candidateIds?: string[] | undefined;
+  }) => void;
+  closeCopilot: () => void;
 };
 
 const AppCtx = createContext<Ctx | null>(null);
@@ -65,12 +77,16 @@ const NEXT: Record<string, UploadStage> = {
 };
 
 export function AppStateProvider({ children }: { children: ReactNode }) {
+  const router = useRouter();
   const [files, setFiles] = useState<UploadFile[]>([]);
   const [weights, setWeights] = useState<Weights>(DEFAULT_WEIGHTS);
   const [blindMode, setBlindMode] = useState(false);
   const [compareIds, setCompareIds] = useState<string[]>([]);
   const [activeJobId, setActiveJobId] = useState<string | null>(null);
   const [backendReady, setBackendReady] = useState(false);
+  const [selectedJobId, setSelectedJobId] = useState<string | null>(JOBS[0]?.id ?? null);
+  const [copilotOpen, setCopilotOpen] = useState(false);
+  const [copilotContext, setCopilotContext] = useState<Ctx["copilotContext"]>(null);
   const wasActive = useRef(false);
   const seq = useRef(0);
 
@@ -186,13 +202,18 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
         action: {
           label: "View ranked candidates",
           onClick: () => {
-            window.location.href = "/candidates";
+            // Client-side navigation preserves in-memory state (selectedJobId,
+            // weights, compareIds) — a hard reload here would wipe it.
+            void router.navigate({
+              to: "/candidates",
+              search: selectedJobId ? { job: selectedJobId } : {},
+            });
           },
         },
       });
     }
     wasActive.current = active;
-  }, [active, counts.total, counts.completed, counts.failed]);
+  }, [active, counts.total, counts.completed, counts.failed, router, selectedJobId]);
 
   const value: Ctx = {
     files,
@@ -242,6 +263,18 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
     activeJobId,
     setActiveJobId,
     backendReady,
+    selectedJobId,
+    setSelectedJobId,
+    copilotOpen,
+    copilotContext,
+    openCopilot: (context) => {
+      setCopilotContext({
+        jobId: context?.jobId ?? selectedJobId,
+        candidateIds: context?.candidateIds ?? [],
+      });
+      setCopilotOpen(true);
+    },
+    closeCopilot: () => setCopilotOpen(false),
   };
 
   return <AppCtx.Provider value={value}>{children}</AppCtx.Provider>;

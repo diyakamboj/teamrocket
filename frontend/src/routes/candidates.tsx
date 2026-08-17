@@ -1,24 +1,32 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   Calendar,
   Check,
   ChevronDown,
-  EyeOff,
   Loader2,
   Search,
   SlidersHorizontal,
+  Sparkles,
   X,
 } from "lucide-react";
 import { toast } from "sonner";
 import { useAppState } from "@/lib/app-state";
-import { ALL_SKILLS, CANDIDATES, DEFAULT_WEIGHTS, rankCandidates, type Candidate } from "@/lib/mock-data";
+import {
+  ALL_SKILLS,
+  CANDIDATES,
+  DEFAULT_WEIGHTS,
+  rankCandidates,
+  type Candidate,
+} from "@/lib/mock-data";
+import { getJob, isInPipeline, stageOf, PIPELINE_STAGE_LABEL } from "@/lib/jobs-data";
 import { submitCandidateDecision, type InterviewSlot } from "@/lib/api";
 import { MiniBar, ScoreRing } from "@/components/score-ring";
+import { WeightsEditor } from "@/components/weights-editor";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Slider } from "@/components/ui/slider";
-import { Switch } from "@/components/ui/switch";
 import { cn } from "@/lib/utils";
 
 type DecisionState =
@@ -32,6 +40,8 @@ type DecisionState =
     };
 
 export const Route = createFileRoute("/candidates")({
+  validateSearch: (search: Record<string, unknown>): { job?: string } =>
+    typeof search["job"] === "string" ? { job: search["job"] } : {},
   head: () => ({
     meta: [
       { title: "Candidate Ranking — ResumeIQ" },
@@ -52,8 +62,6 @@ export const Route = createFileRoute("/candidates")({
 
 const LEVELS = ["All", "Junior", "Mid", "Senior", "Lead"] as const;
 const PAGE_SIZE = 12;
-const WEIGHT_KEYS = ["skills", "experience", "education", "certifications", "projects"] as const;
-
 function DecisionControls({
   candidate,
   state,
@@ -85,7 +93,8 @@ function DecisionControls({
         )}
       >
         {isApproved ? <Check className="h-3.5 w-3.5" /> : <X className="h-3.5 w-3.5" />}
-        {isApproved ? "Selected" : "Rejected"} — email {state.source === "mock" ? "logged (mock)" : "sent"}
+        {isApproved ? "Selected" : "Rejected"} — email{" "}
+        {state.source === "mock" ? "logged (mock)" : "sent"}
       </span>
     );
   }
@@ -140,7 +149,24 @@ function DecisionControls({
 }
 
 function Candidates() {
-  const { weights, setWeights, blindMode, setBlindMode, compareIds, toggleCompare } = useAppState();
+  const {
+    weights,
+    setWeights,
+    blindMode,
+    setBlindMode,
+    compareIds,
+    toggleCompare,
+    setSelectedJobId,
+    openCopilot,
+  } = useAppState();
+  const { job: jobParam } = Route.useSearch();
+  const navigate = Route.useNavigate();
+  const job = getJob(jobParam);
+
+  useEffect(() => {
+    if (jobParam) setSelectedJobId(jobParam);
+  }, [jobParam, setSelectedJobId]);
+
   const [query, setQuery] = useState("");
   const [level, setLevel] = useState<(typeof LEVELS)[number]>("All");
   const [skill, setSkill] = useState("All");
@@ -201,9 +227,10 @@ function Candidates() {
           (query === "" ||
             c.name.toLowerCase().includes(query.toLowerCase()) ||
             c.title.toLowerCase().includes(query.toLowerCase()) ||
-            c.skills.some((s) => s.toLowerCase().includes(query.toLowerCase()))),
+            c.skills.some((s) => s.toLowerCase().includes(query.toLowerCase()))) &&
+          (!job || isInPipeline(job.id, c.id)),
       ),
-    [ranked, minScore, level, skill, query],
+    [ranked, minScore, level, skill, query, job],
   );
 
   const pageCount = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
@@ -228,15 +255,25 @@ function Candidates() {
               Compare ({compareIds.length})
             </Link>
           )}
-          <Button
-            variant="outline"
-            className="rounded-xl"
-            onClick={() => setPanelOpen((p) => !p)}
-          >
+          <Button variant="outline" className="rounded-xl" onClick={() => setPanelOpen((p) => !p)}>
             <SlidersHorizontal className="mr-2 h-4 w-4" /> Weights
           </Button>
         </div>
       </header>
+
+      {job && (
+        <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl bg-primary-soft px-4 py-2.5 text-sm text-primary-soft-foreground">
+          <span>
+            Screening for <strong>{job.title}</strong> · {filtered.length} in pipeline
+          </span>
+          <button
+            onClick={() => void navigate({ search: {} })}
+            className="inline-flex items-center gap-1 text-xs font-semibold underline-offset-2 hover:underline"
+          >
+            Show full pool <X className="h-3 w-3" />
+          </button>
+        </div>
+      )}
 
       <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_300px]">
         <div className="min-w-0 space-y-4">
@@ -319,7 +356,17 @@ function Candidates() {
                         {blindMode ? "??" : c.initials}
                       </span>
                       <div className="min-w-0">
-                        <p className="truncate text-sm font-bold">{displayName}</p>
+                        <p className="flex items-center gap-1.5 truncate text-sm font-bold">
+                          {displayName}
+                          {job && (
+                            <Badge
+                              variant="secondary"
+                              className="shrink-0 text-[10px] font-semibold"
+                            >
+                              {PIPELINE_STAGE_LABEL[stageOf(job.id, c.id)]}
+                            </Badge>
+                          )}
+                        </p>
                         <p className="truncate text-xs text-muted-foreground">
                           {c.title} · {c.years} yrs · {blindMode ? c.level : c.location}
                         </p>
@@ -352,6 +399,15 @@ function Candidates() {
                     >
                       {isOpen ? "Hide" : "Why this rank?"}
                     </Button>
+                    <button
+                      type="button"
+                      onClick={() => openCopilot({ jobId: job?.id, candidateIds: [c.id] })}
+                      aria-label={`Ask Copilot about ${displayName}`}
+                      title="Ask Copilot about this candidate"
+                      className="grid h-8 w-8 shrink-0 place-items-center rounded-xl text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground"
+                    >
+                      <Sparkles className="h-3.5 w-3.5" />
+                    </button>
                     <div className="ml-auto">
                       <DecisionControls
                         candidate={c}
@@ -402,12 +458,18 @@ function Candidates() {
                         className="rounded-xl"
                         onClick={() => toggleCompare(c.id)}
                       >
-                        {compareIds.includes(c.id) ? "Selected for comparison" : "Add to comparison"}
+                        {compareIds.includes(c.id)
+                          ? "Selected for comparison"
+                          : "Add to comparison"}
                       </Button>
 
                       {(() => {
                         const state = decisions[c.id];
-                        if (state?.status !== "done" || state.decision !== "approved" || state.slots.length === 0) {
+                        if (
+                          state?.status !== "done" ||
+                          state.decision !== "approved" ||
+                          state.slots.length === 0
+                        ) {
                           return null;
                         }
                         return (
@@ -478,42 +540,13 @@ function Candidates() {
               <p className="text-xs text-muted-foreground">Re-ranks the list instantly</p>
             </div>
 
-            {WEIGHT_KEYS.map((key) => (
-              <div key={key}>
-                <div className="mb-2 flex items-center justify-between text-xs">
-                  <span className="font-semibold capitalize">{key}</span>
-                  <span className="tabular-nums text-muted-foreground">{weights[key]}%</span>
-                </div>
-                <Slider
-                  value={[weights[key]]}
-                  max={100}
-                  step={5}
-                  onValueChange={(v) => setWeights({ ...weights, [key]: v[0] ?? 0 })}
-                />
-              </div>
-            ))}
-
-            <Button
-              variant="outline"
-              size="sm"
-              className="w-full rounded-xl"
-              onClick={() => setWeights(DEFAULT_WEIGHTS)}
-            >
-              Reset weights
-            </Button>
-
-            <div className="flex items-center justify-between gap-3 rounded-xl bg-secondary/60 p-3">
-              <div className="flex min-w-0 items-center gap-2">
-                <EyeOff className="h-4 w-4 shrink-0 text-muted-foreground" />
-                <div className="min-w-0">
-                  <p className="truncate text-sm font-semibold">Blind review</p>
-                  <p className="truncate text-[11px] text-muted-foreground">
-                    Hides names & contact info
-                  </p>
-                </div>
-              </div>
-              <Switch checked={blindMode} onCheckedChange={setBlindMode} />
-            </div>
+            <WeightsEditor
+              weights={weights}
+              setWeights={setWeights}
+              onReset={() => setWeights(DEFAULT_WEIGHTS)}
+              blindMode={blindMode}
+              setBlindMode={setBlindMode}
+            />
           </aside>
         )}
       </div>

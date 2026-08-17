@@ -1,11 +1,12 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useMemo } from "react";
-import { Sparkle, X } from "lucide-react";
+import { Sparkle, Sparkles, X } from "lucide-react";
 import { CompareChat } from "@/components/copilot";
 import { MiniBar, ScoreRing } from "@/components/score-ring";
 import { Button } from "@/components/ui/button";
 import { useAppState } from "@/lib/app-state";
 import { CANDIDATES, rankCandidates } from "@/lib/mock-data";
+import { getJob } from "@/lib/jobs-data";
 
 export const Route = createFileRoute("/compare")({
   head: () => ({
@@ -27,9 +28,18 @@ export const Route = createFileRoute("/compare")({
 });
 
 function Compare() {
-  const { compareIds, toggleCompare, clearCompare, weights, blindMode } = useAppState();
+  const {
+    compareIds,
+    toggleCompare,
+    clearCompare,
+    weights,
+    blindMode,
+    selectedJobId,
+    openCopilot,
+  } = useAppState();
   const ranked = useMemo(() => rankCandidates(CANDIDATES, weights), [weights]);
   const selected = ranked.filter((c) => compareIds.includes(c.id));
+  const job = getJob(selectedJobId);
 
   if (selected.length === 0) {
     return (
@@ -57,7 +67,14 @@ function Compare() {
     <div className="mx-auto flex max-w-7xl flex-col gap-6">
       <header className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-4">
         <div className="min-w-0">
-          <h1 className="truncate text-2xl font-extrabold sm:text-3xl">Candidate Comparison</h1>
+          <div className="flex flex-wrap items-center gap-2">
+            <h1 className="truncate text-2xl font-extrabold sm:text-3xl">Candidate Comparison</h1>
+            {job && (
+              <span className="shrink-0 rounded-full bg-primary-soft px-2.5 py-0.5 text-[11px] font-semibold text-primary-soft-foreground">
+                Comparing for {job.title}
+              </span>
+            )}
+          </div>
           <p className="mt-1 text-sm text-muted-foreground">
             {selected.length} candidates side by side · ask the chat below
           </p>
@@ -164,6 +181,14 @@ function Compare() {
       </div>
 
       <CompareChat candidates={selected} blindMode={blindMode} />
+
+      <button
+        type="button"
+        onClick={() => openCopilot({ jobId: selectedJobId, candidateIds: compareIds })}
+        className="inline-flex w-fit items-center gap-1.5 self-start text-sm font-semibold text-primary hover:underline"
+      >
+        <Sparkles className="h-4 w-4" /> Open full Recruiter Copilot →
+      </button>
     </div>
   );
 }
