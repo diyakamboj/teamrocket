@@ -62,6 +62,13 @@ jobs:
         working-directory: ${{ env.TF_WORKING_DIR }}
         run: terraform validate
 
+      # No continue-on-error here, deliberately: if this step fails, its own
+      # real error message is what shows in the log, and the job stops
+      # naturally — nothing further needed to make the job fail correctly.
+      # (Previously had continue-on-error + an unconditional `terraform show`
+      # + a manual "fail if errored" step, which just meant a failed plan
+      # produced a confusing SECOND error — `terraform show` on a tfplan
+      # file that was never written — instead of showing the real one.)
       - name: Terraform Plan
         id: plan
         working-directory: ${{ env.TF_WORKING_DIR }}
@@ -69,12 +76,8 @@ jobs:
           terraform plan -input=false -no-color \
             -var-file=environments/dev.tfvars \
             -out=tfplan
-        continue-on-error: true
 
+      # Only reached if the plan step above actually succeeded.
       - name: Show Plan (readable)
         working-directory: ${{ env.TF_WORKING_DIR }}
         run: terraform show -no-color tfplan
-
-      - name: Fail if Plan Errored
-        if: steps.plan.outcome == 'failure'
-        run: exit 1
