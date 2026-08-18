@@ -1050,7 +1050,64 @@ export async function listCandidateAssessments(candidateId: string): Promise<Can
   return request(`/api/readiness/candidate/${encodeURIComponent(candidateId)}`);
 }
 
+// ---------- Resume File Upload & Candidate Sync ----------
+
+export type BackendResumeUploadItem = {
+  resume_id: string;
+  filename: string;
+  status: string;
+  progress: number;
+  duplicate?: boolean;
+  error?: string | null;
+};
+
+export type BackendResumeUploadResponse = {
+  batch_id: string;
+  files: BackendResumeUploadItem[];
+  message: string;
+};
+
+export async function uploadResumesToBackend(files: File[]): Promise<BackendResumeUploadResponse> {
+  const formData = new FormData();
+  for (const f of files) {
+    formData.append("files", f);
+  }
+
+  const res = await fetch(`${API_BASE}/api/resumes/upload`, {
+    method: "POST",
+    headers: {
+      "X-Recruiter-Email": "recruiter@company.com",
+    },
+    body: formData,
+  });
+
+  if (!res.ok) {
+    throw new Error(`Upload failed with status ${res.status}`);
+  }
+  return res.json();
+}
+
+export type BackendCandidate = {
+  id: string;
+  name: string;
+  email: string;
+  phone?: string | null;
+  resume_file_id?: string | null;
+  resume_text?: string | null;
+  skills: string[];
+  experience: any[];
+  education: any[];
+  source?: string | null;
+  employment_status?: string | null;
+  created_at: string;
+};
+
+export async function fetchCandidatesFromBackend(): Promise<BackendCandidate[]> {
+  return request("/api/candidates");
+}
+
 export { API_BASE };
+
 
 
 

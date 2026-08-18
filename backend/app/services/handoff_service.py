@@ -75,7 +75,8 @@ def get_history(
         lambda e: e.candidate_id == str(candidate_id)
         and (job_id is None or e.job_id == str(job_id))
     )
-    return sorted(events, key=lambda e: e.created_at, reverse=True)
+    return sorted(events, key=lambda e: (e.created_at, e.event_type == "evaluation_updated"), reverse=True)
+
 
 
 def derive_focus_areas(

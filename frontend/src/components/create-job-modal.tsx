@@ -28,38 +28,55 @@ export function CreateJobModal({ isOpen, onClose }: CreateJobModalProps) {
   const navigate = useNavigate();
   const [step, setStep] = useState(1);
   const [hiringType, setHiringType] = useState<"internal" | "external">("external");
-  const [jobTitle, setJobTitle] = useState("Senior Cloud Infrastructure Architect");
+  const [jobTitle, setJobTitle] = useState("Senior Software Engineer");
   const [department, setDepartment] = useState("Engineering");
   const [location, setLocation] = useState("Seattle, WA (Hybrid)");
   const [employmentType, setEmploymentType] = useState("Full-time");
   const [hiringManager, setHiringManager] = useState("Sarah Connor");
   const [openings, setOpenings] = useState(2);
-  const [targetStartDate, setTargetStartDate] = useState("2026-09-15");
+  const [newSkillInput, setNewSkillInput] = useState("");
   const [descriptionText, setDescriptionText] = useState(
-    `We are seeking a Senior Cloud Infrastructure Architect to lead our Azure multi-tenant microservices deployment.
+    `We are seeking a Senior Software Engineer to lead our cloud infrastructure microservices.
 
 Responsibilities:
-• Architect, deploy, and manage scalable Azure Kubernetes Service (AKS) clusters.
-• Build automated CI/CD pipelines using GitHub Actions and Terraform.
-• Implement Zero-Trust security and observability frameworks.
+• Architect, deploy, and manage scalable cloud microservices and Kubernetes infrastructure.
+• Build automated CI/CD deployment pipelines.
+• Implement security and observability standards.
 
 Requirements:
-• 5+ years of experience with Azure and Python or Go.
-• Proven expertise in Kubernetes, Terraform, and Docker containerization.
-• Bachelor's degree in Computer Science or equivalent experience.`
+• 5+ years of experience with Python, React, or Go.
+• Proven expertise in Kubernetes, Docker, and Azure/AWS cloud services.`
   );
   const [copilotFeedback, setCopilotFeedback] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   // Extracted skills
-  const [requiredSkills, setRequiredSkills] = useState(["Python", "Azure", "Kubernetes", "Terraform"]);
-  const [preferredSkills, setPreferredSkills] = useState(["Go", "Docker", "Zero-Trust"]);
+  const [requiredSkills, setRequiredSkills] = useState(["Python", "Azure", "Kubernetes", "FastAPI"]);
+  const [preferredSkills, setPreferredSkills] = useState(["Docker", "Terraform", "Go"]);
   const [postToLinkedIn, setPostToLinkedIn] = useState(true);
+
+  const handleAddSkill = (type: "required" | "preferred") => {
+    if (!newSkillInput.trim()) return;
+    if (type === "required") {
+      setRequiredSkills([...requiredSkills, newSkillInput.trim()]);
+    } else {
+      setPreferredSkills([...preferredSkills, newSkillInput.trim()]);
+    }
+    setNewSkillInput("");
+  };
+
+  const handleRemoveSkill = (skillToRemove: string, type: "required" | "preferred") => {
+    if (type === "required") {
+      setRequiredSkills(requiredSkills.filter((s) => s !== skillToRemove));
+    } else {
+      setPreferredSkills(preferredSkills.filter((s) => s !== skillToRemove));
+    }
+  };
 
   const handleAskCopilot = (promptType: string) => {
     if (promptType === "restrictive") {
       setCopilotFeedback(
-        "🤖 Copilot Analysis: Requiring both 5+ years Azure AND Terraform creates a bottleneck. Only 12% of public candidates possess both at senior level. Recommendation: Mark Terraform as preferred."
+        "🤖 Copilot Analysis: Requiring both 5+ years Azure AND Terraform creates a bottleneck. Recommendation: Mark Terraform as preferred skill."
       );
     } else if (promptType === "wording") {
       setCopilotFeedback(
@@ -75,7 +92,6 @@ Requirements:
       onClose();
       setStep(1);
       toast.success(`Job "${jobTitle}" successfully created and analyzed!`);
-      // Automatically redirect to the newly created JD Workspace!
       navigate({ to: "/jobs/$jobId", params: { jobId: "job_1" } });
     }, 800);
   };
@@ -106,13 +122,13 @@ Requirements:
           </div>
         </DialogHeader>
 
-        <div className="p-6 space-y-6 max-h-[70vh] overflow-y-auto">
+        <div className="p-6 space-y-6 max-h-[70vh] overflow-y-auto bg-slate-50/30">
           {/* STEP 1: Hiring Type */}
           {step === 1 && (
             <div className="space-y-6">
               <div>
-                <h3 className="text-base font-semibold text-white">Step 1 — Select Hiring Category</h3>
-                <p className="text-xs text-slate-400 mt-1">
+                <h3 className="text-base font-semibold text-slate-900">Step 1 — Select Hiring Category</h3>
+                <p className="text-xs text-slate-500 mt-1">
                   Choose whether this role prioritizes internal talent/bench matching or external candidate recruitment.
                 </p>
               </div>
@@ -123,18 +139,18 @@ Requirements:
                   onClick={() => setHiringType("internal")}
                   className={`p-6 rounded-xl border text-left transition-all ${
                     hiringType === "internal"
-                      ? "bg-sky-500/10 border-sky-500 text-white ring-1 ring-sky-500"
-                      : "bg-slate-900/50 border-slate-800 text-slate-400 hover:border-slate-700"
+                      ? "bg-blue-50 border-blue-500 text-slate-900 ring-1 ring-blue-500"
+                      : "bg-white border-slate-200 text-slate-700 hover:border-slate-300"
                   }`}
                 >
                   <div className="flex items-center justify-between">
-                    <div className="p-3 rounded-lg bg-sky-500/20 text-sky-300">
+                    <div className="p-3 rounded-lg bg-blue-100 text-blue-700">
                       <Briefcase className="w-6 h-6" />
                     </div>
-                    {hiringType === "internal" && <CheckCircle2 className="w-5 h-5 text-sky-400" />}
+                    {hiringType === "internal" && <CheckCircle2 className="w-5 h-5 text-blue-600" />}
                   </div>
-                  <h4 className="font-bold text-slate-200 text-lg mt-4">Internal Hiring</h4>
-                  <p className="text-xs text-slate-400 mt-1 leading-relaxed">
+                  <h4 className="font-bold text-slate-900 text-base mt-4">Internal Hiring</h4>
+                  <p className="text-xs text-slate-500 mt-1 leading-relaxed">
                     Prioritize internal mobility, existing employees, and bench resources. Enables automatic bench auto-matching.
                   </p>
                 </button>
@@ -144,18 +160,18 @@ Requirements:
                   onClick={() => setHiringType("external")}
                   className={`p-6 rounded-xl border text-left transition-all ${
                     hiringType === "external"
-                      ? "bg-indigo-500/10 border-indigo-500 text-white ring-1 ring-indigo-500"
-                      : "bg-slate-900/50 border-slate-800 text-slate-400 hover:border-slate-700"
+                      ? "bg-indigo-50 border-indigo-500 text-slate-900 ring-1 ring-indigo-500"
+                      : "bg-white border-slate-200 text-slate-700 hover:border-slate-300"
                   }`}
                 >
                   <div className="flex items-center justify-between">
-                    <div className="p-3 rounded-lg bg-indigo-500/20 text-indigo-300">
+                    <div className="p-3 rounded-lg bg-indigo-100 text-indigo-700">
                       <Globe className="w-6 h-6" />
                     </div>
-                    {hiringType === "external" && <CheckCircle2 className="w-5 h-5 text-indigo-400" />}
+                    {hiringType === "external" && <CheckCircle2 className="w-5 h-5 text-indigo-600" />}
                   </div>
-                  <h4 className="font-bold text-slate-200 text-lg mt-4">External Hiring</h4>
-                  <p className="text-xs text-slate-400 mt-1 leading-relaxed">
+                  <h4 className="font-bold text-slate-900 text-base mt-4">External Hiring</h4>
+                  <p className="text-xs text-slate-500 mt-1 leading-relaxed">
                     Recruit external applicants via job portals, direct uploads, and public profile enrichment.
                   </p>
                 </button>
@@ -167,50 +183,54 @@ Requirements:
           {step === 2 && (
             <div className="space-y-4">
               <div>
-                <h3 className="text-base font-semibold text-white">Step 2 — Job Information & Metadata</h3>
-                <p className="text-xs text-slate-400 mt-1">Specify target role parameters and organizational details.</p>
+                <h3 className="text-base font-semibold text-slate-900">Step 2 — Job Information & Metadata</h3>
+                <p className="text-xs text-slate-500 mt-1">Specify target role parameters and organizational details.</p>
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="space-y-1.5 md:col-span-2">
-                  <label className="text-xs font-medium text-slate-300">Job Title</label>
+                  <label className="text-xs font-semibold text-slate-700">Job Title</label>
                   <Input
                     value={jobTitle}
                     onChange={(e) => setJobTitle(e.target.value)}
-                    className="bg-slate-900 border-slate-800 text-slate-100 text-xs"
+                    className="bg-white border-slate-200 text-slate-900 text-xs focus:border-blue-500"
+                    placeholder="e.g. Senior Software Engineer"
                   />
                 </div>
                 <div className="space-y-1.5">
-                  <label className="text-xs font-medium text-slate-300">Department</label>
+                  <label className="text-xs font-semibold text-slate-700">Department</label>
                   <Input
                     value={department}
                     onChange={(e) => setDepartment(e.target.value)}
-                    className="bg-slate-900 border-slate-800 text-slate-100 text-xs"
+                    className="bg-white border-slate-200 text-slate-900 text-xs focus:border-blue-500"
+                    placeholder="e.g. Engineering"
                   />
                 </div>
                 <div className="space-y-1.5">
-                  <label className="text-xs font-medium text-slate-300">Location</label>
+                  <label className="text-xs font-semibold text-slate-700">Location</label>
                   <Input
                     value={location}
                     onChange={(e) => setLocation(e.target.value)}
-                    className="bg-slate-900 border-slate-800 text-slate-100 text-xs"
+                    className="bg-white border-slate-200 text-slate-900 text-xs focus:border-blue-500"
+                    placeholder="e.g. Seattle, WA (Hybrid)"
                   />
                 </div>
                 <div className="space-y-1.5">
-                  <label className="text-xs font-medium text-slate-300">Hiring Manager</label>
+                  <label className="text-xs font-semibold text-slate-700">Hiring Manager</label>
                   <Input
                     value={hiringManager}
                     onChange={(e) => setHiringManager(e.target.value)}
-                    className="bg-slate-900 border-slate-800 text-slate-100 text-xs"
+                    className="bg-white border-slate-200 text-slate-900 text-xs focus:border-blue-500"
+                    placeholder="e.g. Sarah Connor"
                   />
                 </div>
                 <div className="space-y-1.5">
-                  <label className="text-xs font-medium text-slate-300">Target Openings</label>
+                  <label className="text-xs font-semibold text-slate-700">Target Openings</label>
                   <Input
                     type="number"
                     value={openings}
                     onChange={(e) => setOpenings(parseInt(e.target.value) || 1)}
-                    className="bg-slate-900 border-slate-800 text-slate-100 text-xs"
+                    className="bg-white border-slate-200 text-slate-900 text-xs focus:border-blue-500"
                   />
                 </div>
               </div>
@@ -221,27 +241,27 @@ Requirements:
           {step === 3 && (
             <div className="space-y-4">
               <div>
-                <h3 className="text-base font-semibold text-white">Step 3 — Job Description & Copilot Assistant</h3>
-                <p className="text-xs text-slate-400 mt-1">Paste your job description text alongside real-time Copilot assistance.</p>
+                <h3 className="text-base font-semibold text-slate-900">Step 3 — Job Description & Copilot Assistant</h3>
+                <p className="text-xs text-slate-500 mt-1">Paste or edit your job description text with real-time Copilot assistance.</p>
               </div>
 
               <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
                 <div className="lg:col-span-2 space-y-2">
-                  <label className="text-xs font-medium text-slate-300">Job Description Text</label>
+                  <label className="text-xs font-semibold text-slate-700">Job Description Text</label>
                   <Textarea
                     value={descriptionText}
                     onChange={(e) => setDescriptionText(e.target.value)}
                     rows={10}
-                    className="bg-slate-900 border-slate-800 text-slate-200 text-xs font-mono"
+                    className="bg-white border-slate-200 text-slate-900 text-xs font-sans leading-relaxed"
                   />
                 </div>
 
-                <div className="p-4 rounded-xl bg-slate-900/90 border border-slate-800 space-y-3">
-                  <div className="flex items-center gap-2 text-sky-400 text-xs font-bold">
+                <div className="p-4 rounded-xl bg-blue-50/50 border border-blue-200 space-y-3">
+                  <div className="flex items-center gap-2 text-blue-700 text-xs font-bold">
                     <Bot className="w-4 h-4" /> Copilot Assistant
                   </div>
-                  <p className="text-[11px] text-slate-400">
-                    I can analyze your job description to detect overly restrictive requirements or suggest improvements.
+                  <p className="text-[11px] text-slate-600">
+                    I can analyze your job description to detect restrictive requirements or suggest improvements.
                   </p>
 
                   <div className="space-y-2">
@@ -250,7 +270,7 @@ Requirements:
                       variant="outline"
                       size="sm"
                       onClick={() => handleAskCopilot("restrictive")}
-                      className="w-full text-[11px] border-slate-700 text-slate-300 hover:bg-sky-500/10 justify-start"
+                      className="w-full text-[11px] border-slate-200 bg-white text-slate-700 hover:bg-blue-50 justify-start"
                     >
                       "Is this JD too restrictive?"
                     </Button>
@@ -259,14 +279,14 @@ Requirements:
                       variant="outline"
                       size="sm"
                       onClick={() => handleAskCopilot("wording")}
-                      className="w-full text-[11px] border-slate-700 text-slate-300 hover:bg-sky-500/10 justify-start"
+                      className="w-full text-[11px] border-slate-200 bg-white text-slate-700 hover:bg-blue-50 justify-start"
                     >
                       "Improve wording & clarity"
                     </Button>
                   </div>
 
                   {copilotFeedback && (
-                    <div className="p-3 rounded-lg bg-sky-500/10 border border-sky-500/30 text-sky-300 text-xs leading-relaxed animate-in fade-in">
+                    <div className="p-3 rounded-lg bg-white border border-blue-200 text-blue-900 text-xs leading-relaxed animate-in fade-in shadow-xs">
                       {copilotFeedback}
                     </div>
                   )}
@@ -275,45 +295,51 @@ Requirements:
             </div>
           )}
 
-          {/* STEP 4: Job Description Analysis */}
+          {/* STEP 4: Job Description Analysis & Editable Skills */}
           {step === 4 && (
             <div className="space-y-4">
               <div>
-                <h3 className="text-base font-semibold text-white">Step 4 — Extracted Requirements Analysis</h3>
-                <p className="text-xs text-slate-400 mt-1">Review AI-parsed requirements extracted from your job description.</p>
+                <h3 className="text-base font-semibold text-slate-900">Step 4 — Required & Preferred Skills Tagging</h3>
+                <p className="text-xs text-slate-500 mt-1">Add, edit, or remove required and preferred skills for automated matching.</p>
+              </div>
+
+              <div className="flex items-center gap-2 mb-2">
+                <Input
+                  value={newSkillInput}
+                  onChange={(e) => setNewSkillInput(e.target.value)}
+                  placeholder="Type a skill (e.g. FastAPI, AWS, Docker) and add..."
+                  className="bg-white border-slate-200 text-xs"
+                />
+                <Button size="sm" onClick={() => handleAddSkill("required")} className="bg-blue-600 text-white text-xs whitespace-nowrap">
+                  + Add Required
+                </Button>
+                <Button size="sm" variant="outline" onClick={() => handleAddSkill("preferred")} className="border-slate-200 text-xs whitespace-nowrap">
+                  + Add Preferred
+                </Button>
               </div>
 
               <div className="space-y-4">
                 <div className="space-y-2">
-                  <label className="text-xs font-medium text-slate-300">Required Skills</label>
+                  <label className="text-xs font-semibold text-slate-700">Required Skills ({requiredSkills.length})</label>
                   <div className="flex flex-wrap gap-2">
                     {requiredSkills.map((sk) => (
-                      <Badge key={sk} className="bg-sky-500/20 text-sky-300 border-sky-500/40 text-xs px-2.5 py-1">
+                      <Badge key={sk} className="bg-blue-50 text-blue-700 border-blue-200 text-xs px-2.5 py-1 flex items-center gap-1.5">
                         ✓ {sk}
+                        <span onClick={() => handleRemoveSkill(sk, "required")} className="hover:text-rose-600 cursor-pointer font-bold ml-1">×</span>
                       </Badge>
                     ))}
                   </div>
                 </div>
 
                 <div className="space-y-2">
-                  <label className="text-xs font-medium text-slate-300">Preferred Skills</label>
+                  <label className="text-xs font-semibold text-slate-700">Preferred Skills ({preferredSkills.length})</label>
                   <div className="flex flex-wrap gap-2">
                     {preferredSkills.map((sk) => (
-                      <Badge key={sk} variant="outline" className="text-slate-300 border-slate-700 text-xs px-2.5 py-1">
+                      <Badge key={sk} variant="outline" className="text-slate-700 bg-white border-slate-200 text-xs px-2.5 py-1 flex items-center gap-1.5">
                         + {sk}
+                        <span onClick={() => handleRemoveSkill(sk, "preferred")} className="hover:text-rose-600 cursor-pointer font-bold ml-1">×</span>
                       </Badge>
                     ))}
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-2 gap-4 pt-2">
-                  <div className="p-3 rounded-lg bg-slate-900 border border-slate-800 text-xs">
-                    <span className="text-slate-400">Target Experience:</span>
-                    <p className="font-semibold text-slate-200 text-sm mt-0.5">5+ Years Senior Level</p>
-                  </div>
-                  <div className="p-3 rounded-lg bg-slate-900 border border-slate-800 text-xs">
-                    <span className="text-slate-400">Required Education:</span>
-                    <p className="font-semibold text-slate-200 text-sm mt-0.5">Bachelor's Degree in CS</p>
                   </div>
                 </div>
               </div>
@@ -324,31 +350,28 @@ Requirements:
           {step === 5 && (
             <div className="space-y-4">
               <div>
-                <h3 className="text-base font-semibold text-white">Step 5 — Historical Hiring Cycle Intelligence</h3>
-                <p className="text-xs text-slate-400 mt-1">Copilot benchmarked this position against similar historical hiring cycles.</p>
+                <h3 className="text-base font-semibold text-slate-900">Step 5 — Historical Hiring Cycle Intelligence</h3>
+                <p className="text-xs text-slate-500 mt-1">Copilot benchmarked this position against similar historical hiring cycles.</p>
               </div>
 
-              <div className="p-4 rounded-xl bg-slate-900 border border-slate-800 space-y-3">
-                <div className="flex items-center gap-2 text-indigo-400 text-xs font-semibold">
+              <div className="p-4 rounded-xl bg-white border border-slate-200 space-y-3 shadow-xs">
+                <div className="flex items-center gap-2 text-indigo-700 text-xs font-semibold">
                   <History className="w-4 h-4" /> Similar Past Role: Senior Backend Engineer (March 2026)
                 </div>
                 <div className="grid grid-cols-3 gap-3 pt-2 text-center">
-                  <div className="p-3 rounded-lg bg-slate-950 border border-slate-800">
-                    <div className="text-lg font-bold text-white">86</div>
-                    <div className="text-[10px] text-slate-400">Total Applicants</div>
+                  <div className="p-3 rounded-lg bg-slate-50 border border-slate-200">
+                    <div className="text-lg font-bold text-slate-900">86</div>
+                    <div className="text-[10px] text-slate-500">Total Applicants</div>
                   </div>
-                  <div className="p-3 rounded-lg bg-slate-950 border border-slate-800">
-                    <div className="text-lg font-bold text-sky-400">89%</div>
-                    <div className="text-[10px] text-slate-400">Top Candidate Score</div>
+                  <div className="p-3 rounded-lg bg-slate-50 border border-slate-200">
+                    <div className="text-lg font-bold text-blue-600">89%</div>
+                    <div className="text-[10px] text-slate-500">Top Candidate Score</div>
                   </div>
-                  <div className="p-3 rounded-lg bg-slate-950 border border-slate-800">
-                    <div className="text-lg font-bold text-emerald-400">18 Days</div>
-                    <div className="text-[10px] text-slate-400">Avg Time-to-Hire</div>
+                  <div className="p-3 rounded-lg bg-slate-50 border border-slate-200">
+                    <div className="text-lg font-bold text-emerald-600">18 Days</div>
+                    <div className="text-[10px] text-slate-500">Avg Time-to-Hire</div>
                   </div>
                 </div>
-                <p className="text-xs text-slate-400 leading-relaxed pt-2">
-                  <strong>Historical Insight:</strong> In the March hiring cycle, mandatory Terraform requirements eliminated 35% of qualified applicants. Keeping Terraform as preferred yielded 2x more top-tier candidates.
-                </p>
               </div>
             </div>
           )}
@@ -357,32 +380,19 @@ Requirements:
           {step === 6 && (
             <div className="space-y-4">
               <div>
-                <h3 className="text-base font-semibold text-white">Step 6 — Final Review & Multi-Channel Distribution</h3>
-                <p className="text-xs text-slate-400 mt-1">Confirm job creation and automated portal posting.</p>
+                <h3 className="text-base font-semibold text-slate-900">Step 6 — Final Review & Multi-Channel Distribution</h3>
+                <p className="text-xs text-slate-500 mt-1">Confirm job creation and automated portal posting.</p>
               </div>
 
-              <div className="p-4 rounded-xl bg-slate-900 border border-slate-800 space-y-4">
+              <div className="p-4 rounded-xl bg-white border border-slate-200 space-y-4 shadow-xs">
                 <div className="flex items-center justify-between">
                   <div>
-                    <h4 className="font-bold text-white text-base">{jobTitle}</h4>
-                    <p className="text-xs text-slate-400">{department} • {location} • {employmentType}</p>
+                    <h4 className="font-bold text-slate-900 text-base">{jobTitle}</h4>
+                    <p className="text-xs text-slate-500">{department} • {location} • {employmentType}</p>
                   </div>
-                  <Badge className="bg-sky-500/20 text-sky-300 border-sky-500/30 text-xs">
+                  <Badge className="bg-emerald-50 text-emerald-700 border-emerald-200 text-xs font-bold">
                     Ready to Publish
                   </Badge>
-                </div>
-
-                <div className="pt-2 space-y-2 border-t border-slate-800">
-                  <label className="flex items-center gap-3 text-xs text-slate-200 cursor-pointer">
-                    <input
-                      type="checkbox"
-                      checked={postToLinkedIn}
-                      onChange={(e) => setPostToLinkedIn(e.target.checked)}
-                      className="rounded border-slate-800 bg-slate-950 text-sky-500"
-                    />
-                    <Share2 className="w-4 h-4 text-sky-400" />
-                    Simulate automated job posting to LinkedIn Recruiter & Indeed
-                  </label>
                 </div>
               </div>
             </div>
@@ -390,13 +400,13 @@ Requirements:
         </div>
 
         {/* Footer Navigation */}
-        <div className="p-6 bg-slate-900/80 border-t border-slate-800 flex items-center justify-between">
+        <div className="p-5 bg-slate-50 border-t border-slate-200 flex items-center justify-between">
           <Button
             type="button"
-            variant="ghost"
+            variant="outline"
             disabled={step === 1}
             onClick={() => setStep((s) => s - 1)}
-            className="text-xs text-slate-400 hover:text-slate-200 flex items-center gap-1"
+            className="text-xs border-slate-200 bg-white text-slate-700 hover:bg-slate-100 flex items-center gap-1"
           >
             <ArrowLeft className="w-4 h-4" /> Back
           </Button>
@@ -405,7 +415,7 @@ Requirements:
             <Button
               type="button"
               onClick={() => setStep((s) => s + 1)}
-              className="bg-sky-500 hover:bg-sky-400 text-slate-950 font-semibold text-xs flex items-center gap-1.5"
+              className="bg-blue-600 hover:bg-blue-700 text-white font-medium text-xs flex items-center gap-1.5 rounded-lg"
             >
               Continue <ArrowRight className="w-4 h-4" />
             </Button>
@@ -414,7 +424,7 @@ Requirements:
               type="button"
               disabled={isSubmitting}
               onClick={handleCreateJob}
-              className="bg-gradient-to-r from-sky-500 to-indigo-600 hover:from-sky-400 hover:to-indigo-500 text-white font-semibold text-xs flex items-center gap-1.5 shadow-lg shadow-sky-500/20"
+              className="bg-blue-600 hover:bg-blue-700 text-white font-medium text-xs flex items-center gap-1.5 shadow-sm rounded-lg"
             >
               {isSubmitting ? "Creating & Opening Workspace..." : "Create Job & Open JD Workspace"}
             </Button>
@@ -424,3 +434,4 @@ Requirements:
     </Dialog>
   );
 }
+

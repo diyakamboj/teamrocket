@@ -1,5 +1,7 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { useMemo, useState } from "react";
+import { useMemo, useState, useEffect } from "react";
+import { fetchCandidatesFromBackend } from "@/lib/api";
+
 import {
   Calendar,
   Check,
@@ -191,10 +193,12 @@ function DecisionControls({
   );
 }
 
-function Candidates() {
+export function Candidates() {
+
   const {
     weights,
     setWeights,
+    resetWeights,
     blindMode,
     setBlindMode,
     compareIds,
@@ -209,8 +213,57 @@ function Candidates() {
   const [expanded, setExpanded] = useState<string | null>(null);
   const [panelOpen, setPanelOpen] = useState(true);
   const [decisions, setDecisions] = useState<Record<string, DecisionState>>({});
+  const [backendCandidates, setBackendCandidates] = useState<Candidate[]>([]);
 
-  const ranked = useMemo(() => rankCandidates(CANDIDATES, weights), [weights]);
+  useEffect(() => {
+    fetchCandidatesFromBackend()
+      .then((apiCandidates) => {
+        if (apiCandidates && apiCandidates.length > 0) {
+          const converted: Candidate[] = apiCandidates.map((c, idx) => ({
+            id: c.id,
+            rank: idx + 1,
+            name: c.name,
+            email: c.email,
+            phone: c.phone || "",
+            location: "Seattle, WA",
+            title: c.skills.length > 0 ? `${c.skills[0]} Specialist` : "Software Engineer",
+            company: "Applicant Candidate",
+            score: 88,
+            level: "Senior",
+            summary: `Parsed from resume upload`,
+            skills: c.skills.length > 0 ? c.skills : ["Python", "FastAPI", "Azure"],
+            categories: {
+              skills: 90,
+              experience: 85,
+              education: 80,
+              certifications: 75,
+              projects: 85,
+            },
+            mustHaves: {},
+            strengths: ["Direct skill match from uploaded resume"],
+            gaps: [],
+            highlights: [],
+            availability: "Immediate",
+            timeline: [],
+            rawResumeText: c.resume_text || "",
+          }));
+          setBackendCandidates(converted);
+        }
+      })
+      .catch((err) => console.error("Could not load candidates from backend:", err));
+  }, []);
+
+  const combinedCandidates = useMemo(() => {
+    const map = new Map<string, Candidate>();
+    for (const c of backendCandidates) map.set(c.id, c);
+    for (const c of CANDIDATES) {
+      if (!map.has(c.id)) map.set(c.id, c);
+    }
+    return Array.from(map.values());
+  }, [backendCandidates]);
+
+  const ranked = useMemo(() => rankCandidates(combinedCandidates, weights), [combinedCandidates, weights]);
+
 
   async function handleDecision(candidate: Candidate, decision: "approved" | "rejected") {
     setDecisions((d) => ({ ...d, [candidate.id]: { status: "sending" } }));

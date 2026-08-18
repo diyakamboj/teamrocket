@@ -1,5 +1,6 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
-import { useState } from "react";
+import { useState, useRef } from "react";
+
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -102,6 +103,7 @@ const INITIAL_CANDIDATES: CandidateRow[] = [
 function JobWorkspacePage() {
   const { jobId } = Route.useParams();
   const navigate = useNavigate();
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const [activeTab, setActiveTab] = useState<"overview" | "candidates" | "upload" | "pipeline" | "insights">("candidates");
   const [candidates, setCandidates] = useState<CandidateRow[]>(INITIAL_CANDIDATES);
@@ -111,6 +113,40 @@ function JobWorkspacePage() {
   const [showWeightSliders, setShowWeightSliders] = useState(false);
   const [weights, setWeights] = useState({ skills: 35, experience: 25, education: 15, certifications: 10, projects: 15 });
   const [blindMode, setBlindMode] = useState(false);
+  const [uploadedFiles, setUploadedFiles] = useState<
+    Array<{ name: string; size: string; status: string; color: string }>
+  >([]);
+
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const fileList = e.target.files;
+    if (!fileList || fileList.length === 0) return;
+
+    const fileArray = Array.from(fileList);
+    const newItems = fileArray.map((f) => ({
+      name: f.name,
+      size: `${(f.size / 1024).toFixed(1)} KB`,
+      status: "⟳ Processing OCR & AI Parsing...",
+      color: "text-blue-600",
+    }));
+
+    setUploadedFiles((prev) => [...newItems, ...prev]);
+
+    try {
+      const res = await uploadResumesToBackend(fileArray);
+      setUploadedFiles((prev) =>
+        prev.map((item) =>
+          fileArray.some((f) => f.name === item.name)
+            ? { ...item, status: "✓ Parsed & Saved to Candidates Store", color: "text-emerald-700" }
+            : item
+        )
+      );
+      toast.success(`Uploaded & parsed ${res.files.length} resume(s) into candidates database!`);
+    } catch (err: any) {
+      toast.error(`Upload error: ${err.message || "Failed to parse resume files"}`);
+    }
+  };
+
+
 
   // Filter candidates
   const filteredCandidates = candidates.filter((c) => {
@@ -367,33 +403,57 @@ function JobWorkspacePage() {
       {/* TAB 3: BULK RESUME UPLOAD */}
       {activeTab === "upload" && (
         <Card className="bg-white border-slate-200 p-8 space-y-6 rounded-xl shadow-xs">
-          <div className="border-2 border-dashed border-slate-200 rounded-xl p-12 text-center space-y-4 hover:border-blue-400 transition-all cursor-pointer bg-slate-50/50">
+          <input
+            ref={fileInputRef}
+            type="file"
+            multiple
+            accept=".pdf,.docx,.txt,.png,.jpg"
+            className="hidden"
+            onChange={handleFileUpload}
+          />
+          <div
+            onClick={() => fileInputRef.current?.click()}
+            className="border-2 border-dashed border-slate-200 rounded-xl p-12 text-center space-y-4 hover:border-blue-400 transition-all cursor-pointer bg-slate-50/50"
+          >
             <UploadCloud className="w-10 h-10 text-blue-600 mx-auto" />
             <div>
               <h3 className="text-base font-bold text-slate-900">Drag & drop candidate resumes here</h3>
               <p className="text-xs text-slate-500 mt-1">Supports PDF, DOCX, Scanned Resumes (Automated OCR Parsing)</p>
             </div>
-            <Button className="bg-blue-600 hover:bg-blue-700 text-white font-medium text-xs rounded-lg">
+            <Button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                fileInputRef.current?.click();
+              }}
+              className="bg-blue-600 hover:bg-blue-700 text-white font-medium text-xs rounded-lg"
+            >
               Select PDF Files
             </Button>
           </div>
 
-          <div className="space-y-2">
-            <h4 className="text-xs font-bold text-slate-500 uppercase tracking-wider">Processing Status Tracker</h4>
-            {[
-              { name: "resume_alex_johnson.pdf", status: "✓ Parsed & Scored", color: "text-emerald-700" },
-              { name: "resume_david_chen.pdf", status: "✓ Parsed & Scored", color: "text-emerald-700" },
-              { name: "resume_marcus_vance.pdf", status: "⟳ Enrichment Processing", color: "text-blue-600" },
-              { name: "scanned_doc_4.pdf", status: "⚠️ Timeline Anomaly Detected", color: "text-amber-700" },
-            ].map((f, idx) => (
-              <div key={idx} className="p-3 rounded-lg bg-slate-50 border border-slate-200 flex items-center justify-between text-xs">
-                <span className="font-mono text-slate-700">{f.name}</span>
-                <span className={`font-semibold ${f.color}`}>{f.status}</span>
+          <div className="space-y-3">
+            <h4 className="text-xs font-bold text-slate-500 uppercase tracking-wider">
+              Processing Status Tracker ({uploadedFiles.length})
+            </h4>
+            {uploadedFiles.length > 0 ? (
+              <div className="space-y-2">
+                {uploadedFiles.map((f, idx) => (
+                  <div key={idx} className="p-3 rounded-lg bg-slate-50 border border-slate-200 flex items-center justify-between text-xs">
+                    <span className="font-mono text-slate-700">{f.name} ({f.size})</span>
+                    <span className={`font-semibold ${f.color}`}>{f.status}</span>
+                  </div>
+                ))}
               </div>
-            ))}
+            ) : (
+              <div className="p-6 text-center text-xs text-slate-400 border border-slate-100 rounded-lg bg-slate-50/50">
+                No candidate resumes uploaded to this workspace yet. Click above to select PDF/DOCX files.
+              </div>
+            )}
           </div>
         </Card>
       )}
+
 
       {/* CANDIDATE DETAIL MODAL */}
       {selectedCandidateId && (

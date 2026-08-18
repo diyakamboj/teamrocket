@@ -147,13 +147,14 @@ function DashboardPage() {
           </div>
 
           <div className="p-4 border-t border-slate-100 bg-slate-50/50">
-            <Button
-              onClick={() => setIsCreateModalOpen(true)}
-              variant="outline"
-              className="w-full border-slate-200 bg-white text-slate-700 hover:bg-slate-50 text-xs font-semibold flex items-center justify-center gap-2"
-            >
-              <PlusCircle className="w-3.5 h-3.5" /> + Create Internal Job
-            </Button>
+            <Link to="/internal-hiring">
+              <Button
+                variant="outline"
+                className="w-full border-slate-200 bg-white text-slate-700 hover:bg-slate-50 text-xs font-semibold flex items-center justify-center gap-2"
+              >
+                Go to Internal Mobility Workspace →
+              </Button>
+            </Link>
           </div>
         </Card>
 
@@ -225,15 +226,17 @@ function DashboardPage() {
           </div>
 
           <div className="p-4 border-t border-slate-100 bg-slate-50/50">
-            <Button
-              onClick={() => setIsCreateModalOpen(true)}
-              variant="outline"
-              className="w-full border-slate-200 bg-white text-slate-700 hover:bg-slate-50 text-xs font-semibold flex items-center justify-center gap-2"
-            >
-              <PlusCircle className="w-3.5 h-3.5" /> + Create External Job
-            </Button>
+            <Link to="/external-hiring">
+              <Button
+                variant="outline"
+                className="w-full border-slate-200 bg-white text-slate-700 hover:bg-slate-50 text-xs font-semibold flex items-center justify-center gap-2"
+              >
+                Go to External Sourcing Workspace →
+              </Button>
+            </Link>
           </div>
         </Card>
+
       </div>
 
       {/* RECRUITER AGENT ACTION FEED */}

@@ -405,20 +405,46 @@ class AzureDocumentIntelligenceService:
                 credential=AzureKeyCredential(settings.AZURE_DOCUMENT_INTELLIGENCE_KEY),
             )
 
+    def _extract_pdf_or_docx_fallback(self, file_bytes: bytes, filename: str) -> str:
+        ext = filename.lower().rsplit(".", 1)[-1] if "." in filename else ""
+        if ext == "pdf":
+            try:
+                import io
+                from pypdf import PdfReader
+                reader = PdfReader(io.BytesIO(file_bytes))
+                text_parts = [page.extract_text() for page in reader.pages if page.extract_text()]
+                if text_parts:
+                    return "\n".join(text_parts)
+            except Exception:
+                pass
+            try:
+                text = file_bytes.decode("latin1", errors="ignore")
+                matches = re.findall(r"\(([^()]{3,})\)", text)
+                if len(matches) > 5:
+                    return "\n".join(matches)
+            except Exception:
+                pass
+        return ""
+
     def extract_text(self, file_bytes: bytes, filename: str = "resume.pdf") -> str:
         if self.mock:
-            # Prefer plain-text files in mock mode; otherwise return placeholder OCR text.
             if filename.lower().endswith(".txt"):
                 return file_bytes.decode("utf-8", errors="ignore")
+            extracted = self._extract_pdf_or_docx_fallback(file_bytes, filename)
+            if extracted and len(extracted.strip()) > 30:
+                return extracted
+            clean_name = filename.replace("_", " ").replace("-", " ").rsplit(".", 1)[0].title()
+            clean_email = re.sub(r"[^a-zA-Z0-9]", "", filename.lower().rsplit(".", 1)[0]) or "candidate"
             return (
-                "John Doe\nSoftware Engineer\nemail: john.doe@example.com\n"
-                "Skills: Python, SQL, Azure, Docker, FastAPI\n"
-                "Experience: Built REST APIs and cloud services for 4 years.\n"
-                "Education: BSc Computer Science\n"
-                "Projects: Resume ranking assistant using FastAPI"
+                f"{clean_name}\nSoftware Engineer\nemail: {clean_email}@example.com\n"
+                "Skills: Python, React, Azure, Docker, FastAPI, Kubernetes\n"
+                "Experience: Senior Software Engineer with 5 years experience building cloud services.\n"
+                "Education: Bachelor of Science in Computer Science\n"
+                "Projects: Distributed systems and microservices platform"
             )
 
         assert self._client is not None
+
         try:
             poller = self._client.begin_analyze_document(
                 "prebuilt-read",
