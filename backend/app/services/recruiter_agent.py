@@ -200,6 +200,37 @@ class RecruiterCopilot:
         sessions.sort(key=lambda s: s.updated_at, reverse=True)
         return sessions[:50]
 
+    def _build_context(
+        self,
+        job: JobPosting,
+        ranked: list[dict[str, Any]],
+        top: list[dict[str, Any]],
+        user_query: str,
+        *,
+        blind_mode: bool = False,
+    ) -> str:
+        """Compact pool snapshot for tests and Chat-with-Your-Data fallbacks."""
+        identity = (
+            "Blind review is ON. Refer to candidates only by their anonymized labels; "
+            "do not infer or reveal real names or emails."
+            if blind_mode
+            else "Blind review is OFF. Candidate names may be shown."
+        )
+        compact = [
+            {
+                "name": item.get("name"),
+                "overall_score": item.get("overall_score"),
+            }
+            for item in top
+        ]
+        return (
+            f"Role: {job.title}\n"
+            f"{identity}\n"
+            f"Candidate pool size: {len(ranked)}\n"
+            f"Top candidates: {compact}\n"
+            f"User question: {user_query}"
+        )
+
     def _to_cwyd_messages(
         self,
         history: list[dict[str, Any]],

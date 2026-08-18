@@ -36,6 +36,7 @@ class Evidence(BaseModel):
     resume_text_snippet: Optional[str] = None
     source_section: Optional[str] = None
     confidence_score: Optional[Decimal] = None
+    dimension: Optional[str] = None
     created_at: datetime = Field(default_factory=_utcnow)
 
 
