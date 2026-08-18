@@ -1,0 +1,80 @@
+# Runs on every PR that touches infra files. Posts a plan for review — never
+# applies. Uses the `pull_request` federated credential on the
+# `github-teamrocket-terraform` app registration (KNOWN-ISSUES.md #12), so no
+# client secret is stored anywhere; auth is via short-lived OIDC token
+# exchange (ARM_USE_OIDC below).
+#
+# ASSUMPTION: this workspace (teamrocket-infra/) lands inside
+# diyakamboj/teamrocket at `infra/terraform/` once pushed (CHANGELOG.md R8 —
+# "most likely" location, not yet finalized). If it ends up somewhere else,
+# update TF_WORKING_DIR and the `paths:` filter below to match.
+
+name: Terraform Plan
+
+on:
+  pull_request:
+    paths:
+      - "infra/terraform/**"
+      - ".github/workflows/terraform-plan.yml"
+
+permissions:
+  id-token: write   # required for OIDC federated credential auth
+  contents: read
+  pull-requests: write # lets the job comment the plan output on the PR
+
+env:
+  TF_WORKING_DIR: infra/terraform
+  ARM_USE_OIDC: true
+  ARM_CLIENT_ID: ${{ vars.ARM_CLIENT_ID }}
+  ARM_TENANT_ID: ${{ vars.ARM_TENANT_ID }}
+  ARM_SUBSCRIPTION_ID: ${{ vars.ARM_SUBSCRIPTION_ID }}
+  # Static copies of Group5-6 values (see terraform/data.tf's comment on why
+  # these are no longer live data-source reads) — real GitHub Secrets, not
+  # repo variables, since these are actual credentials.
+  TF_VAR_openai_api_key: ${{ secrets.OPENAI_API_KEY }}
+  TF_VAR_openai_endpoint: ${{ secrets.OPENAI_ENDPOINT }}
+  TF_VAR_embedding_api_key: ${{ secrets.EMBEDDING_API_KEY }}
+  TF_VAR_search_api_key: ${{ secrets.SEARCH_API_KEY }}
+  TF_VAR_search_endpoint: ${{ secrets.SEARCH_ENDPOINT }}
+
+jobs:
+  plan:
+    name: Plan
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: "1.9.*"
+
+      - name: Terraform Format Check
+        working-directory: ${{ env.TF_WORKING_DIR }}
+        run: terraform fmt -check -recursive
+
+      - name: Terraform Init
+        working-directory: ${{ env.TF_WORKING_DIR }}
+        run: terraform init -input=false
+
+      - name: Terraform Validate
+        working-directory: ${{ env.TF_WORKING_DIR }}
+        run: terraform validate
+
+      - name: Terraform Plan
+        id: plan
+        working-directory: ${{ env.TF_WORKING_DIR }}
+        run: |
+          terraform plan -input=false -no-color \
+            -var-file=environments/dev.tfvars \
+            -out=tfplan
+        continue-on-error: true
+
+      - name: Show Plan (readable)
+        working-directory: ${{ env.TF_WORKING_DIR }}
+        run: terraform show -no-color tfplan
+
+      - name: Fail if Plan Errored
+        if: steps.plan.outcome == 'failure'
+        run: exit 1

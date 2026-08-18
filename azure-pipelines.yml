@@ -1,0 +1,207 @@
+# Azure DevOps pipeline — APP CI/CD only (build + deploy backend & frontend
+# code onto the App Service and storage account Terraform already
+# provisions). Does NOT run Terraform — infra provisioning is GitHub
+# Actions' job (see .github/workflows/terraform-*.yml). This split matches
+# DOCUMENTATION.md's architecture line:
+#   Terraform → GitHub Actions (plan/apply) → Azure DevOps (app CI/CD)
+#
+# PLACEMENT: this file assumes it lives at the ROOT of diyakamboj/teamrocket
+# (sibling to backend/ and frontend/), not under infra/ — unlike the
+# Terraform files, this pipeline builds app code that already lives at the
+# repo root on that branch.
+#
+# SERVICE CONNECTION: "TeamRocket-Appservices" (ARM, scoped to the
+# TeamRocket resource group in Quadrant Internship — KNOWN-ISSUES.md #15).
+# Only Contributor-level access is needed here; this pipeline never creates
+# role assignments or touches Key Vault RBAC (see KNOWN-ISSUES.md #12/#13
+# for why that distinction matters).
+#
+# BRANCH: triggers on `main`. NOTE — per KNOWN-ISSUES.md #9, `phase-2`
+# (backend, authoritative) and `testing` (frontend polish) are not yet
+# merged; this pipeline won't have real code to build/deploy against `main`
+# until that merge happens. Update the trigger below if the merge plan ends
+# up targeting a different branch name.
+#
+# CONFIRMED against frontend/.env.example: the backend URL env var is
+# VITE_API_BASE_URL (default there is http://localhost:8000 for local dev;
+# the build below points it at the real deployed backend URL instead).
+# That file also defines VITE_RECRUITER_EMAIL (audit-trail header, defaults
+# to recruiter@example.com) — not infra-derived, left at its default here.
+#
+# STILL UNCONFIRMED — verify against actual repo contents before relying on
+# this:
+#   - frontend's build script is `npm run build` (standard Vite scaffold;
+#     package.json's scripts block wasn't inspected directly)
+#
+# SCM_DO_BUILD_DURING_DEPLOYMENT=true (Oryx build-on-deploy, so
+# `pip install -r requirements.txt` runs server-side) is now tracked as a
+# real app_settings entry in app_service.tf, not set here via CLI.
+
+trigger:
+  branches:
+    include:
+      - main
+  paths:
+    include:
+      - backend/**
+      - frontend/**
+      - azure-pipelines.yml
+
+pr:
+  branches:
+    include:
+      - main
+  paths:
+    include:
+      - backend/**
+      - frontend/**
+
+variables:
+  azureServiceConnection: "TeamRocket-Appservices"
+  backendAppName: "app-resumeiq-backend-dev"
+  resourceGroupName: "TeamRocket"
+  # Storage account name has a random suffix (storage.tf) so it can't be
+  # hardcoded — the deploy job below resolves it at runtime by prefix match.
+  storageAccountPrefix: "stresumeiqdev"
+  vmImageName: "ubuntu-latest"
+
+stages:
+  # ---------------------------------------------------------------------
+  # BUILD — runs on every PR into main and on every push to main.
+  # Validates both apps build cleanly; produces deployable artifacts.
+  # ---------------------------------------------------------------------
+  - stage: Build
+    jobs:
+      - job: BuildBackend
+        displayName: "Build & Test Backend"
+        pool:
+          vmImage: $(vmImageName)
+        steps:
+          - task: UsePythonVersion@0
+            inputs:
+              versionSpec: "3.12"
+
+          - script: |
+              cd backend
+              python -m pip install --upgrade pip
+              pip install -r requirements.txt
+            displayName: "Install backend dependencies"
+
+          - script: |
+              cd backend
+              pytest
+            displayName: "Run backend tests"
+
+          - task: ArchiveFiles@2
+            displayName: "Zip backend for deploy"
+            inputs:
+              rootFolderOrFile: "$(Build.SourcesDirectory)/backend"
+              includeRootFolder: false
+              archiveType: "zip"
+              archiveFile: "$(Build.ArtifactStagingDirectory)/backend.zip"
+
+          - publish: "$(Build.ArtifactStagingDirectory)/backend.zip"
+            artifact: backend-package
+
+      - job: BuildFrontend
+        displayName: "Build Frontend"
+        pool:
+          vmImage: $(vmImageName)
+        steps:
+          - task: NodeTool@0
+            inputs:
+              versionSpec: "20.x"
+
+          - script: |
+              cd frontend
+              npm ci
+            displayName: "Install frontend dependencies"
+
+          - script: |
+              cd frontend
+              npm run build
+            displayName: "Build frontend (vite build)"
+            env:
+              # Backend URL is deterministic (no random suffix on the App
+              # Service name) — see outputs.tf's backend_url output.
+              VITE_API_BASE_URL: "https://$(backendAppName).azurewebsites.net"
+
+          - task: ArchiveFiles@2
+            displayName: "Zip frontend dist for deploy"
+            inputs:
+              rootFolderOrFile: "$(Build.SourcesDirectory)/frontend/dist"
+              includeRootFolder: false
+              archiveType: "zip"
+              archiveFile: "$(Build.ArtifactStagingDirectory)/frontend-dist.zip"
+
+          - publish: "$(Build.ArtifactStagingDirectory)/frontend-dist.zip"
+            artifact: frontend-dist
+
+  # ---------------------------------------------------------------------
+  # DEPLOY — only on main (never on PRs). Gated behind the 'dev' ADO
+  # Environment, so approvals/checks can be configured there if wanted —
+  # same instinct as the GitHub Actions apply workflow's `environment: dev`.
+  # ---------------------------------------------------------------------
+  - stage: Deploy
+    dependsOn: Build
+    condition: and(succeeded(), eq(variables['Build.SourceBranch'], 'refs/heads/main'))
+    jobs:
+      - deployment: DeployBackend
+        displayName: "Deploy Backend to App Service"
+        pool:
+          vmImage: $(vmImageName)
+        environment: dev
+        strategy:
+          runOnce:
+            deploy:
+              steps:
+                - task: AzureWebApp@1
+                  displayName: "Deploy backend zip"
+                  inputs:
+                    azureSubscription: $(azureServiceConnection)
+                    appType: "webAppLinux"
+                    appName: $(backendAppName)
+                    package: "$(Pipeline.Workspace)/backend-package/backend.zip"
+                    startUpCommand: "uvicorn app.main:app --host 0.0.0.0 --port 8000"
+                  # SCM_DO_BUILD_DURING_DEPLOYMENT=true is now set as a
+                  # tracked app_settings entry in app_service.tf, rather
+                  # than force-set here via CLI on every deploy.
+
+      - deployment: DeployFrontend
+        displayName: "Deploy Frontend to Static Website"
+        pool:
+          vmImage: $(vmImageName)
+        environment: dev
+        strategy:
+          runOnce:
+            deploy:
+              steps:
+                - task: ExtractFiles@1
+                  inputs:
+                    archiveFilePatterns: "$(Pipeline.Workspace)/frontend-dist/frontend-dist.zip"
+                    destinationFolder: "$(Pipeline.Workspace)/frontend-dist-extracted"
+
+                - task: AzureCLI@2
+                  displayName: "Upload frontend build to \$web container"
+                  inputs:
+                    azureSubscription: $(azureServiceConnection)
+                    scriptType: "bash"
+                    scriptLocation: "inlineScript"
+                    inlineScript: |
+                      set -euo pipefail
+                      STORAGE_ACCOUNT=$(az storage account list \
+                        --resource-group $(resourceGroupName) \
+                        --query "[?starts_with(name, '$(storageAccountPrefix)')].name | [0]" \
+                        -o tsv)
+
+                      if [ -z "$STORAGE_ACCOUNT" ]; then
+                        echo "##vso[task.logissue type=error]No storage account found with prefix $(storageAccountPrefix) in $(resourceGroupName) — has terraform apply run yet?"
+                        exit 1
+                      fi
+
+                      echo "Uploading to storage account: $STORAGE_ACCOUNT"
+                      az storage blob upload-batch \
+                        --account-name "$STORAGE_ACCOUNT" \
+                        --destination '$web' \
+                        --source "$(Pipeline.Workspace)/frontend-dist-extracted" \
+                        --overwrite

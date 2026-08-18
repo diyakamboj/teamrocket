@@ -1,0 +1,80 @@
+# Runs on merge to main. Applies infra changes for real. Uses the
+# `environment:dev` federated credential on `github-teamrocket-terraform`
+# (KNOWN-ISSUES.md #12) — the `environment: dev` line in the job below is
+# required, not decorative: it's what makes the OIDC token's subject claim
+# match `repo:diyakamboj/teamrocket:environment:dev`, which is what the
+# federated credential trusts. Removing it will break auth.
+#
+# IMPORTANT — before this workflow's first real run: the two role
+# assignments in keyvault.tf/app_service.tf (terraform_secrets_officer,
+# backend_secrets_user) must already exist in state, created by a human
+# running `terraform apply` interactively (see CHANGELOG.md entry 11,
+# KNOWN-ISSUES.md #12). This SP only has Contributor — it cannot create
+# role assignments itself. As of the last destroy cycle (CHANGELOG.md entry
+# 12), state is empty again, so that manual apply needs to happen again
+# before this workflow can succeed unattended.
+#
+# ASSUMPTION: same TF_WORKING_DIR/paths caveat as terraform-plan.yml —
+# adjust if infra ends up somewhere other than infra/terraform/ in
+# diyakamboj/teamrocket.
+
+name: Terraform Apply
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "infra/terraform/**"
+      - ".github/workflows/terraform-apply.yml"
+  workflow_dispatch: {} # manual trigger, e.g. to re-apply with no file changes
+
+permissions:
+  id-token: write
+  contents: read
+
+env:
+  TF_WORKING_DIR: infra/terraform
+  ARM_USE_OIDC: true
+  ARM_CLIENT_ID: ${{ vars.ARM_CLIENT_ID }}
+  ARM_TENANT_ID: ${{ vars.ARM_TENANT_ID }}
+  ARM_SUBSCRIPTION_ID: ${{ vars.ARM_SUBSCRIPTION_ID }}
+  # Static copies of Group5-6 values (see terraform/data.tf's comment on why
+  # these are no longer live data-source reads) — real GitHub Secrets, not
+  # repo variables, since these are actual credentials. Set as REPO-level
+  # secrets, not environment-scoped: terraform-plan.yml's PR job also needs
+  # them (these 5 variables are required, no default) but doesn't declare
+  # `environment: dev`, so environment-scoped secrets wouldn't reach it.
+  TF_VAR_openai_api_key: ${{ secrets.OPENAI_API_KEY }}
+  TF_VAR_openai_endpoint: ${{ secrets.OPENAI_ENDPOINT }}
+  TF_VAR_embedding_api_key: ${{ secrets.EMBEDDING_API_KEY }}
+  TF_VAR_search_api_key: ${{ secrets.SEARCH_API_KEY }}
+  TF_VAR_search_endpoint: ${{ secrets.SEARCH_ENDPOINT }}
+
+jobs:
+  apply:
+    name: Apply
+    runs-on: ubuntu-latest
+    environment: dev # required for OIDC subject to match the federated credential
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: "1.9.*"
+
+      - name: Terraform Init
+        working-directory: ${{ env.TF_WORKING_DIR }}
+        run: terraform init -input=false
+
+      - name: Terraform Plan
+        working-directory: ${{ env.TF_WORKING_DIR }}
+        run: |
+          terraform plan -input=false -no-color \
+            -var-file=environments/dev.tfvars \
+            -out=tfplan
+
+      - name: Terraform Apply
+        working-directory: ${{ env.TF_WORKING_DIR }}
+        run: terraform apply -input=false -auto-approve tfplan

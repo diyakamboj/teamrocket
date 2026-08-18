@@ -1,0 +1,20 @@
+.terraform/
+*.tfstate
+*.tfstate.*
+crash.log
+crash.*.log
+*.auto.tfvars
+*.auto.tfvars.json
+secrets.tfvars
+override.tf
+override.tf.json
+*_override.tf
+*_override.tf.json
+
+# The devcontainer/setup branch's root .gitignore (once merged into main)
+# adds a bare `.terraform.lock.hcl` pattern with no path prefix, which would
+# match this file here too and silently stop it from being tracked —
+# unintentional, since this file is deliberately committed for reproducible
+# provider versions (see providers.tf/CHANGELOG.md entry 4). Un-ignore it
+# explicitly, regardless of merge order.
+!.terraform.lock.hcl
