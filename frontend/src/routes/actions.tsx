@@ -87,49 +87,49 @@ const INITIAL_ACTIONS: ActionItem[] = [
 ];
 
 function ActionsPage() {
-  const [items, setItems] = useState<ActionItem[]>(INITIAL_ACTIONS);
-  const [filterType, setFilterType] = useState<string>("all");
+  const [actions, setActions] = useState<ActionItem[]>(INITIAL_ACTIONS);
+  const [filter, setFilter] = useState<"all" | "pending" | "approved">("all");
 
-  const handleApprove = (id: string, label: string) => {
-    setItems((prev) =>
-      prev.map((item) => (item.id === id ? { ...item, status: "approved" } : item))
+  const handleExecute = (id: string, label: string) => {
+    setActions((prev) =>
+      prev.map((a) => (a.id === id ? { ...a, status: "approved" as const } : a))
     );
-    toast.success(`Action Executed: ${label}`);
+    toast.success(`Action Executed: "${label}"`);
   };
 
   const handleDismiss = (id: string) => {
-    setItems((prev) =>
-      prev.map((item) => (item.id === id ? { ...item, status: "dismissed" } : item))
+    setActions((prev) =>
+      prev.map((a) => (a.id === id ? { ...a, status: "dismissed" as const } : a))
     );
     toast.info("Action item dismissed.");
   };
 
-  const filteredItems = items.filter((item) => {
-    if (filterType === "all") return true;
-    return item.type === filterType;
+  const filtered = actions.filter((a) => {
+    if (filter === "pending") return a.status === "pending";
+    if (filter === "approved") return a.status === "approved";
+    return a.status !== "dismissed";
   });
 
-  const pendingCount = items.filter((i) => i.status === "pending").length;
-
   return (
-    <div className="p-8 max-w-6xl mx-auto space-y-8 bg-slate-950 text-slate-100 min-h-screen">
+    <div className="p-8 max-w-7xl mx-auto space-y-8 bg-slate-50/50 text-slate-900 min-h-screen">
       {/* Header */}
-      <div className="flex items-center justify-between border-b border-slate-800/80 pb-6">
+      <div className="flex items-center justify-between border-b border-slate-200 pb-6">
         <div>
-          <div className="flex items-center gap-2 text-amber-400 text-xs font-semibold uppercase tracking-wider mb-1">
-            <Zap className="w-4 h-4" /> Recruiter Decision Queue
+          <div className="flex items-center gap-2 text-amber-600 text-xs font-semibold uppercase tracking-wider mb-1">
+            <Zap className="w-4 h-4" /> Recruiter Copilot Decision Queue
           </div>
-          <h1 className="text-3xl font-bold tracking-tight text-white flex items-center gap-3">
+          <h1 className="text-2xl font-bold tracking-tight text-slate-900 flex items-center gap-3">
             Actions Center
-            {pendingCount > 0 && (
-              <Badge className="bg-amber-500/20 text-amber-300 border-amber-500/30 text-sm">
-                {pendingCount} Pending Actions
-              </Badge>
-            )}
           </h1>
-          <p className="text-slate-400 text-sm mt-1">
-            Background AI intelligence recommendations requiring recruiter review, decision-making, and approval.
+          <p className="text-slate-500 text-xs mt-1">
+            Review AI recommendations, trigger 1-click candidate placements, and manage pipeline actions.
           </p>
+        </div>
+
+        <div className="flex items-center gap-2">
+          <Badge className="bg-amber-50 text-amber-800 border-amber-200 text-xs font-semibold">
+            ⚡ {actions.filter((a) => a.status === "pending").length} Pending Actions
+          </Badge>
         </div>
       </div>
 

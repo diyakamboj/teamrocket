@@ -73,26 +73,27 @@ function SettingsPage() {
   };
 
   return (
-    <div className="p-8 max-w-6xl mx-auto space-y-8 bg-slate-950 text-slate-100 min-h-screen">
+    <div className="p-8 max-w-6xl mx-auto space-y-8 bg-slate-50/50 text-slate-900 min-h-screen">
       {/* Header */}
-      <div className="flex items-center justify-between border-b border-slate-800/80 pb-6">
+      <div className="flex items-center justify-between border-b border-slate-200 pb-6">
         <div>
-          <div className="flex items-center gap-2 text-sky-400 text-xs font-semibold uppercase tracking-wider mb-1">
-            <SettingsIcon className="w-4 h-4" /> Recruiter System Preferences
+          <div className="flex items-center gap-2 text-blue-600 text-xs font-semibold uppercase tracking-wider mb-1">
+            <SettingsIcon className="w-4 h-4" /> Recruiter Settings & Organizational Context Hub
           </div>
-          <h1 className="text-3xl font-bold tracking-tight text-white flex items-center gap-2">
+          <h1 className="text-2xl font-bold tracking-tight text-slate-900">
             Settings & Organizational Context
           </h1>
-          <p className="text-slate-400 text-sm mt-1">
-            Manage your recruiter profile, upload company culture documents, select AI models, and set global scoring defaults.
+          <p className="text-slate-500 text-xs mt-1">
+            Manage recruiter profile, select Copilot LLM engine models, and upload company vision/culture docs.
           </p>
         </div>
+
         <Button
           onClick={handleSave}
-          className="bg-sky-500 hover:bg-sky-400 text-slate-950 font-semibold flex items-center gap-2 shadow-lg shadow-sky-500/20"
+          className="bg-blue-600 hover:bg-blue-700 text-white font-medium text-xs px-4 py-2 rounded-lg shadow-sm"
         >
-          {savedSuccess ? <CheckCircle className="w-4 h-4" /> : <Sparkles className="w-4 h-4" />}
-          {savedSuccess ? "Saved!" : "Save All Settings"}
+          {savedSuccess ? <CheckCircle className="w-4 h-4 mr-2" /> : <Sparkles className="w-4 h-4 mr-2" />}
+          {savedSuccess ? "Saved!" : "Save Preferences"}
         </Button>
       </div>
 

@@ -239,7 +239,28 @@ Focus on structure, clarity, quantified impact, and concise presentation.
             item["rank"] = idx
         return ranked
 
+    async def get_candidate_score(
+        self,
+        store: Store,
+        candidate_id: UUID,
+        job_id: Optional[UUID] = None,
+    ) -> dict[str, Any]:
+        candidate = store.candidates.get(candidate_id)
+        if not candidate:
+            return {"overall_score": 70.0, "missing_skills": []}
+        if not job_id:
+            jobs = store.jobs.list_all()
+            if not jobs:
+                return {"overall_score": 70.0, "missing_skills": []}
+            job = jobs[0]
+        else:
+            job = store.jobs.get(job_id)
+            if not job:
+                return {"overall_score": 70.0, "missing_skills": []}
+        return await self.score_candidate(candidate, job, DEFAULT_WEIGHTS)
+
     async def score_candidate(
+
         self,
         candidate: Candidate,
         job: JobPosting,
@@ -637,3 +658,12 @@ dimensions (object with the four keys above containing short explanations).
 
 
 candidate_matcher = CandidateMatcher()
+
+
+async def get_candidate_score(
+    store: Store,
+    candidate_id: UUID,
+    job_id: Optional[UUID] = None,
+) -> dict[str, Any]:
+    return await candidate_matcher.get_candidate_score(store, candidate_id, job_id)
+

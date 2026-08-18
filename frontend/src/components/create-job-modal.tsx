@@ -82,14 +82,14 @@ Requirements:
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="sm:max-w-3xl bg-slate-950 border-slate-800 text-slate-100 p-0 overflow-hidden shadow-2xl">
-        <DialogHeader className="p-6 bg-slate-900/80 border-b border-slate-800">
+      <DialogContent className="sm:max-w-3xl bg-white border-slate-200 text-slate-900 p-0 overflow-hidden shadow-xl rounded-xl">
+        <DialogHeader className="p-5 bg-slate-50 border-b border-slate-200">
           <div className="flex items-center justify-between">
             <div>
-              <DialogTitle className="text-xl text-white font-bold flex items-center gap-2">
-                <Sparkles className="w-5 h-5 text-sky-400" /> Create New Job Description
+              <DialogTitle className="text-lg text-slate-900 font-bold flex items-center gap-2">
+                <Sparkles className="w-4 h-4 text-blue-600" /> Create New Job Description
               </DialogTitle>
-              <DialogDescription className="text-slate-400 text-xs mt-1">
+              <DialogDescription className="text-slate-500 text-xs mt-0.5">
                 Step {step} of 6 — Guided AI Job Creation & Optimization Workflow
               </DialogDescription>
             </div>
@@ -98,7 +98,7 @@ Requirements:
                 <div
                   key={i}
                   className={`w-6 h-1.5 rounded-full transition-all ${
-                    step === i ? "bg-sky-400 w-8" : step > i ? "bg-sky-500/40" : "bg-slate-800"
+                    step >= i ? "bg-blue-600" : "bg-slate-200"
                   }`}
                 />
               ))}

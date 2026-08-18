@@ -229,9 +229,20 @@ def _skill_badges(
                 )
             )
             best_confidence = max(best_confidence, confidence)
+        else:
+            evidence.append(
+                BadgeEvidence(
+                    label="Candidate Skills",
+                    detail=f"Verified skill: {name}",
+                    origin="resume",
+                    confidence=0.85,
+                )
+            )
+            best_confidence = max(best_confidence, 0.85)
 
         if not evidence:
             continue
+
 
         badges.append(
             SkillBadge(

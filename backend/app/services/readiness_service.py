@@ -12,7 +12,10 @@ import uuid
 from typing import Any, List, Optional
 
 from app.models.readiness import AssessmentRecommendation, AssessmentStatus, AssessmentType, CandidateAssessmentRecord
-from app.services import candidate_matcher, email_service, handoff_service
+from app.services.candidate_matcher import candidate_matcher
+from app.services.email_service import email_service
+from app.services import handoff_service
+
 from app.storage.store import Store
 from app.utils.error_handlers import NotFoundError
 from app.utils.logger import get_logger

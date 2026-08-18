@@ -43,8 +43,9 @@ export function MessageBubble({
       <div
         className={cn(
           "max-w-[92%] rounded-2xl px-3.5 py-2.5 text-sm leading-relaxed",
-          isUser ? "bg-primary text-primary-foreground" : "border bg-card text-foreground",
+          isUser ? "bg-blue-600 text-white shadow-xs" : "border border-slate-200 bg-slate-50/80 text-slate-900 shadow-xs",
         )}
+
       >
         {isUser ? (
           <p className="whitespace-pre-wrap">{message.text}</p>

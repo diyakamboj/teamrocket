@@ -48,8 +48,8 @@ export function AppShell({ children }: { children: ReactNode }) {
 
 
   return (
-  return (
     <div className="flex min-h-screen bg-slate-50/50 font-sans text-slate-900">
+
       <aside
         className={cn(
           "sticky top-0 flex h-screen shrink-0 flex-col border-r border-slate-200/80 bg-white transition-[width] duration-300 shadow-sm z-20",

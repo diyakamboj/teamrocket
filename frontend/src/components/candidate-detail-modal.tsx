@@ -100,33 +100,34 @@ export function CandidateDetailModal({ candidateId, isOpen, onClose }: Candidate
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="sm:max-w-4xl bg-slate-950 border-slate-800 text-slate-100 p-0 overflow-hidden shadow-2xl">
+
+      <DialogContent className="sm:max-w-4xl bg-white border-slate-200 text-slate-900 p-0 overflow-hidden shadow-xl rounded-xl">
         {/* Modal Header */}
-        <DialogHeader className="p-6 bg-slate-900/90 border-b border-slate-800">
+        <DialogHeader className="p-6 bg-slate-50 border-b border-slate-200">
           <div className="flex items-start justify-between gap-4">
             <div>
               <div className="flex items-center gap-2 mb-1">
-                <Badge className="bg-emerald-500/20 text-emerald-300 border-emerald-500/30 text-xs">
+                <Badge className="bg-emerald-50 text-emerald-700 border-emerald-200 text-xs font-bold">
                   🟢 {candidate.statusBadge} ({candidate.overallFit}% Overall Fit)
                 </Badge>
                 {candidate.isBench && (
-                  <Badge className="bg-sky-500/20 text-sky-300 border-sky-500/30 text-xs">
+                  <Badge className="bg-blue-50 text-blue-700 border-blue-200 text-xs font-bold">
                     👥 Internal Bench Candidate
                   </Badge>
                 )}
                 {candidate.fraudWarning && (
-                  <Badge className="bg-rose-500/20 text-rose-300 border-rose-500/30 text-xs flex items-center gap-1">
-                    <ShieldAlert className="w-3 h-3 text-rose-400" /> Verification Review
+                  <Badge className="bg-rose-50 text-rose-700 border-rose-200 text-xs flex items-center gap-1 font-bold">
+                    <ShieldAlert className="w-3 h-3 text-rose-600" /> Verification Review
                   </Badge>
                 )}
               </div>
 
-              <DialogTitle className="text-2xl text-white font-extrabold flex items-center gap-3 mt-2">
+              <DialogTitle className="text-xl text-slate-900 font-bold flex items-center gap-3 mt-2">
                 {candidate.name}
               </DialogTitle>
-              <DialogDescription className="text-slate-400 text-xs mt-1">
+              <DialogDescription className="text-slate-500 text-xs mt-1">
                 {candidate.title} • {candidate.location} • Current Hiring Stage:{" "}
-                <span className="text-sky-400 font-semibold">{currentStage}</span>
+                <span className="text-blue-600 font-semibold">{currentStage}</span>
               </DialogDescription>
             </div>
 
@@ -135,18 +136,18 @@ export function CandidateDetailModal({ candidateId, isOpen, onClose }: Candidate
                 variant="outline"
                 size="sm"
                 onClick={() => setBlindReview(!blindReview)}
-                className="border-slate-700 text-slate-300 hover:bg-slate-800 text-xs flex items-center gap-1.5"
+                className="border-slate-200 bg-white text-slate-700 hover:bg-slate-50 text-xs flex items-center gap-1.5 shadow-xs"
               >
-                {blindReview ? <EyeOff className="w-3.5 h-3.5 text-amber-400" /> : <Eye className="w-3.5 h-3.5 text-sky-400" />}
+                {blindReview ? <EyeOff className="w-3.5 h-3.5 text-amber-600" /> : <Eye className="w-3.5 h-3.5 text-blue-600" />}
                 {blindReview ? "Blind Mode ON" : "Blind Review"}
               </Button>
             </div>
           </div>
 
           {/* STAGE ACTION BAR */}
-          <div className="mt-4 pt-4 border-t border-slate-800/80 flex flex-wrap items-center justify-between gap-3">
+          <div className="mt-4 pt-4 border-t border-slate-200 flex flex-wrap items-center justify-between gap-3">
             <div className="flex items-center gap-2">
-              <span className="text-xs text-slate-400 font-medium">Stage Transition:</span>
+              <span className="text-xs text-slate-500 font-medium">Stage Transition:</span>
               {[
                 "Screening",
                 "L1 Screening",
@@ -159,8 +160,8 @@ export function CandidateDetailModal({ candidateId, isOpen, onClose }: Candidate
                   onClick={() => handleStageChange(stg)}
                   className={`px-3 py-1 rounded-lg text-xs font-medium transition-all ${
                     currentStage === stg
-                      ? "bg-sky-500 text-slate-950 font-bold shadow-md shadow-sky-500/20"
-                      : "bg-slate-950/80 text-slate-400 border border-slate-800 hover:text-slate-200"
+                      ? "bg-blue-600 text-white font-semibold shadow-xs"
+                      : "bg-white text-slate-700 border border-slate-200 hover:bg-slate-50"
                   }`}
                 >
                   {stg}
@@ -171,7 +172,7 @@ export function CandidateDetailModal({ candidateId, isOpen, onClose }: Candidate
             <Button
               size="sm"
               onClick={() => setShowScheduling(!showScheduling)}
-              className="bg-gradient-to-r from-sky-500 to-indigo-600 hover:from-sky-400 hover:to-indigo-500 text-white font-semibold text-xs flex items-center gap-1.5 shadow-md shadow-sky-500/20"
+              className="bg-blue-600 hover:bg-blue-700 text-white font-medium text-xs flex items-center gap-1.5 shadow-sm rounded-lg"
             >
               <Calendar className="w-3.5 h-3.5" /> Schedule Teams Interview
             </Button>
@@ -179,16 +180,16 @@ export function CandidateDetailModal({ candidateId, isOpen, onClose }: Candidate
         </DialogHeader>
 
         {/* Modal Scrollable Body */}
-        <div className="p-6 space-y-6 max-h-[70vh] overflow-y-auto">
+        <div className="p-6 space-y-6 max-h-[70vh] overflow-y-auto bg-slate-50/50">
           {/* Scheduling Panel if toggled */}
           {showScheduling && (
-            <div className="p-4 rounded-xl bg-sky-500/10 border border-sky-500/30 space-y-3 animate-in fade-in">
+            <div className="p-4 rounded-xl bg-blue-50 border border-blue-200 space-y-3 animate-in fade-in">
               <div className="flex items-center justify-between">
-                <div className="text-xs font-bold text-sky-300 flex items-center gap-2">
-                  <Calendar className="w-4 h-4 text-sky-400" /> Microsoft Teams & Outlook Meeting Scheduler
+                <div className="text-xs font-bold text-blue-900 flex items-center gap-2">
+                  <Calendar className="w-4 h-4 text-blue-600" /> Microsoft Teams & Outlook Meeting Scheduler
                 </div>
                 {scheduledSuccess && (
-                  <Badge className="bg-emerald-500/20 text-emerald-300 border-emerald-500/30 text-xs">
+                  <Badge className="bg-emerald-50 text-emerald-700 border-emerald-200 text-xs font-bold">
                     ✓ Invite Sent
                   </Badge>
                 )}
@@ -197,24 +198,24 @@ export function CandidateDetailModal({ candidateId, isOpen, onClose }: Candidate
               <div className="grid grid-cols-3 gap-3 text-xs">
                 <button
                   onClick={handleScheduleInterview}
-                  className="p-3 rounded-lg bg-slate-900 border border-slate-800 hover:border-sky-500 text-left"
+                  className="p-3 rounded-lg bg-white border border-slate-200 hover:border-blue-500 text-left shadow-xs"
                 >
-                  <span className="text-slate-400 block text-[10px]">Monday Slot:</span>
-                  <span className="font-bold text-white">Mon 10:00 AM PST</span>
+                  <span className="text-slate-500 block text-[10px]">Monday Slot:</span>
+                  <span className="font-bold text-slate-900">Mon 10:00 AM PST</span>
                 </button>
                 <button
                   onClick={handleScheduleInterview}
-                  className="p-3 rounded-lg bg-slate-900 border border-slate-800 hover:border-sky-500 text-left"
+                  className="p-3 rounded-lg bg-white border border-slate-200 hover:border-blue-500 text-left shadow-xs"
                 >
-                  <span className="text-slate-400 block text-[10px]">Monday Afternoon:</span>
-                  <span className="font-bold text-white">Mon 2:00 PM PST</span>
+                  <span className="text-slate-500 block text-[10px]">Monday Afternoon:</span>
+                  <span className="font-bold text-slate-900">Mon 2:00 PM PST</span>
                 </button>
                 <button
                   onClick={handleScheduleInterview}
-                  className="p-3 rounded-lg bg-slate-900 border border-slate-800 hover:border-sky-500 text-left"
+                  className="p-3 rounded-lg bg-white border border-slate-200 hover:border-blue-500 text-left shadow-xs"
                 >
-                  <span className="text-slate-400 block text-[10px]">Tuesday Morning:</span>
-                  <span className="font-bold text-white">Tue 11:00 AM PST</span>
+                  <span className="text-slate-500 block text-[10px]">Tuesday Morning:</span>
+                  <span className="font-bold text-slate-900">Tue 11:00 AM PST</span>
                 </button>
               </div>
             </div>
@@ -222,11 +223,11 @@ export function CandidateDetailModal({ candidateId, isOpen, onClose }: Candidate
 
           {/* Fraud Review Alert if triggered */}
           {candidate.fraudWarning && (
-            <div className="p-4 rounded-xl bg-rose-500/10 border border-rose-500/30 space-y-2">
-              <div className="flex items-center gap-2 text-rose-300 font-bold text-xs">
-                <ShieldAlert className="w-4 h-4 text-rose-400" /> Verification Review Warning
+            <div className="p-4 rounded-xl bg-rose-50 border border-rose-200 space-y-2">
+              <div className="flex items-center gap-2 text-rose-800 font-bold text-xs">
+                <ShieldAlert className="w-4 h-4 text-rose-600" /> Verification Review Warning
               </div>
-              <p className="text-xs text-rose-200/90 leading-relaxed">
+              <p className="text-xs text-rose-700 leading-relaxed">
                 {candidate.fraudDetails.timelineOverlap}
               </p>
             </div>
@@ -234,18 +235,18 @@ export function CandidateDetailModal({ candidateId, isOpen, onClose }: Candidate
 
           {/* Section 1: Multi-Dimensional AI Evaluation */}
           <div className="space-y-3">
-            <h3 className="text-sm font-bold text-white flex items-center gap-2">
-              <Sparkles className="w-4 h-4 text-sky-400" /> Multi-Dimensional AI Fit Analysis
+            <h3 className="text-xs font-bold text-slate-500 uppercase tracking-wider flex items-center gap-2">
+              <Sparkles className="w-4 h-4 text-blue-600" /> Multi-Dimensional AI Fit Analysis
             </h3>
             <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
               {[
-                { label: "Technical Skills", val: `${candidate.technicalScore}%`, color: "text-sky-400" },
-                { label: "Role Experience", val: `${candidate.experienceScore}%`, color: "text-indigo-400" },
-                { label: "Communication", val: `${candidate.communicationScore}%`, color: "text-emerald-400" },
-                { label: "Role Alignment", val: `${candidate.roleAlignmentScore}%`, color: "text-amber-400" },
+                { label: "Technical Skills", val: `${candidate.technicalScore}%`, color: "text-blue-600" },
+                { label: "Role Experience", val: `${candidate.experienceScore}%`, color: "text-slate-900" },
+                { label: "Communication", val: `${candidate.communicationScore}%`, color: "text-emerald-600" },
+                { label: "Role Alignment", val: `${candidate.roleAlignmentScore}%`, color: "text-amber-600" },
               ].map((s, idx) => (
-                <div key={idx} className="p-3.5 rounded-xl bg-slate-900 border border-slate-800 text-center">
-                  <span className="text-[10px] text-slate-400 uppercase font-medium block">{s.label}</span>
+                <div key={idx} className="p-3.5 rounded-xl bg-white border border-slate-200 text-center shadow-xs">
+                  <span className="text-[10px] text-slate-500 uppercase font-medium block">{s.label}</span>
                   <span className={`text-xl font-extrabold mt-1 block ${s.color}`}>{s.val}</span>
                 </div>
               ))}
@@ -254,19 +255,19 @@ export function CandidateDetailModal({ candidateId, isOpen, onClose }: Candidate
 
           {/* Section 2: Explainable Ranking & Evidence Tracing */}
           <div className="space-y-3">
-            <h3 className="text-sm font-bold text-white flex items-center gap-2">
-              <Layers className="w-4 h-4 text-indigo-400" /> Explainable Evidence Tracing (Resume Source Snippets)
+            <h3 className="text-xs font-bold text-slate-500 uppercase tracking-wider flex items-center gap-2">
+              <Layers className="w-4 h-4 text-indigo-600" /> Explainable Evidence Tracing (Resume Source Snippets)
             </h3>
             <div className="space-y-2.5">
               {candidate.evidenceCitations.map((ev, idx) => (
-                <div key={idx} className="p-3.5 rounded-xl bg-slate-900 border border-slate-800 space-y-1">
+                <div key={idx} className="p-3.5 rounded-xl bg-white border border-slate-200 space-y-1 shadow-xs">
                   <div className="flex items-center justify-between text-xs">
-                    <span className="font-semibold text-slate-200">✓ {ev.skill}</span>
-                    <Badge className="bg-sky-500/20 text-sky-300 border-sky-500/30 text-[10px]">
+                    <span className="font-semibold text-slate-900">✓ {ev.skill}</span>
+                    <Badge className="bg-blue-50 text-blue-700 border-blue-200 text-[10px]">
                       {ev.score}
                     </Badge>
                   </div>
-                  <p className="text-xs text-slate-400 font-mono italic">"{ev.snippet}"</p>
+                  <p className="text-xs text-slate-600 font-mono italic">"{ev.snippet}"</p>
                 </div>
               ))}
             </div>
@@ -280,5 +281,6 @@ export function CandidateDetailModal({ candidateId, isOpen, onClose }: Candidate
         </div>
       </DialogContent>
     </Dialog>
+
   );
 }

@@ -88,4 +88,37 @@ class EmailService:
         )
 
 
+    def send_decision_notification(
+        self,
+        *,
+        candidate_email: str,
+        candidate_name: str,
+        job_title: str,
+        decision: str,
+        notes: str = "",
+    ) -> EmailResult:
+        subject = f"Update regarding your application for {job_title}"
+        body = f"Hello {candidate_name},\n\n{notes}\n\nBest regards,\nRecruiting Team"
+        return self.send(to_email=candidate_email, to_name=candidate_name, subject=subject, body_text=body)
+
+
 email_service = EmailService()
+
+
+def send_decision_notification(
+    *,
+    candidate_email: str,
+    candidate_name: str,
+    job_title: str,
+    decision: str,
+    notes: str = "",
+) -> EmailResult:
+    return email_service.send_decision_notification(
+        candidate_email=candidate_email,
+        candidate_name=candidate_name,
+        job_title=job_title,
+        decision=decision,
+        notes=notes,
+    )
+
+

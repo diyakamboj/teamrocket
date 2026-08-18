@@ -140,25 +140,25 @@ function JobWorkspacePage() {
   };
 
   return (
-    <div className="p-8 max-w-7xl mx-auto space-y-8 bg-slate-950 text-slate-100 min-h-screen">
+    <div className="p-8 max-w-7xl mx-auto space-y-8 bg-slate-50/50 text-slate-900 min-h-screen">
       {/* JD Header */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-slate-800/80 pb-6">
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-slate-200 pb-6">
         <div>
           <div className="flex items-center gap-2 mb-1">
-            <Badge className="bg-sky-500/20 text-sky-300 border-sky-500/30 text-xs uppercase">
+            <Badge className="bg-indigo-50 text-indigo-700 border-indigo-200 text-xs uppercase font-bold">
               External Hiring
             </Badge>
-            <Badge variant="outline" className="text-slate-400 border-slate-700 text-xs">
+            <Badge variant="outline" className="text-slate-600 border-slate-200 bg-white text-xs">
               Seattle, WA (Hybrid)
             </Badge>
-            <Badge className="bg-emerald-500/20 text-emerald-300 border-emerald-500/30 text-xs">
+            <Badge className="bg-emerald-50 text-emerald-700 border-emerald-200 text-xs font-bold">
               Active Hiring
             </Badge>
           </div>
-          <h1 className="text-3xl font-extrabold tracking-tight text-white flex items-center gap-3 mt-1">
+          <h1 className="text-2xl font-bold tracking-tight text-slate-900 flex items-center gap-3 mt-1">
             Senior Software Engineer
           </h1>
-          <p className="text-slate-400 text-sm mt-1">
+          <p className="text-slate-500 text-xs mt-1">
             Central Hiring Workspace • 124 Candidates • 18 Top Matches • 7 Ready for Interview
           </p>
         </div>
@@ -167,25 +167,25 @@ function JobWorkspacePage() {
           <Button
             variant="outline"
             onClick={() => setActiveTab("upload")}
-            className="border-slate-700 text-slate-300 hover:bg-slate-800 text-xs flex items-center gap-1.5"
+            className="border-slate-200 bg-white text-slate-700 hover:bg-slate-50 text-xs flex items-center gap-1.5 shadow-xs"
           >
-            <UploadCloud className="w-4 h-4 text-sky-400" /> Upload Resumes
+            <UploadCloud className="w-3.5 h-3.5 text-blue-600" /> Upload Resumes
           </Button>
 
           {selectedForCompare.length >= 2 && (
             <Button
               onClick={handleLaunchCompare}
-              className="bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold flex items-center gap-1.5 shadow-lg shadow-indigo-500/20"
+              className="bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-medium flex items-center gap-1.5 shadow-sm rounded-lg"
             >
-              <Columns3 className="w-4 h-4" /> Compare Selected ({selectedForCompare.length}) →
+              <Columns3 className="w-3.5 h-3.5" /> Compare Selected ({selectedForCompare.length}) →
             </Button>
           )}
         </div>
       </div>
 
       {/* Tabs Bar */}
-      <div className="flex items-center justify-between border-b border-slate-800 pb-3">
-        <div className="flex items-center gap-3">
+      <div className="flex items-center justify-between border-b border-slate-200 pb-3">
+        <div className="flex items-center gap-2">
           {[
             { id: "candidates", label: "Candidates (124)" },
             { id: "overview", label: "Pipeline Overview" },
@@ -196,10 +196,10 @@ function JobWorkspacePage() {
             <button
               key={tab.id}
               onClick={() => setActiveTab(tab.id as any)}
-              className={`px-4 py-2 rounded-xl text-xs font-semibold transition-all ${
+              className={`px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-all ${
                 activeTab === tab.id
-                  ? "bg-sky-500/20 text-sky-300 border border-sky-500/40"
-                  : "text-slate-400 hover:text-slate-200 hover:bg-slate-900/60"
+                  ? "bg-white text-blue-600 border border-slate-200 shadow-xs"
+                  : "text-slate-600 hover:text-slate-900 hover:bg-slate-100"
               }`}
             >
               {tab.label}
@@ -213,9 +213,9 @@ function JobWorkspacePage() {
               variant="outline"
               size="sm"
               onClick={() => setBlindMode(!blindMode)}
-              className="border-slate-800 text-slate-300 text-xs flex items-center gap-1"
+              className="border-slate-200 bg-white text-slate-700 text-xs flex items-center gap-1 shadow-xs"
             >
-              {blindMode ? <EyeOff className="w-3.5 h-3.5 text-amber-400" /> : <Eye className="w-3.5 h-3.5 text-sky-400" />}
+              {blindMode ? <EyeOff className="w-3.5 h-3.5 text-amber-600" /> : <Eye className="w-3.5 h-3.5 text-blue-600" />}
               {blindMode ? "Blind Mode ON" : "Blind Mode"}
             </Button>
 
@@ -223,9 +223,9 @@ function JobWorkspacePage() {
               variant="outline"
               size="sm"
               onClick={() => setShowWeightSliders(!showWeightSliders)}
-              className="border-slate-800 text-slate-300 text-xs flex items-center gap-1.5"
+              className="border-slate-200 bg-white text-slate-700 text-xs flex items-center gap-1.5 shadow-xs"
             >
-              <Sliders className="w-3.5 h-3.5 text-sky-400" /> Adjust Scoring Weights
+              <Sliders className="w-3.5 h-3.5 text-blue-600" /> Adjust Scoring Weights
             </Button>
           </div>
         )}
@@ -233,12 +233,12 @@ function JobWorkspacePage() {
 
       {/* WEIGHT SLIDERS DRAWER IF OPEN */}
       {showWeightSliders && (
-        <Card className="bg-slate-900 border-sky-500/40 p-6 space-y-4 animate-in fade-in">
+        <Card className="bg-white border-blue-200 p-5 space-y-4 shadow-sm rounded-xl">
           <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2 text-sky-400 text-sm font-bold">
+            <div className="flex items-center gap-2 text-blue-700 text-xs font-bold">
               <Sliders className="w-4 h-4" /> Adjust Candidate Scoring Category Weights
             </div>
-            <Button size="sm" onClick={handleSaveWeights} className="bg-sky-500 text-slate-950 font-bold text-xs">
+            <Button size="sm" onClick={handleSaveWeights} className="bg-blue-600 hover:bg-blue-700 text-white font-medium text-xs rounded-lg">
               Save & Recalculate All Candidates
             </Button>
           </div>
@@ -252,7 +252,7 @@ function JobWorkspacePage() {
               { key: "projects", label: "Projects (15%)", val: weights.projects },
             ].map((item) => (
               <div key={item.key} className="space-y-1 text-xs">
-                <span className="text-slate-300 font-medium">{item.label}</span>
+                <span className="text-slate-700 font-medium">{item.label}</span>
                 <Slider
                   min={0}
                   max={50}
@@ -271,23 +271,23 @@ function JobWorkspacePage() {
         <div className="space-y-4">
           <div className="flex items-center justify-between gap-4">
             <div className="relative max-w-md w-full">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500" />
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400" />
               <Input
                 placeholder="Search candidates by name, skill (Python, Azure)..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                className="bg-slate-900 border-slate-800 text-slate-200 text-xs pl-9"
+                className="bg-white border-slate-200 text-slate-900 text-xs pl-9 focus:border-blue-500 rounded-lg"
               />
             </div>
-            <span className="text-xs text-slate-400">
+            <span className="text-xs text-slate-500">
               Showing {filteredCandidates.length} candidate scores sorted by Overall Fit %
             </span>
           </div>
 
-          <div className="rounded-xl border border-slate-800 overflow-hidden bg-slate-900/80">
+          <div className="rounded-xl border border-slate-200 overflow-hidden bg-white shadow-xs">
             <table className="w-full text-left text-xs border-collapse">
               <thead>
-                <tr className="bg-slate-950 border-b border-slate-800 text-slate-400 uppercase font-semibold">
+                <tr className="bg-slate-50 border-b border-slate-200 text-slate-500 uppercase font-semibold">
                   <th className="p-3.5 w-10 text-center">Select</th>
                   <th className="p-3.5">Candidate</th>
                   <th className="p-3.5">AI Fit Score</th>
@@ -298,52 +298,52 @@ function JobWorkspacePage() {
                   <th className="p-3.5 text-right">Actions</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-800/60">
+              <tbody className="divide-y divide-slate-100">
                 {filteredCandidates.map((c) => (
-                  <tr key={c.id} className="hover:bg-slate-950/60 transition-all">
+                  <tr key={c.id} className="hover:bg-slate-50/80 transition-all">
                     <td className="p-3.5 text-center">
                       <input
                         type="checkbox"
                         checked={selectedForCompare.includes(c.id)}
                         onChange={() => toggleCompare(c.id)}
-                        className="rounded border-slate-800 bg-slate-950 text-sky-500"
+                        className="rounded border-slate-300 text-blue-600 focus:ring-blue-500"
                       />
                     </td>
                     <td className="p-3.5">
                       <div className="flex items-center gap-2">
                         <span
                           onClick={() => setSelectedCandidateId(c.id)}
-                          className="font-bold text-slate-200 text-sm hover:text-sky-400 cursor-pointer"
+                          className="font-bold text-slate-900 text-sm hover:text-blue-600 cursor-pointer"
                         >
                           {blindMode ? `Candidate #${c.id.replace("cand_", "900")}` : c.name}
                         </span>
                         {c.isBench && (
-                          <Badge className="bg-sky-500/20 text-sky-300 border-sky-500/30 text-[10px]">
+                          <Badge className="bg-blue-50 text-blue-700 border-blue-200 text-[10px] font-bold">
                             👥 Bench
                           </Badge>
                         )}
                         {c.fraudWarning && (
-                          <Badge className="bg-rose-500/20 text-rose-300 border-rose-500/30 text-[10px] flex items-center gap-1">
-                            <ShieldAlert className="w-3 h-3 text-rose-400" /> ⚠️ Review
+                          <Badge className="bg-rose-50 text-rose-700 border-rose-200 text-[10px] flex items-center gap-1 font-bold">
+                            <ShieldAlert className="w-3 h-3 text-rose-600" /> ⚠️ Review
                           </Badge>
                         )}
                       </div>
                       <div className="flex flex-wrap gap-1 mt-1">
                         {c.skills.slice(0, 3).map((sk) => (
-                          <span key={sk} className="text-[10px] text-slate-500 font-mono">
+                          <span key={sk} className="text-[10px] text-slate-500 font-medium">
                             {sk} •
                           </span>
                         ))}
                       </div>
                     </td>
                     <td className="p-3.5">
-                      <span className="font-extrabold text-sm text-sky-400">{c.score}%</span>
+                      <span className="font-extrabold text-sm text-blue-600 bg-blue-50 px-2 py-0.5 rounded border border-blue-200">{c.score}%</span>
                     </td>
-                    <td className="p-3.5 text-slate-400">{c.atsScore}%</td>
-                    <td className="p-3.5 font-semibold text-emerald-400">{c.delta}</td>
-                    <td className="p-3.5 text-slate-300 font-mono">{c.skillsScore}%</td>
+                    <td className="p-3.5 text-slate-500">{c.atsScore}%</td>
+                    <td className="p-3.5 font-semibold text-emerald-600">{c.delta}</td>
+                    <td className="p-3.5 text-slate-700 font-mono">{c.skillsScore}%</td>
                     <td className="p-3.5">
-                      <Badge variant="outline" className="text-slate-300 border-slate-700 text-xs">
+                      <Badge variant="outline" className="text-slate-700 bg-slate-50 border-slate-200 text-xs">
                         {c.stage}
                       </Badge>
                     </td>
@@ -351,7 +351,7 @@ function JobWorkspacePage() {
                       <Button
                         size="sm"
                         onClick={() => setSelectedCandidateId(c.id)}
-                        className="bg-sky-500/10 hover:bg-sky-500/20 text-sky-300 border border-sky-500/30 text-xs"
+                        className="bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200 text-xs font-semibold rounded-lg"
                       >
                         View Profile & Evidence →
                       </Button>
@@ -366,28 +366,28 @@ function JobWorkspacePage() {
 
       {/* TAB 3: BULK RESUME UPLOAD */}
       {activeTab === "upload" && (
-        <Card className="bg-slate-900/80 border-slate-800 p-8 space-y-6">
-          <div className="border-2 border-dashed border-slate-800 rounded-2xl p-12 text-center space-y-4 hover:border-sky-500/50 transition-all cursor-pointer">
-            <UploadCloud className="w-12 h-12 text-sky-400 mx-auto" />
+        <Card className="bg-white border-slate-200 p-8 space-y-6 rounded-xl shadow-xs">
+          <div className="border-2 border-dashed border-slate-200 rounded-xl p-12 text-center space-y-4 hover:border-blue-400 transition-all cursor-pointer bg-slate-50/50">
+            <UploadCloud className="w-10 h-10 text-blue-600 mx-auto" />
             <div>
-              <h3 className="text-lg font-bold text-white">Drag & drop candidate resumes here</h3>
-              <p className="text-xs text-slate-400 mt-1">Supports PDF, DOCX, Scanned Resumes (Automated OCR Parsing)</p>
+              <h3 className="text-base font-bold text-slate-900">Drag & drop candidate resumes here</h3>
+              <p className="text-xs text-slate-500 mt-1">Supports PDF, DOCX, Scanned Resumes (Automated OCR Parsing)</p>
             </div>
-            <Button className="bg-sky-500 text-slate-950 font-bold text-xs">
+            <Button className="bg-blue-600 hover:bg-blue-700 text-white font-medium text-xs rounded-lg">
               Select PDF Files
             </Button>
           </div>
 
           <div className="space-y-2">
-            <h4 className="text-xs font-bold text-slate-300 uppercase">Processing Status Tracker</h4>
+            <h4 className="text-xs font-bold text-slate-500 uppercase tracking-wider">Processing Status Tracker</h4>
             {[
-              { name: "resume_alex_johnson.pdf", status: "✓ Parsed & Scored", color: "text-emerald-400" },
-              { name: "resume_david_chen.pdf", status: "✓ Parsed & Scored", color: "text-emerald-400" },
-              { name: "resume_marcus_vance.pdf", status: "⟳ Enrichment Processing", color: "text-sky-400" },
-              { name: "scanned_doc_4.pdf", status: "⚠️ Timeline Anomaly Detected", color: "text-amber-400" },
+              { name: "resume_alex_johnson.pdf", status: "✓ Parsed & Scored", color: "text-emerald-700" },
+              { name: "resume_david_chen.pdf", status: "✓ Parsed & Scored", color: "text-emerald-700" },
+              { name: "resume_marcus_vance.pdf", status: "⟳ Enrichment Processing", color: "text-blue-600" },
+              { name: "scanned_doc_4.pdf", status: "⚠️ Timeline Anomaly Detected", color: "text-amber-700" },
             ].map((f, idx) => (
-              <div key={idx} className="p-3 rounded-lg bg-slate-950 border border-slate-800/80 flex items-center justify-between text-xs">
-                <span className="font-mono text-slate-300">{f.name}</span>
+              <div key={idx} className="p-3 rounded-lg bg-slate-50 border border-slate-200 flex items-center justify-between text-xs">
+                <span className="font-mono text-slate-700">{f.name}</span>
                 <span className={`font-semibold ${f.color}`}>{f.status}</span>
               </div>
             ))}
@@ -404,5 +404,6 @@ function JobWorkspacePage() {
         />
       )}
     </div>
+
   );
 }
