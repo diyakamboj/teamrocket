@@ -2,6 +2,7 @@ import hashlib
 import json
 import math
 import re
+import time
 import uuid
 from pathlib import Path
 from typing import Any, Optional
@@ -23,13 +24,30 @@ class AzureBlobService:
         self._client: Optional[BlobServiceClient] = None
         self.mock = settings.USE_MOCK_AZURE or not settings.AZURE_STORAGE_CONNECTION_STRING
         if not self.mock:
-            self._client = BlobServiceClient.from_connection_string(
-                settings.AZURE_STORAGE_CONNECTION_STRING
-            )
+            # This runs at import (module-level singleton), so a malformed
+            # connection string used to abort the whole process before the app
+            # could serve a single request. Fall back to local-disk storage and
+            # say so loudly instead.
             try:
-                self._client.create_container(self.container)
-            except Exception:
-                pass
+                self._client = BlobServiceClient.from_connection_string(
+                    settings.AZURE_STORAGE_CONNECTION_STRING
+                )
+            except Exception as exc:
+                logger.error(
+                    "Azure Blob Storage credentials are invalid (%s) — falling back to local "
+                    "disk at %s. AZURE_STORAGE_CONNECTION_STRING must be the full connection "
+                    "string (DefaultEndpointsProtocol=...;AccountName=...;AccountKey=...), "
+                    "not just the account key.",
+                    exc,
+                    settings.UPLOAD_DIR,
+                )
+                self._client = None
+                self.mock = True
+            else:
+                try:
+                    self._client.create_container(self.container)
+                except Exception:
+                    pass
 
     def upload_bytes(self, data: bytes, filename: str, content_type: str = "application/pdf") -> str:
         blob_name = f"resumes/{uuid.uuid4()}/{filename}"
@@ -187,6 +205,7 @@ class AzureOpenAIService:
                 api_version=settings.AZURE_OPENAI_API_VERSION,
                 azure_endpoint=settings.AZURE_OPENAI_ENDPOINT,
                 timeout=30.0,
+                max_retries=settings.AZURE_OPENAI_MAX_RETRIES,
             )
 
         emb_configured = bool(settings.AZURE_OPENAI_EMBEDDING_API_KEY and settings.AZURE_OPENAI_EMBEDDING_ENDPOINT)
@@ -196,6 +215,7 @@ class AzureOpenAIService:
                 api_version=settings.AZURE_OPENAI_API_VERSION,
                 azure_endpoint=settings.AZURE_OPENAI_EMBEDDING_ENDPOINT,
                 timeout=30.0,
+                max_retries=settings.AZURE_OPENAI_MAX_RETRIES,
             )
         else:
             self._embedding_client = self._client
@@ -205,6 +225,17 @@ class AzureOpenAIService:
             (not configured and not emb_configured) or not settings.AZURE_OPENAI_EMBEDDING_DEPLOYMENT_NAME
         )
         self._embedding_cache: dict[str, list[float]] = {}
+
+        # Circuit breaker. Scoring loops call this service once per candidate,
+        # so a misconfigured or down endpoint otherwise multiplies its failure
+        # latency by the pool size — 200 candidates x retry backoff turned the
+        # ranking endpoint into a >10 minute hang. After
+        # OPENAI_FAILURE_THRESHOLD consecutive failures the breaker opens and
+        # calls fail instantly (falling straight through to the deterministic
+        # path) until OPENAI_BREAKER_COOLDOWN_SECONDS has passed, then one
+        # request is allowed through to test recovery.
+        self._consecutive_failures = 0
+        self._breaker_opened_at: float | None = None
 
 
     def chat_json(
@@ -259,6 +290,12 @@ class AzureOpenAIService:
         if self.mock:
             return self._mock_response(prompt)
 
+        if self._breaker_is_open():
+            raise AzureServiceError(
+                "Azure OpenAI unavailable (circuit breaker open)",
+                {"consecutive_failures": self._consecutive_failures},
+            )
+
         assert self._client is not None
         payload = messages or [
             {"role": "system", "content": system},
@@ -271,10 +308,46 @@ class AzureOpenAIService:
                 temperature=temperature,
                 max_tokens=max_tokens,
             )
-            return response.choices[0].message.content or ""
         except Exception as exc:
-            logger.exception("Azure OpenAI call failed")
+            self._record_failure()
+            logger.warning("Azure OpenAI call failed: %s", exc)
             raise AzureServiceError("Azure OpenAI request failed", {"reason": str(exc)}) from exc
+
+        self._record_success()
+        return response.choices[0].message.content or ""
+
+    # ---------- circuit breaker ----------
+
+    def _breaker_is_open(self) -> bool:
+        if self._breaker_opened_at is None:
+            return False
+        elapsed = time.monotonic() - self._breaker_opened_at
+        if elapsed < settings.AZURE_OPENAI_BREAKER_COOLDOWN_SECONDS:
+            return True
+        # Cooldown elapsed — let one request through to probe for recovery.
+        self._breaker_opened_at = None
+        self._consecutive_failures = settings.AZURE_OPENAI_FAILURE_THRESHOLD - 1
+        return False
+
+    def _record_failure(self) -> None:
+        self._consecutive_failures += 1
+        if (
+            self._consecutive_failures >= settings.AZURE_OPENAI_FAILURE_THRESHOLD
+            and self._breaker_opened_at is None
+        ):
+            self._breaker_opened_at = time.monotonic()
+            logger.error(
+                "Azure OpenAI failed %d times in a row — skipping calls for %.0fs and using "
+                "deterministic fallbacks. Check AZURE_OPENAI_ENDPOINT / credentials.",
+                self._consecutive_failures,
+                settings.AZURE_OPENAI_BREAKER_COOLDOWN_SECONDS,
+            )
+
+    def _record_success(self) -> None:
+        if self._breaker_opened_at is not None or self._consecutive_failures:
+            logger.info("Azure OpenAI recovered")
+        self._consecutive_failures = 0
+        self._breaker_opened_at = None
 
     def embed_texts(self, texts: list[str]) -> Optional[list[list[float]]]:
         """Real embeddings for genuine semantic similarity. Returns None (the
@@ -286,6 +359,10 @@ class AzureOpenAIService:
 
         to_fetch = [t for t in dict.fromkeys(texts) if t not in self._embedding_cache]
         if to_fetch:
+            # Embeddings share the endpoint, so they share the breaker — one
+            # unreachable resource shouldn't be re-dialled once per candidate.
+            if self._breaker_is_open():
+                return None
             try:
                 response = self._embedding_client.embeddings.create(
                     model=settings.AZURE_OPENAI_EMBEDDING_DEPLOYMENT_NAME,
@@ -295,10 +372,12 @@ class AzureOpenAIService:
                 for text, item in zip(to_fetch, response.data):
                     self._embedding_cache[text] = item.embedding
             except Exception as exc:
+                self._record_failure()
                 logger.warning(
                     "Embedding request failed, falling back to keyword overlap: %s", exc
                 )
                 return None
+            self._record_success()
         return [self._embedding_cache[t] for t in texts]
 
     def _safe_json(self, content: str) -> dict[str, Any]:
@@ -472,12 +551,21 @@ class AzureDocumentIntelligenceService:
         )
         self._client = None
         if not self.mock:
-            from azure.ai.documentintelligence import DocumentIntelligenceClient
+            try:
+                from azure.ai.documentintelligence import DocumentIntelligenceClient
 
-            self._client = DocumentIntelligenceClient(
-                endpoint=settings.AZURE_DOCUMENT_INTELLIGENCE_ENDPOINT,
-                credential=AzureKeyCredential(settings.AZURE_DOCUMENT_INTELLIGENCE_KEY),
-            )
+                self._client = DocumentIntelligenceClient(
+                    endpoint=settings.AZURE_DOCUMENT_INTELLIGENCE_ENDPOINT,
+                    credential=AzureKeyCredential(settings.AZURE_DOCUMENT_INTELLIGENCE_KEY),
+                )
+            except Exception as exc:
+                logger.error(
+                    "Azure Document Intelligence unavailable (%s) — falling back to local "
+                    "PDF text extraction.",
+                    exc,
+                )
+                self._client = None
+                self.mock = True
 
     def _extract_pdf_or_docx_fallback(self, file_bytes: bytes, filename: str) -> str:
         ext = filename.lower().rsplit(".", 1)[-1] if "." in filename else ""
@@ -543,13 +631,20 @@ class AzureSearchService:
         self.mock = not settings.AZURE_SEARCH_ENDPOINT or not settings.AZURE_SEARCH_ADMIN_KEY
         self._client = None
         if not self.mock:
-            from azure.search.documents import SearchClient
+            try:
+                from azure.search.documents import SearchClient
 
-            self._client = SearchClient(
-                endpoint=settings.AZURE_SEARCH_ENDPOINT,
-                index_name=settings.AZURE_SEARCH_INDEX_NAME,
-                credential=AzureKeyCredential(settings.AZURE_SEARCH_ADMIN_KEY),
-            )
+                self._client = SearchClient(
+                    endpoint=settings.AZURE_SEARCH_ENDPOINT,
+                    index_name=settings.AZURE_SEARCH_INDEX_NAME,
+                    credential=AzureKeyCredential(settings.AZURE_SEARCH_ADMIN_KEY),
+                )
+            except Exception as exc:
+                logger.error(
+                    "Azure AI Search unavailable (%s) — falling back to keyword overlap.", exc
+                )
+                self._client = None
+                self.mock = True
 
     def semantic_skill_overlap(self, candidate_skills: list[str], required_skills: list[str]) -> float:
         """Real embedding-based semantic overlap when an embedding deployment
