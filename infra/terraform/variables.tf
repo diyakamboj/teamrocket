@@ -20,6 +20,12 @@ variable "project_name" {
   default     = "resumeiq"
 }
 
+variable "terraform_operator_principal_id" {
+  description = "Object ID of the identity that holds Key Vault Secrets Officer on the project vault (see keyvault.tf's terraform_secrets_officer) — i.e. whichever identity is the routine Terraform operator. Deliberately fixed, not looked up dynamically — see that resource's comment for why. Defaults to the github-teamrocket-terraform GitHub Actions service principal's object id (not its app/client id — role assignments need the SP object id)."
+  type        = string
+  default     = "b3878a10-73b9-4ef1-8b6d-954f47ced055"
+}
+
 variable "environment" {
   description = "Deployment environment. Only 'dev' is provisioned today; extend with a second .tfvars file if a separate prod environment is needed later."
   type        = string

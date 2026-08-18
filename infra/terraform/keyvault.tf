@@ -21,13 +21,23 @@ resource "azurerm_key_vault" "main" {
   tags = var.tags
 }
 
-# The identity running Terraform (interactive user today; a GitHub Actions
-# OIDC service principal once that's set up) needs write access to actually
-# populate the secrets below.
+# Fixed principal (var.terraform_operator_principal_id), NOT
+# data.azurerm_client_config.current.object_id ("whoever's running this
+# right now"). A dynamic principal seemed convenient early on (the human
+# was the only one ever applying), but breaks the moment a second identity
+# (the GitHub Actions SP) also runs plan/apply: Terraform sees the
+# principal "changed" and wants to replace this resource, which only an
+# identity already holding roleAssignments/write can execute — the SP
+# can't, since this IS how it would get that kind of access in the first
+# place (chicken-and-egg). Fixed principal = stable no-op regardless of
+# caller, once applied once. Defaults to the GitHub Actions SP's object
+# id, since it's the intended routine operator; the human retains their
+# own standing User Access Administrator and can self-grant separately
+# for one-off manual applies if ever needed.
 resource "azurerm_role_assignment" "terraform_secrets_officer" {
   scope                = azurerm_key_vault.main.id
   role_definition_name = "Key Vault Secrets Officer"
-  principal_id         = data.azurerm_client_config.current.object_id
+  principal_id         = var.terraform_operator_principal_id
 }
 
 # -----------------------------------------------------------------------------
