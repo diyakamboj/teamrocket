@@ -1,0 +1,21 @@
+Backend Engineer
+
+We are hiring a Backend Engineer to own core service reliability on our Python/Azure stack.
+
+Must-have skills:
+- Python
+- FastAPI
+- SQL
+- Azure
+- Docker
+
+Nice to have:
+- Kubernetes
+- Terraform
+
+Requirements:
+- 3+ years professional backend engineering
+- Bachelor's in Computer Science or equivalent
+- Evidence of production API ownership (not only dashboards or scripts)
+
+You will design and ship FastAPI services, persist data in SQL, and operate them on Azure with Docker-based deploys.

@@ -1,4 +1,4 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, Link } from "@tanstack/react-router";
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
   AlertTriangle,
@@ -12,6 +12,7 @@ import {
 } from "lucide-react";
 import { useAppState, type UploadStage } from "@/lib/app-state";
 import { getJob } from "@/lib/jobs-data";
+import { PageHeader } from "@/components/page-header";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
@@ -85,6 +86,7 @@ export function UploadPage() {
   const [filter, setFilter] = useState<(typeof FILTERS)[number]>("all");
   const [page, setPage] = useState(1);
   const [dragging, setDragging] = useState(false);
+  const [confirmClear, setConfirmClear] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
   const folderRef = useRef<HTMLInputElement>(null);
 
@@ -109,12 +111,30 @@ export function UploadPage() {
 
   return (
     <div className="mx-auto max-w-6xl space-y-6">
-      <header>
-        <h1 className="text-2xl font-extrabold sm:text-3xl">Resume Upload</h1>
-        <p className="mt-1 text-sm text-muted-foreground">
-          Drop entire folders of PDFs — scanned documents are routed through OCR automatically.
-        </p>
-      </header>
+      <PageHeader
+        crumbs={[
+          { label: "Workspace", to: "/" },
+          ...(job
+            ? [{ label: job.title, to: "/jobs/$jobId", params: { jobId: job.id } }]
+            : []),
+          { label: "Upload resumes" },
+        ]}
+        title="Upload resumes"
+        description={
+          job
+            ? `Add PDFs to the ${job.title} pipeline. Scanned documents go through OCR automatically.`
+            : "Drop entire folders of PDFs — scanned documents are routed through OCR automatically."
+        }
+        actions={
+          job ? (
+            <Button variant="outline" className="rounded-xl" asChild>
+              <Link to="/candidates" search={{ job: job.id }}>
+                View candidates
+              </Link>
+            </Button>
+          ) : undefined
+        }
+      />
 
       {job && (
         <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl bg-primary-soft px-4 py-2.5 text-sm text-primary-soft-foreground">
@@ -225,9 +245,33 @@ export function UploadPage() {
                 >
                   <Ban className="mr-1.5 h-3.5 w-3.5" /> Cancel remaining
                 </Button>
-                <Button size="sm" variant="ghost" className="rounded-xl" onClick={clearAll}>
+                <Button size="sm" variant="ghost" className="rounded-xl" onClick={() => setConfirmClear(true)}>
                   Clear
                 </Button>
+                {confirmClear && (
+                  <div className="flex items-center gap-2 text-xs">
+                    <span className="text-muted-foreground">Remove this batch?</span>
+                    <Button
+                      size="sm"
+                      variant="destructive"
+                      className="rounded-xl"
+                      onClick={() => {
+                        clearAll();
+                        setConfirmClear(false);
+                      }}
+                    >
+                      Confirm
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      className="rounded-xl"
+                      onClick={() => setConfirmClear(false)}
+                    >
+                      Cancel
+                    </Button>
+                  </div>
+                )}
               </div>
             </div>
             <div className="mt-4 h-2 overflow-hidden rounded-full bg-muted">
@@ -334,7 +378,7 @@ export function UploadPage() {
             ))}
             {rows.length === 0 && (
               <p className="px-5 py-10 text-center text-sm text-muted-foreground">
-                No files match this filter.
+                No files match this filter. Choose another status or clear the filter.
               </p>
             )}
           </div>

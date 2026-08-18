@@ -1,6 +1,17 @@
 import type { LucideIcon } from "lucide-react";
 import { Link } from "@tanstack/react-router";
 
+type LinkAction = {
+  label: string;
+  to: string;
+  search?: Record<string, string | undefined>;
+};
+
+type ClickAction = {
+  label: string;
+  onClick: () => void;
+};
+
 export function EmptyState({
   icon: Icon,
   title,
@@ -11,7 +22,7 @@ export function EmptyState({
   icon: LucideIcon;
   title: string;
   description: string;
-  action?: { label: string; to: string } | { label: string; onClick: () => void };
+  action?: LinkAction | ClickAction;
   className?: string;
 }) {
   return (
@@ -28,6 +39,7 @@ export function EmptyState({
       {action && "to" in action ? (
         <Link
           to={action.to}
+          search={action.search as never}
           className="mt-2 rounded-xl bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground transition-opacity hover:opacity-90"
         >
           {action.label}

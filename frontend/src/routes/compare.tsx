@@ -1,7 +1,10 @@
-import { createFileRoute, Link } from "@tanstack/react-router";
+import { createFileRoute } from "@tanstack/react-router";
 import { useMemo } from "react";
-import { Sparkle, Sparkles, X } from "lucide-react";
+import { Columns3, Sparkle, Sparkles, X } from "lucide-react";
 import { CompareChat } from "@/components/copilot";
+import { EmptyState } from "@/components/empty-state";
+import { OriginBadge } from "@/components/origin-badge";
+import { PageHeader } from "@/components/page-header";
 import { MiniBar, ScoreRing } from "@/components/score-ring";
 import { Button } from "@/components/ui/button";
 import { useAppState } from "@/lib/app-state";
@@ -44,19 +47,29 @@ function Compare() {
   if (selected.length === 0) {
     return (
       <div className="mx-auto flex max-w-5xl flex-col gap-6">
-        <div className="card-surface p-10 text-center">
-          <h1 className="text-2xl font-extrabold">Candidate Comparison</h1>
-          <p className="mt-2 text-sm text-muted-foreground">
-            Pick 2–3 candidates from the ranking to see them side by side.
-          </p>
-          <Link
-            to="/candidates"
-            className="mt-6 inline-flex rounded-xl bg-primary px-4 py-2.5 text-sm font-semibold text-primary-foreground"
-          >
-            Go to ranking
-          </Link>
-        </div>
-        <CompareChat candidates={[]} blindMode={blindMode} />
+        <PageHeader
+          crumbs={[
+            { label: "Workspace", to: "/" },
+            {
+              label: job?.title ?? "Candidates",
+              to: "/candidates",
+              search: job ? { job: job.id } : undefined,
+            },
+            { label: "Compare" },
+          ]}
+          title="Compare candidates"
+          description="Pick 2–3 people from the ranking to see them side by side."
+        />
+        <EmptyState
+          icon={Columns3}
+          title="No candidates selected"
+          description="Open a job ranking, add people to comparison, then return here."
+          action={{
+            label: "Back to candidates",
+            to: "/candidates",
+            search: job ? { job: job.id } : undefined,
+          }}
+        />
       </div>
     );
   }
@@ -65,24 +78,25 @@ function Compare() {
 
   return (
     <div className="mx-auto flex max-w-7xl flex-col gap-6">
-      <header className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-4">
-        <div className="min-w-0">
-          <div className="flex flex-wrap items-center gap-2">
-            <h1 className="truncate text-2xl font-extrabold sm:text-3xl">Candidate Comparison</h1>
-            {job && (
-              <span className="shrink-0 rounded-full bg-primary-soft px-2.5 py-0.5 text-[11px] font-semibold text-primary-soft-foreground">
-                Comparing for {job.title}
-              </span>
-            )}
-          </div>
-          <p className="mt-1 text-sm text-muted-foreground">
-            {selected.length} candidates side by side · ask the chat below
-          </p>
-        </div>
-        <Button variant="outline" className="shrink-0 rounded-xl" onClick={clearCompare}>
-          Clear selection
-        </Button>
-      </header>
+      <PageHeader
+        crumbs={[
+          { label: "Workspace", to: "/" },
+          ...(job
+            ? [
+                { label: job.title, to: "/jobs/$jobId", params: { jobId: job.id } },
+                { label: "Candidates", to: "/candidates", search: { job: job.id } },
+              ]
+            : [{ label: "Candidates", to: "/candidates" }]),
+          { label: "Compare" },
+        ]}
+        title="Compare"
+        description={`${selected.length} candidates side by side${job ? ` · ${job.title}` : ""}`}
+        actions={
+          <Button variant="outline" className="shrink-0 rounded-xl" onClick={clearCompare}>
+            Clear selection
+          </Button>
+        }
+      />
 
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
         {selected.map((c) => (
@@ -91,8 +105,9 @@ function Compare() {
               <div className="flex min-w-0 items-center gap-3">
                 <ScoreRing value={c.score} size={56} />
                 <div className="min-w-0">
-                  <p className="truncate font-bold">
+                  <p className="flex items-center gap-2 truncate font-bold">
                     {blindMode ? `Candidate #${c.rank}` : c.name}
+                    <OriginBadge origin={c.origin} />
                   </p>
                   <p className="truncate text-xs text-muted-foreground">
                     {c.title} · {c.years} yrs

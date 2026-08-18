@@ -35,6 +35,11 @@ async def ask_agent(
         job_id=payload.job_id,
         session_id=payload.session_id,
         chatbot_conversation_id=payload.chatbot_conversation_id,
+        candidate_ids=payload.candidate_ids,
+        focus_names=payload.focus_names,
+        context_candidates=payload.context_candidates,
+        job_title=payload.job_title,
+        blind_mode=payload.blind_mode,
     )
     db.add(
         AuditLog(
@@ -45,6 +50,8 @@ async def ask_agent(
             details={
                 "session_id": str(result["session_id"]),
                 "source": result.get("source"),
+                "tool": result.get("tool_used"),
+                "blind_mode": payload.blind_mode,
                 "chatbot_conversation_id": result.get("chatbot_conversation_id"),
             },
         )

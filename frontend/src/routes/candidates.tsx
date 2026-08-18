@@ -6,8 +6,10 @@ import {
   ChevronDown,
   Loader2,
   Search,
+  ShieldAlert,
   SlidersHorizontal,
   Sparkles,
+  UserRoundX,
   X,
 } from "lucide-react";
 import { toast } from "sonner";
@@ -20,9 +22,13 @@ import {
   type Candidate,
 } from "@/lib/mock-data";
 import { getJob, isInPipeline, stageOf, PIPELINE_STAGE_LABEL } from "@/lib/jobs-data";
+import { assessCandidate } from "@/lib/fraud-data";
 import { submitCandidateDecision, type InterviewSlot } from "@/lib/api";
 import { MiniBar, ScoreRing } from "@/components/score-ring";
 import { WeightsEditor } from "@/components/weights-editor";
+import { EmptyState } from "@/components/empty-state";
+import { OriginBadge } from "@/components/origin-badge";
+import { PageHeader } from "@/components/page-header";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -40,20 +46,24 @@ type DecisionState =
     };
 
 export const Route = createFileRoute("/candidates")({
-  validateSearch: (search: Record<string, unknown>): { job?: string } =>
-    typeof search["job"] === "string" ? { job: search["job"] } : {},
+  validateSearch: (search: Record<string, unknown>): { job?: string; q?: string } => {
+    const next: { job?: string; q?: string } = {};
+    if (typeof search["job"] === "string") next.job = search["job"];
+    if (typeof search["q"] === "string") next.q = search["q"];
+    return next;
+  },
   head: () => ({
     meta: [
-      { title: "Candidate Ranking — ResumeIQ" },
+      { title: "Candidates — ResumeIQ" },
       {
         name: "description",
         content:
-          "Rank hundreds of candidates by weighted match score, with blind review mode, filters and evidence-backed explanations.",
+          "Rank candidates by weighted match score, review evidence, compare shortlists, and run background checks from this list.",
       },
-      { property: "og:title", content: "Candidate Ranking — ResumeIQ" },
+      { property: "og:title", content: "Candidates — ResumeIQ" },
       {
         property: "og:description",
-        content: "Weighted candidate ranking with blind review and evidence-backed explanations.",
+        content: "Weighted candidate ranking with evidence, comparison, and background checks.",
       },
     ],
   }),
@@ -156,10 +166,11 @@ function Candidates() {
     setBlindMode,
     compareIds,
     toggleCompare,
+    clearCompare,
     setSelectedJobId,
     openCopilot,
   } = useAppState();
-  const { job: jobParam } = Route.useSearch();
+  const { job: jobParam, q: qParam } = Route.useSearch();
   const navigate = Route.useNavigate();
   const job = getJob(jobParam);
 
@@ -167,7 +178,8 @@ function Candidates() {
     if (jobParam) setSelectedJobId(jobParam);
   }, [jobParam, setSelectedJobId]);
 
-  const [query, setQuery] = useState("");
+  const [query, setQuery] = useState(qParam ?? "");
+  const [originFilter, setOriginFilter] = useState<"all" | "internal" | "external">("all");
   const [level, setLevel] = useState<(typeof LEVELS)[number]>("All");
   const [skill, setSkill] = useState("All");
   const [minScore, setMinScore] = useState(0);
@@ -217,6 +229,10 @@ function Candidates() {
     }
   }
 
+  useEffect(() => {
+    if (qParam) setQuery(qParam);
+  }, [qParam]);
+
   const filtered = useMemo(
     () =>
       ranked.filter(
@@ -224,13 +240,14 @@ function Candidates() {
           c.score >= minScore &&
           (level === "All" || c.level === level) &&
           (skill === "All" || c.skills.includes(skill)) &&
+          (originFilter === "all" || c.origin === originFilter) &&
           (query === "" ||
             c.name.toLowerCase().includes(query.toLowerCase()) ||
             c.title.toLowerCase().includes(query.toLowerCase()) ||
             c.skills.some((s) => s.toLowerCase().includes(query.toLowerCase()))) &&
           (!job || isInPipeline(job.id, c.id)),
       ),
-    [ranked, minScore, level, skill, query, job],
+    [ranked, minScore, level, skill, query, job, originFilter],
   );
 
   const pageCount = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
@@ -239,35 +256,47 @@ function Candidates() {
 
   return (
     <div className="mx-auto max-w-7xl space-y-6">
-      <header className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-4">
-        <div className="min-w-0">
-          <h1 className="truncate text-2xl font-extrabold sm:text-3xl">Candidate Ranking</h1>
-          <p className="mt-1 text-sm text-muted-foreground">
-            {filtered.length} candidates match your filters
-          </p>
-        </div>
-        <div className="flex shrink-0 items-center gap-2">
-          {compareIds.length > 0 && (
-            <Link
-              to="/compare"
-              className="rounded-xl bg-primary px-4 py-2.5 text-sm font-semibold text-primary-foreground"
+      <PageHeader
+        crumbs={
+          job
+            ? [
+                { label: "Workspace", to: "/" },
+                { label: job.title, to: "/jobs/$jobId", params: { jobId: job.id } },
+                { label: "Candidates" },
+              ]
+            : [{ label: "Workspace", to: "/" }, { label: "Candidates" }]
+        }
+        title={job ? job.title : "Candidates"}
+        description={`${filtered.length} ${job ? "in this pipeline" : "matching your filters"}`}
+        actions={
+          <>
+            {job && (
+              <Button variant="outline" className="rounded-xl" asChild>
+                <Link to="/jobs/$jobId" params={{ jobId: job.id }}>
+                  Pipeline
+                </Link>
+              </Button>
+            )}
+            <Button variant="outline" className="rounded-xl" onClick={() => setPanelOpen((p) => !p)}>
+              <SlidersHorizontal className="mr-2 h-4 w-4" /> Weights
+            </Button>
+            <Button
+              className="rounded-xl"
+              onClick={() => openCopilot({ jobId: job?.id, candidateIds: compareIds })}
             >
-              Compare ({compareIds.length})
-            </Link>
-          )}
-          <Button variant="outline" className="rounded-xl" onClick={() => setPanelOpen((p) => !p)}>
-            <SlidersHorizontal className="mr-2 h-4 w-4" /> Weights
-          </Button>
-        </div>
-      </header>
+              <Sparkles className="mr-2 h-4 w-4" /> Copilot
+            </Button>
+          </>
+        }
+      />
 
       {job && (
         <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl bg-primary-soft px-4 py-2.5 text-sm text-primary-soft-foreground">
           <span>
-            Screening for <strong>{job.title}</strong> · {filtered.length} in pipeline
+            Screening <strong>{job.title}</strong>
           </span>
           <button
-            onClick={() => void navigate({ search: {} })}
+            onClick={() => void navigate({ search: qParam ? { q: qParam } : {} })}
             className="inline-flex items-center gap-1 text-xs font-semibold underline-offset-2 hover:underline"
           >
             Show full pool <X className="h-3 w-3" />
@@ -277,7 +306,7 @@ function Candidates() {
 
       <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_300px]">
         <div className="min-w-0 space-y-4">
-          <div className="card-surface grid gap-3 p-4 sm:grid-cols-2 xl:grid-cols-4">
+          <div className="card-surface grid gap-3 p-4 sm:grid-cols-2 lg:grid-cols-3">
             <div className="relative min-w-0">
               <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
               <Input
@@ -319,6 +348,26 @@ function Candidates() {
                 </option>
               ))}
             </select>
+            <div className="flex min-w-0 items-center gap-1 rounded-xl bg-secondary p-1">
+              {(["all", "internal", "external"] as const).map((origin) => (
+                <button
+                  key={origin}
+                  type="button"
+                  onClick={() => {
+                    setOriginFilter(origin);
+                    setPage(1);
+                  }}
+                  className={cn(
+                    "flex-1 rounded-lg px-2 py-1.5 text-xs font-semibold capitalize transition-colors",
+                    originFilter === origin
+                      ? "bg-background text-foreground shadow-sm"
+                      : "text-muted-foreground hover:text-foreground",
+                  )}
+                >
+                  {origin === "all" ? "All" : origin}
+                </button>
+              ))}
+            </div>
             <div className="min-w-0">
               <p className="mb-1 text-[11px] text-muted-foreground">Min score: {minScore}</p>
               <Slider
@@ -358,6 +407,7 @@ function Candidates() {
                       <div className="min-w-0">
                         <p className="flex items-center gap-1.5 truncate text-sm font-bold">
                           {displayName}
+                          <OriginBadge origin={c.origin} />
                           {job && (
                             <Badge
                               variant="secondary"
@@ -452,16 +502,27 @@ function Candidates() {
                           </span>
                         ))}
                       </div>
-                      <Button
-                        size="sm"
-                        variant={compareIds.includes(c.id) ? "default" : "outline"}
-                        className="rounded-xl"
-                        onClick={() => toggleCompare(c.id)}
-                      >
-                        {compareIds.includes(c.id)
-                          ? "Selected for comparison"
-                          : "Add to comparison"}
-                      </Button>
+                      <div className="flex flex-wrap items-center gap-2">
+                        <Button
+                          size="sm"
+                          variant={compareIds.includes(c.id) ? "default" : "outline"}
+                          className="rounded-xl"
+                          onClick={() => toggleCompare(c.id)}
+                        >
+                          {compareIds.includes(c.id)
+                            ? "Selected for comparison"
+                            : "Add to comparison"}
+                        </Button>
+                        <Button size="sm" variant="outline" className="rounded-xl" asChild>
+                          <Link to="/fraud-detection" search={{ candidate: c.id }}>
+                            <ShieldAlert className="mr-1.5 h-3.5 w-3.5" />
+                            Background check
+                            <span className="ml-1.5 capitalize text-muted-foreground">
+                              · {assessCandidate(c).status}
+                            </span>
+                          </Link>
+                        </Button>
+                      </div>
 
                       {(() => {
                         const state = decisions[c.id];
@@ -500,9 +561,31 @@ function Candidates() {
             })}
 
             {rows.length === 0 && (
-              <p className="px-5 py-12 text-center text-sm text-muted-foreground">
-                No candidates match these filters.
-              </p>
+              <EmptyState
+                icon={UserRoundX}
+                title="No candidates match these filters"
+                description={
+                  job
+                    ? "Try a different origin, skill, or score filter — or upload resumes into this job."
+                    : "Try a different search or clear filters to see the full pool."
+                }
+                action={
+                  job
+                    ? { label: "Upload resumes", to: "/upload", search: { job: job.id } }
+                    : {
+                        label: "Clear filters",
+                        onClick: () => {
+                          setQuery("");
+                          setLevel("All");
+                          setSkill("All");
+                          setMinScore(0);
+                          setOriginFilter("all");
+                          setPage(1);
+                        },
+                      }
+                }
+                className="rounded-none border-0 shadow-none"
+              />
             )}
           </div>
 
@@ -550,6 +633,22 @@ function Candidates() {
           </aside>
         )}
       </div>
+
+      {compareIds.length > 0 && (
+        <div className="sticky bottom-4 z-20 mx-auto flex max-w-xl flex-wrap items-center justify-between gap-3 rounded-2xl border bg-card px-4 py-3 shadow-[var(--shadow-lift)]">
+          <p className="text-sm font-semibold">
+            {compareIds.length} selected for comparison
+          </p>
+          <div className="flex items-center gap-2">
+            <Button size="sm" variant="ghost" className="rounded-xl" onClick={clearCompare}>
+              Clear
+            </Button>
+            <Button size="sm" className="rounded-xl" asChild>
+              <Link to="/compare">Compare</Link>
+            </Button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

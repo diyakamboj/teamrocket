@@ -72,6 +72,11 @@ export const Route = createFileRoute("/")({
 });
 
 const JOB_FILTERS = ["All", "Active", "On hold", "Closed"] as const;
+const HIRING_VIEWS = [
+  { id: "all", label: "All hiring" },
+  { id: "internal", label: "Internal" },
+  { id: "external", label: "External" },
+] as const;
 
 function isActiveStatus(status: JobStatus) {
   return status === "open" || status === "interviewing" || status === "offer_stage";
@@ -191,6 +196,7 @@ function Dashboard() {
   const buckets = useMemo(() => scoreBuckets(ranked), [ranked]);
 
   const [jobFilter, setJobFilter] = useState<(typeof JOB_FILTERS)[number]>("All");
+  const [hiringView, setHiringView] = useState<(typeof HIRING_VIEWS)[number]["id"]>("all");
   const [jobQuery, setJobQuery] = useState("");
 
   const jobSummaries = useMemo(
@@ -205,9 +211,12 @@ function Dashboard() {
         if (jobFilter === "On hold" && job.status !== "on_hold") return false;
         if (jobFilter === "Closed" && job.status !== "closed") return false;
         if (jobQuery && !job.title.toLowerCase().includes(jobQuery.toLowerCase())) return false;
+        const summary = jobSummaries.get(job.id)!;
+        if (hiringView === "internal" && summary.internalCount === 0) return false;
+        if (hiringView === "external" && summary.externalCount === 0) return false;
         return true;
       }),
-    [jobFilter, jobQuery],
+    [jobFilter, jobQuery, hiringView, jobSummaries],
   );
 
   const activeJobsCount = JOBS.filter((j) => isActiveStatus(j.status)).length;
@@ -364,6 +373,22 @@ function Dashboard() {
               />
             </div>
             <div className="flex gap-1 rounded-xl bg-secondary p-1">
+              {HIRING_VIEWS.map((view) => (
+                <button
+                  key={view.id}
+                  onClick={() => setHiringView(view.id)}
+                  className={cn(
+                    "rounded-lg px-2.5 py-1 text-xs font-semibold transition-colors",
+                    hiringView === view.id
+                      ? "bg-background text-foreground shadow-sm"
+                      : "text-muted-foreground hover:text-foreground",
+                  )}
+                >
+                  {view.label}
+                </button>
+              ))}
+            </div>
+            <div className="flex gap-1 rounded-xl bg-secondary p-1">
               {JOB_FILTERS.map((f) => (
                 <button
                   key={f}
@@ -391,6 +416,7 @@ function Dashboard() {
               label: "Clear filters",
               onClick: () => {
                 setJobFilter("All");
+                setHiringView("all");
                 setJobQuery("");
               },
             }}

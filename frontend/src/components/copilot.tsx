@@ -47,16 +47,16 @@ function displayName(c: CompareChatCandidate, blindMode: boolean) {
 
 function buildCandidateBrief(candidates: CompareChatCandidate[], blindMode: boolean) {
   return candidates.map((c) => ({
+    id: c.id,
     name: displayName(c, blindMode),
-    title: c.title,
-    years_experience: c.years,
-    level: c.level,
+    rank: c.rank,
     overall_score: c.score,
-    category_scores: c.categories,
+    skill_score: c.categories.skills,
+    experience_score: c.categories.experience,
     skills: c.skills,
-    education: c.education,
-    strengths: c.strengths,
+    missing_skills: c.gaps,
     gaps: c.gaps,
+    strengths: c.strengths.join("; "),
   }));
 }
 
@@ -205,8 +205,7 @@ export function CompareChat({ candidates, blindMode = false, className }: Compar
   useEffect(() => {
     getAgentStatus()
       .then((status) => {
-        if (status.chatbot?.reachable) setChatSource("chatbot");
-        else if (status.local_agent) setChatSource("local");
+        if (status.local_agent) setChatSource("local");
         else setChatSource("offline");
       })
       .catch(() => setChatSource("offline"));
@@ -241,23 +240,19 @@ export function CompareChat({ candidates, blindMode = false, className }: Compar
     }
 
     const brief = buildCandidateBrief(candidates, blindMode);
-    const contextualQuery = `
-User question: ${query}
-
-You are comparing this shortlist. Answer using ONLY these candidates and be specific with names, years, and scores:
-
-${JSON.stringify(brief, null, 2)}
-
-If asked who has more experience, pick the highest years_experience.
-If asked who is strongest overall, pick the highest overall_score.
-`.trim();
 
     try {
       const result = await askAgent({
-        query: contextualQuery,
+        query,
         job_id: activeJobId,
         session_id: sessionId,
         chatbot_conversation_id: chatbotConversationId,
+        candidate_ids: candidates.map((c) => c.id).filter((id) =>
+          /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id),
+        ),
+        focus_names: blindMode ? [] : candidates.map((c) => c.name),
+        context_candidates: brief,
+        blind_mode: blindMode,
       });
 
       setSessionId(result.session_id);
@@ -290,12 +285,12 @@ If asked who is strongest overall, pick the highest overall_score.
   }
 
   const statusLabel =
-    chatSource === "chatbot"
-      ? "Chat-with-Your-Data"
+    chatSource === "fallback"
+      ? "Deterministic fallback"
       : chatSource === "compare"
         ? "Shortlist-aware"
         : chatSource === "local"
-          ? "Local agent"
+          ? "Grounded agent"
           : chatSource === "offline"
             ? "Offline"
             : "Connecting…";

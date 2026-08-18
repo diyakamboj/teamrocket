@@ -211,11 +211,122 @@ function build(): Candidate[] {
 }
 
 /**
- * Hand-authored demo candidates for presentations, tuned to trip real Fraud
- * Detection signals (live OFAC sanctions match, live employer-registry
- * lookups, disposable-email heuristic) so the queue isn't 100% "verified".
- * See backend/app/services/fraud_service.py for the scoring these rely on.
+ * Controlled Backend Engineer shortlist for the product demo.
+ * Ranked high → low: Alice (hire), Priya (internal interview), Bob (reject).
  */
+const DEMO_WORKFLOW_CANDIDATES: Candidate[] = [
+  {
+    id: "demo-alice",
+    rank: 0,
+    name: "Alice Johnson",
+    initials: "AJ",
+    email: "alice.johnson@example.com",
+    phone: "+1 (555) 010-1001",
+    title: "Senior Backend Engineer",
+    location: "Berlin",
+    years: 6,
+    level: "Senior",
+    education: "BSc Computer Science, TU Berlin",
+    score: 0,
+    categories: { skills: 96, experience: 92, education: 88, certifications: 84, projects: 90 },
+    skills: ["Python", "FastAPI", "SQL", "Azure", "Docker", "Kubernetes"],
+    strengths: [
+      "6 years shipping Python/FastAPI services on Azure",
+      "Production ownership of APIs, SQL, and container deploys",
+    ],
+    gaps: ["Limited public speaking / conference evidence"],
+    transferable: ["Kubernetes work transfers directly to the nice-to-have cloud bar"],
+    evidence: [
+      {
+        skill: "Python",
+        detail: "Owned FastAPI payments API serving 2M requests/day",
+        source: "Platform Team @ Northwind Cloud",
+      },
+      {
+        skill: "Azure",
+        detail: "Designed Azure SQL + Functions ingestion pipeline",
+        source: "Lead role @ Northwind Cloud",
+      },
+      {
+        skill: "Docker",
+        detail: "Containerized services and CI/CD to AKS",
+        source: "Platform Team @ Northwind Cloud",
+      },
+    ],
+    origin: "external",
+  },
+  {
+    id: "demo-priya",
+    rank: 0,
+    name: "Priya Sharma",
+    initials: "PS",
+    email: "priya.sharma@example.com",
+    phone: "+1 (555) 010-1002",
+    title: "Cloud Platform Engineer",
+    location: "Berlin",
+    years: 5,
+    level: "Senior",
+    education: "MSc Software Engineering",
+    score: 0,
+    categories: { skills: 84, experience: 80, education: 86, certifications: 90, projects: 78 },
+    skills: ["Python", "Azure", "Kubernetes", "Terraform", "Docker", "SQL"],
+    strengths: [
+      "Internal Azure/Kubernetes platform owner",
+      "Strong certifications and infrastructure-as-code evidence",
+    ],
+    gaps: ["Limited FastAPI / product-API ownership compared with Alice"],
+    transferable: ["Internal knowledge of our Azure landing zone"],
+    evidence: [
+      {
+        skill: "Azure",
+        detail: "Ran the shared AKS landing zone for 14 teams",
+        source: "Infrastructure @ ResumeIQ (internal)",
+      },
+      {
+        skill: "Kubernetes",
+        detail: "Reduced cluster cost 22% with Terraform + HPA",
+        source: "Platform Team @ ResumeIQ",
+      },
+      {
+        skill: "Python",
+        detail: "Wrote internal tooling services, not customer APIs",
+        source: "Internal tools @ ResumeIQ",
+      },
+    ],
+    origin: "internal",
+  },
+  {
+    id: "demo-bob",
+    rank: 0,
+    name: "Bob Martinez",
+    initials: "BM",
+    email: "bob.martinez@example.com",
+    phone: "+1 (555) 010-1003",
+    title: "Reporting Analyst",
+    location: "Austin",
+    years: 2,
+    level: "Junior",
+    education: "BA Business",
+    score: 0,
+    categories: { skills: 48, experience: 42, education: 55, certifications: 20, projects: 40 },
+    skills: ["Java", "SQL", "Excel"],
+    strengths: ["Solid SQL reporting and stakeholder dashboards"],
+    gaps: [
+      "No Python, FastAPI, Azure, or Docker evidence",
+      "Experience is analytics, not backend services",
+    ],
+    transferable: ["SQL can help with data-access stories, not the core stack"],
+    evidence: [
+      {
+        skill: "SQL",
+        detail: "Built weekly revenue dashboards in Java/SQL",
+        source: "Analytics @ Globex",
+      },
+      { skill: "Java", detail: "Maintained batch reporting jobs", source: "Analytics @ Globex" },
+    ],
+    origin: "external",
+  },
+];
 const DEMO_FRAUD_CANDIDATES: Candidate[] = [
   {
     id: "demo-1",
@@ -379,7 +490,11 @@ const DEMO_FRAUD_CANDIDATES: Candidate[] = [
   },
 ];
 
-export const CANDIDATES: Candidate[] = [...build(), ...DEMO_FRAUD_CANDIDATES];
+export const CANDIDATES: Candidate[] = [
+  ...DEMO_WORKFLOW_CANDIDATES,
+  ...build(),
+  ...DEMO_FRAUD_CANDIDATES,
+];
 
 /** Historical baseline the dashboard adds live upload counts on top of. */
 export const BASELINE_RESUMES_PROCESSED = 1256;

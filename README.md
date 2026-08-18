@@ -96,7 +96,11 @@ Open [http://localhost:8080](http://localhost:8080) and use the floating **Recru
 scripts/dev-frontend.sh   # frontend — port 8080
 scripts/dev-screening.sh  # backend  — port 8000
 scripts/dev-copilot.sh    # copilot  — port 8001
+scripts/demo-up.sh        # isolated demo API (no --reload)
+scripts/verify-demo.sh    # pre-talk checklist
 ```
+
+Walkthrough: `demo/DEMO_SCRIPT.md`.
 
 ## Useful URLs
 

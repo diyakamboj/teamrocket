@@ -105,3 +105,30 @@ def sample_candidate(db: Session) -> Candidate:
     db.commit()
     db.refresh(candidate)
     return candidate
+
+
+@pytest.fixture()
+def sample_candidate_b(db: Session) -> Candidate:
+    candidate = Candidate(
+        id=uuid.uuid4(),
+        name="Bob Martinez",
+        email="bob.martinez@example.com",
+        phone="+1-555-2222",
+        resume_text="Bob Martinez. Skills: Java, SQL. Built reporting dashboards for 2 years.",
+        skills=["Java", "SQL"],
+        experience=[
+            {
+                "company": "Globex",
+                "title": "Analyst",
+                "years": 2,
+                "description": "SQL reporting",
+            }
+        ],
+        education=[{"school": "City College", "degree": "BA", "field": "Business"}],
+        certifications=[],
+        projects=[{"name": "Dashboards", "description": "SQL dashboards"}],
+    )
+    db.add(candidate)
+    db.commit()
+    db.refresh(candidate)
+    return candidate

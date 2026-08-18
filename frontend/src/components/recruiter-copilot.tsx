@@ -31,7 +31,17 @@ const JOB_SUGGESTIONS = [
   "Summarize this job's pipeline",
   "Who should I move to interview next?",
   "What's the biggest skill gap right now?",
-  "How does internal vs. external look for this role?",
+  "Who meets every must-have skill?",
+];
+const CANDIDATE_SUGGESTIONS = [
+  "Give me a verdict on this candidate",
+  "What must-have skills are they missing?",
+  "How do they compare to the rest of the pool?",
+];
+const COMPARE_SUGGESTIONS = [
+  "Compare the selected candidates",
+  "Who is the stronger overall fit?",
+  "What should I ask in interviews?",
 ];
 const GENERAL_SUGGESTIONS = [
   "Which of my open jobs needs attention?",
@@ -39,11 +49,23 @@ const GENERAL_SUGGESTIONS = [
   "What should I screen next?",
 ];
 
+const TOOL_LABEL: Record<string, string> = {
+  search_candidates: "Search",
+  get_verdicts: "Verdicts",
+  compare: "Compare",
+  gap_summary: "Skill gaps",
+  must_have_report: "Must-haves",
+  clarify: "Clarify",
+};
+
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
 type Msg = {
   role: "user" | "assistant";
   text: string;
   source?: string;
   citations?: AgentCitation[];
+  tool?: string | null;
 };
 
 function buildJobBrief(jobId: string | null | undefined) {
@@ -77,15 +99,16 @@ function buildCandidatesBrief(ids: string[], blindMode: boolean) {
   return ranked
     .filter((c) => ids.includes(c.id))
     .map((c) => ({
+      id: c.id,
       name: blindMode ? `Candidate #${c.rank}` : c.name,
-      title: c.title,
-      years_experience: c.years,
-      level: c.level,
+      rank: c.rank,
       overall_score: c.score,
-      origin: c.origin,
+      skill_score: c.categories.skills,
+      experience_score: c.categories.experience,
       skills: c.skills,
-      strengths: c.strengths,
+      missing_skills: c.gaps,
       gaps: c.gaps,
+      strengths: c.strengths.join("; "),
     }));
 }
 
@@ -127,8 +150,7 @@ export function RecruiterCopilot() {
     if (!copilotOpen) return;
     getAgentStatus()
       .then((status) => {
-        if (status.chatbot?.reachable) setChatSource("chatbot");
-        else if (status.local_agent) setChatSource("local");
+        if (status.local_agent) setChatSource("local");
         else setChatSource("offline");
       })
       .catch(() => setChatSource("offline"));
@@ -155,27 +177,22 @@ export function RecruiterCopilot() {
 
     const jobBrief = buildJobBrief(copilotContext?.jobId);
     const candidatesBrief = buildCandidatesBrief(candidateIds, blindMode);
-
-    const contextParts = [
-      jobBrief ? `Job context:\n${JSON.stringify(jobBrief, null, 2)}` : null,
-      candidatesBrief ? `Selected candidates:\n${JSON.stringify(candidatesBrief, null, 2)}` : null,
-    ].filter(Boolean);
-
-    const contextualQuery =
-      contextParts.length > 0
-        ? `User question: ${query}\n\nAnswer using the context below where relevant. Be specific with names/titles/numbers.\n\n${contextParts.join("\n\n")}`
-        : query;
+    const uuidIds = candidateIds.filter((id) => UUID_RE.test(id));
+    const focusNames = (candidatesBrief ?? [])
+      .map((c) => c.name)
+      .filter((name) => !name.startsWith("Candidate #"));
 
     try {
-      // job_id must always be the REAL backend job UUID from app-state
-      // (activeJobId), never the synthetic dashboard job id in
-      // copilotContext — the backend does a DB lookup on this field and a
-      // synthetic slug would fail UUID validation.
       const result = await askAgent({
-        query: contextualQuery,
+        query,
         job_id: activeJobId,
         session_id: sessionId,
         chatbot_conversation_id: chatbotConversationId,
+        candidate_ids: uuidIds,
+        focus_names: focusNames,
+        context_candidates: candidatesBrief ?? [],
+        job_title: jobBrief?.title ?? job?.title,
+        blind_mode: blindMode,
       });
 
       setSessionId(result.session_id);
@@ -191,6 +208,7 @@ export function RecruiterCopilot() {
           text: result.response,
           source: result.source,
           citations: result.citations || [],
+          tool: result.tool_used,
         },
       ]);
     } catch {
@@ -205,17 +223,26 @@ export function RecruiterCopilot() {
   }
 
   const statusLabel =
-    chatSource === "chatbot"
-      ? "Chat-with-Your-Data"
+    chatSource === "fallback"
+      ? "Deterministic fallback"
       : chatSource === "local"
-        ? "Local agent"
+        ? "Grounded agent"
         : chatSource === "offline"
           ? "Offline"
           : chatSource === "copilot"
             ? "Recruiter Copilot"
-            : "Connecting…";
+            : chatSource === "chatbot"
+              ? "Grounded agent"
+              : "Connecting…";
 
-  const suggestions = job ? JOB_SUGGESTIONS : GENERAL_SUGGESTIONS;
+  const suggestions =
+    candidateIds.length >= 2
+      ? COMPARE_SUGGESTIONS
+      : candidateIds.length === 1
+        ? CANDIDATE_SUGGESTIONS
+        : job
+          ? JOB_SUGGESTIONS
+          : GENERAL_SUGGESTIONS;
 
   return (
     <Sheet open={copilotOpen} onOpenChange={(open) => !open && closeCopilot()}>
@@ -228,6 +255,8 @@ export function RecruiterCopilot() {
             {statusLabel}
             {!backendReady ? " · API optional" : ""}
             {job ? ` · ${job.title}` : ""}
+            {candidateIds.length > 0 ? ` · ${candidateIds.length} selected` : ""}
+            {blindMode ? " · Blind review" : ""}
           </SheetDescription>
         </SheetHeader>
 
@@ -236,6 +265,11 @@ export function RecruiterCopilot() {
             <div key={i} className="space-y-1">
               <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
                 {m.role === "user" ? "You" : "Assistant"}
+                {m.role === "assistant" && m.tool && TOOL_LABEL[m.tool] ? (
+                  <span className="ml-2 rounded-full border px-1.5 py-0.5 text-[9px] font-semibold normal-case tracking-normal">
+                    {TOOL_LABEL[m.tool]}
+                  </span>
+                ) : null}
               </p>
               <div
                 className={cn(
@@ -255,7 +289,7 @@ export function RecruiterCopilot() {
               </div>
               {m.citations && m.citations.length > 0 && (
                 <div className="mt-2 rounded-lg border bg-secondary/50 px-3 py-2 text-xs text-muted-foreground">
-                  <p className="mb-1 font-semibold text-foreground">Sources</p>
+                  <p className="mb-1 font-semibold text-foreground">Resume evidence</p>
                   {m.citations.slice(0, 3).map((c, idx) => (
                     <p key={c.id || idx} className="truncate">
                       {c.title || c.id || "Citation"}

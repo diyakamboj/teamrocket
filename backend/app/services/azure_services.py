@@ -1,5 +1,6 @@
 import hashlib
 import json
+import re
 import uuid
 from pathlib import Path
 from typing import Any, Optional
@@ -68,6 +69,9 @@ class AzureOpenAIService:
             or not settings.AZURE_OPENAI_ENDPOINT
         )
         self._client: Optional[AzureOpenAI] = None
+        self.llm_calls = 0
+        self.estimated_prompt_tokens = 0
+        self.estimated_completion_tokens = 0
         if not self.mock:
             self._client = AzureOpenAI(
                 api_key=settings.AZURE_OPENAI_API_KEY,
@@ -75,14 +79,52 @@ class AzureOpenAIService:
                 azure_endpoint=settings.AZURE_OPENAI_ENDPOINT,
             )
 
+    def usage_snapshot(self) -> dict[str, int]:
+        return {
+            "llm_calls": self.llm_calls,
+            "estimated_prompt_tokens": self.estimated_prompt_tokens,
+            "estimated_completion_tokens": self.estimated_completion_tokens,
+        }
+
+    def _record_usage(self, prompt: str, completion: str, messages: Optional[list[dict[str, str]]] = None) -> None:
+        self.llm_calls += 1
+        blob = prompt or ""
+        if messages:
+            blob = " ".join(str(m.get("content") or "") for m in messages)
+        self.estimated_prompt_tokens += max(1, len(blob) // 4)
+        self.estimated_completion_tokens += max(1, len(completion or "") // 4)
+
+    def try_chat_json(self, *args: Any, **kwargs: Any) -> Optional[dict[str, Any]]:
+        try:
+            return self.chat_json(*args, **kwargs)
+        except AzureServiceError as exc:
+            logger.warning("Azure OpenAI JSON call failed, using fallback: %s", exc)
+            return None
+
+    def try_chat_text(self, *args: Any, **kwargs: Any) -> Optional[str]:
+        try:
+            text = self.chat_text(*args, **kwargs)
+            return text or None
+        except AzureServiceError as exc:
+            logger.warning("Azure OpenAI text call failed, using fallback: %s", exc)
+            return None
+
     def chat_json(
         self,
         prompt: str,
         *,
         system: str = "You are a helpful recruiting assistant. Return valid JSON only.",
         temperature: float = 0.3,
+        max_tokens: int = 800,
+        messages: Optional[list[dict[str, str]]] = None,
     ) -> dict[str, Any]:
-        content = self.chat_text(prompt, system=system, temperature=temperature)
+        content = self.chat_text(
+            prompt,
+            system=system,
+            temperature=temperature,
+            max_tokens=max_tokens,
+            messages=messages,
+        )
         return self._safe_json(content)
 
     def chat_text(
@@ -95,7 +137,9 @@ class AzureOpenAIService:
         messages: Optional[list[dict[str, str]]] = None,
     ) -> str:
         if self.mock:
-            return self._mock_response(prompt)
+            content = self._mock_response(prompt)
+            self._record_usage(prompt, content, messages)
+            return content
 
         assert self._client is not None
         payload = messages or [
@@ -109,7 +153,15 @@ class AzureOpenAIService:
                 temperature=temperature,
                 max_tokens=max_tokens,
             )
-            return response.choices[0].message.content or ""
+            content = response.choices[0].message.content or ""
+            usage = getattr(response, "usage", None)
+            if usage is not None:
+                self.llm_calls += 1
+                self.estimated_prompt_tokens += int(getattr(usage, "prompt_tokens", 0) or 0)
+                self.estimated_completion_tokens += int(getattr(usage, "completion_tokens", 0) or 0)
+            else:
+                self._record_usage(prompt, content, payload)
+            return content
         except Exception as exc:
             logger.exception("Azure OpenAI call failed")
             raise AzureServiceError("Azure OpenAI request failed", {"reason": str(exc)}) from exc
@@ -139,6 +191,9 @@ class AzureOpenAIService:
     def _mock_response(self, prompt: str) -> str:
         lower = prompt.lower()
         if "parse this resume" in lower:
+            labeled = self._mock_parse_resume_from_prompt(prompt)
+            if labeled:
+                return json.dumps(labeled)
             digest = hashlib.md5(prompt.encode()).hexdigest()[:6]
             return json.dumps(
                 {
@@ -210,10 +265,120 @@ class AzureOpenAIService:
                 "Candidate A shows stronger cloud depth; Candidate B has broader product experience. "
                 "Recommend interviewing A first for backend cloud roles."
             )
+        if "exactly one tool" in lower or "choose exactly one" in lower:
+            query = ""
+            for line in prompt.splitlines():
+                if line.lower().startswith("user query:"):
+                    query = line.split(":", 1)[1].strip().lower()
+                    break
+            tool = "search_candidates"
+            if any(tok in query for tok in ("compare", " vs ", "versus", "side by side")):
+                tool = "compare"
+            elif any(tok in query for tok in ("must-have", "must have", "required skill", "meets all")):
+                tool = "must_have_report"
+            elif any(tok in query for tok in ("gap", "pipeline", "missing skill")):
+                tool = "gap_summary"
+            elif any(tok in query for tok in ("verdict", "interview", "recommend", "strongest", "best fit", "hire")):
+                tool = "get_verdicts"
+            elif len(query) < 3 or query in {"?", "asdf", "asdfgh", "help", "idk"}:
+                tool = "clarify"
+            return json.dumps({"tool": tool, "args": {}, "reason": "mock tool selection"})
+        if "TOOL_RESULT_JSON:" in prompt or "tool_result_json" in lower:
+            blob = prompt.split("TOOL_RESULT_JSON:", 1)[-1].strip()
+            try:
+                data = json.loads(blob.split("\n\n", 1)[0].strip())
+            except json.JSONDecodeError:
+                data = {}
+            headline = (data.get("payload") or {}).get("headline") or (data.get("headline") or "")
+            tool = data.get("tool") or "search_candidates"
+            return (
+                f"{headline or 'Grounded summary from the scored candidate pool.'}\n\n"
+                f"Answer is limited to the `{tool}` tool result. Cite only listed [evidence:id] markers."
+            )
         return (
             "Based on the ranked candidate pool, prioritize candidates with strong Python and Azure "
             "evidence, then validate production ownership in interviews."
         )
+
+    def _mock_parse_resume_from_prompt(self, prompt: str) -> Optional[dict[str, Any]]:
+        """Use labeled fields in the resume body so mock parsing stays distinct per file."""
+        marker = "resume text:"
+        idx = prompt.lower().find(marker)
+        if idx < 0:
+            return None
+        body = prompt[idx + len(marker) :].strip()
+        body = re.sub(r"\nReturn ONLY valid JSON\.?\s*$", "", body, flags=re.I).strip()
+        if not body:
+            return None
+
+        def grab(label: str) -> Optional[str]:
+            match = re.search(rf"^{re.escape(label)}\s*:\s*(.+)$", body, re.I | re.M)
+            return match.group(1).strip() if match else None
+
+        name = grab("Name")
+        if not name:
+            first = next(
+                (
+                    line.strip()
+                    for line in body.splitlines()
+                    if line.strip() and "@" not in line and not line.lower().startswith("skills:")
+                ),
+                None,
+            )
+            if first and 1 <= len(first.split()) <= 5:
+                name = first
+        if not name:
+            return None
+
+        email = grab("Email")
+        if not email:
+            found = re.search(r"[\w.+-]+@[\w.-]+\.\w+", body)
+            email = found.group(0) if found else f"{name.split()[0].lower()}@example.com"
+
+        skills_raw = grab("Skills") or ""
+        skills = [s.strip() for s in skills_raw.split(",") if s.strip()]
+        if not skills:
+            return None
+
+        years_raw = grab("Years")
+        try:
+            years = int(years_raw) if years_raw else 3
+        except ValueError:
+            years = 3
+
+        company = grab("Company") or "Previous Employer"
+        title = grab("Title") or "Software Engineer"
+        education = grab("Education") or "BSc Computer Science"
+        certs_raw = grab("Certifications") or ""
+        certifications = [c.strip() for c in certs_raw.split(",") if c.strip()]
+        project = grab("Project") or f"{title} work"
+
+        return {
+            "contact_info": {
+                "name": name,
+                "email": email,
+                "phone": grab("Phone") or "+1-555-0100",
+            },
+            "skills": skills,
+            "work_experience": [
+                {
+                    "company": company,
+                    "title": title,
+                    "duration": grab("Duration") or "recent",
+                    "years": years,
+                    "description": grab("Summary") or f"{years} years as {title} using {', '.join(skills[:4])}.",
+                }
+            ],
+            "education": [{"school": education, "degree": education, "field": education}],
+            "certifications": certifications,
+            "projects": [
+                {
+                    "name": project,
+                    "description": grab("Summary") or project,
+                    "technologies": skills[:4],
+                }
+            ],
+        }
 
 
 class AzureDocumentIntelligenceService:

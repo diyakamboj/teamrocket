@@ -1,6 +1,6 @@
 import re
 from pathlib import Path
-from typing import Iterable
+from typing import Iterable, Optional
 
 ALLOWED_RESUME_EXTENSIONS = {".pdf", ".docx", ".doc", ".txt", ".png", ".jpg", ".jpeg"}
 MAX_RESUME_SIZE_BYTES = 15 * 1024 * 1024  # 15 MB
@@ -25,6 +25,20 @@ def redact_pii(text: str) -> str:
         return text
     text = re.sub(r"[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}", "[REDACTED_EMAIL]", text)
     text = re.sub(r"(\+?\d[\d\-\s().]{7,}\d)", "[REDACTED_PHONE]", text)
+    return text
+
+
+def redact_identity(text: str, names: Optional[list[str]] = None) -> str:
+    """Redact contact info and known person names for blind review."""
+    text = redact_pii(text or "")
+    for name in names or []:
+        cleaned = (name or "").strip()
+        if len(cleaned) < 2 or cleaned.lower().startswith("candidate"):
+            continue
+        text = re.sub(re.escape(cleaned), "the candidate", text, flags=re.IGNORECASE)
+        first = cleaned.split()[0]
+        if len(first) > 2:
+            text = re.sub(rf"\b{re.escape(first)}\b", "the candidate", text, flags=re.IGNORECASE)
     return text
 
 

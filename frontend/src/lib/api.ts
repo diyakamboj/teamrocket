@@ -1,11 +1,31 @@
 const API_BASE =
   (import.meta.env["VITE_API_BASE_URL"] as string | undefined)?.replace(/\/$/, "") ?? "";
 
+export type AgentContextCandidate = {
+  id?: string;
+  candidate_id?: string;
+  name: string;
+  rank?: number;
+  overall_score?: number;
+  score?: number;
+  skill_score?: number;
+  experience_score?: number;
+  skills?: string[];
+  missing_skills?: string[];
+  gaps?: string[];
+  strengths?: string | string[];
+};
+
 export type AgentAskPayload = {
   query: string;
   job_id?: string | null;
   session_id?: string | null;
   chatbot_conversation_id?: string | null;
+  candidate_ids?: string[];
+  focus_names?: string[];
+  context_candidates?: AgentContextCandidate[];
+  job_title?: string | null;
+  blind_mode?: boolean;
 };
 
 export type AgentCitation = {
@@ -22,10 +42,20 @@ export type AgentAskResponse = {
   response: string;
   candidates_referenced: string[];
   chat_turn: number;
-  source: "chatbot" | "local" | string;
+  source: "chatbot" | "local" | "fallback" | string;
   citations: AgentCitation[];
   chatbot_conversation_id?: string | null;
   job_id?: string | null;
+  tool_used?: string | null;
+  usage?: {
+    llm_calls?: number;
+    estimated_prompt_tokens?: number;
+    estimated_completion_tokens?: number;
+    selection_source?: string;
+    pool_size?: number;
+    pool_reused?: boolean;
+    tool?: string;
+  };
 };
 
 export type AgentStatus = {
@@ -36,6 +66,7 @@ export type AgentStatus = {
     url?: string | null;
     error?: string;
   };
+  tools?: string[];
 };
 
 export type JobResponse = {

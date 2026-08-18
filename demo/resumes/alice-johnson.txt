@@ -1,0 +1,20 @@
+Name: Alice Johnson
+Email: alice.johnson@example.com
+Phone: +1-555-0101
+Title: Senior Backend Engineer
+Company: Northwind Cloud
+Location: Berlin
+Years: 6
+Duration: 2019-2025
+Skills: Python, FastAPI, SQL, Azure, Docker, Kubernetes
+Education: BSc Computer Science, TU Berlin
+Certifications: AZ-204, AZ-900
+Project: Payments API
+Summary: Owned the FastAPI payments API serving 2M requests/day on Azure SQL, Docker, and AKS.
+
+Experience
+Senior Backend Engineer, Northwind Cloud (2019–2025)
+Built and operated Python FastAPI services on Azure. Designed the Azure SQL schema for payments, containerized every service with Docker, and deployed to Kubernetes. Reduced p95 latency 40% while keeping 99.95% availability.
+
+Education
+BSc Computer Science, TU Berlin

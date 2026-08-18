@@ -11,7 +11,7 @@ from app.models.job_posting import JobPosting
 from app.models.schemas import WeightConfig
 from app.services.azure_services import openai_service, search_service
 from app.services.evidence_tracker import evidence_tracker
-from app.utils.error_handlers import NotFoundError
+from app.utils.error_handlers import AzureServiceError, NotFoundError
 from app.utils.validators import normalize_skill, redact_pii
 
 
@@ -240,9 +240,14 @@ weaknesses (string),
 transferable_skills (string),
 evidence (list of {{skill_name, resume_text_snippet, source_section, confidence_score}}).
 """
-        result = openai_service.chat_json(prompt, temperature=0.3)
+        try:
+            result = openai_service.chat_json(prompt, temperature=0.3, max_tokens=700)
+        except AzureServiceError:
+            result = {}
+        if not isinstance(result, dict):
+            result = {}
 
-        # Deterministic fallbacks when model output is incomplete
+        # Deterministic fallbacks when model output is incomplete or Azure is down
         cand_skills = {normalize_skill(str(s)): str(s) for s in (candidate.skills or [])}
         req_skills = [str(s) for s in (job.required_skills or [])]
         matched = result.get("matched_skills")
@@ -259,6 +264,20 @@ evidence (list of {{skill_name, resume_text_snippet, source_section, confidence_
             ]
         result["matched_skills"] = matched
         result["missing_skills"] = missing
+        if not result.get("strengths"):
+            result["strengths"] = (
+                f"Matched {len(matched)} of {len(req_skills)} required skills."
+                if req_skills
+                else "Relevant experience on file."
+            )
+        if not result.get("weaknesses"):
+            result["weaknesses"] = (
+                f"Missing {', '.join(str(s) for s in missing[:4])}."
+                if missing
+                else "No major required-skill gaps recorded."
+            )
+        if not result.get("transferable_skills"):
+            result["transferable_skills"] = result["strengths"]
         return result
 
     def _upsert_evaluation(

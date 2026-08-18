@@ -136,6 +136,8 @@ SKILL_ALIASES: list[tuple[re.Pattern[str], str]] = [
     (re.compile(r"\bkubernetes\b|\bk8s\b", re.I), "Kubernetes"),
     (re.compile(r"\baws\b", re.I), "AWS"),
     (re.compile(r"\bazure\b", re.I), "Azure"),
+    (re.compile(r"\bfastapi\b", re.I), "FastAPI"),
+    (re.compile(r"\bterraform\b", re.I), "Terraform"),
     (re.compile(r"\bpvc\b|\bcopper\s*pipe\b|\bpipe\s*fitting\b", re.I), "Pipe fitting (PVC/copper)"),
     (re.compile(r"\bwater\s*heater\b", re.I), "Water heater installation"),
     (re.compile(r"\bdrain\b", re.I), "Drain cleaning"),

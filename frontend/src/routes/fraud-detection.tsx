@@ -1,4 +1,4 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, Link } from "@tanstack/react-router";
 import { useEffect, useMemo, useState } from "react";
 import {
   AlertTriangle,
@@ -14,6 +14,7 @@ import {
   WifiOff,
 } from "lucide-react";
 import { FraudOrbit } from "@/components/fraud-orbit";
+import { PageHeader } from "@/components/page-header";
 import { Button } from "@/components/ui/button";
 import { screenCandidatesForFraud, type FraudCheckSource } from "@/lib/api";
 import {
@@ -27,21 +28,24 @@ import {
 } from "@/lib/fraud-data";
 import { CANDIDATES } from "@/lib/mock-data";
 import { useAppState } from "@/lib/app-state";
+import { getJob } from "@/lib/jobs-data";
 import { cn } from "@/lib/utils";
 
 export const Route = createFileRoute("/fraud-detection")({
+  validateSearch: (search: Record<string, unknown>): { candidate?: string } =>
+    typeof search["candidate"] === "string" ? { candidate: search["candidate"] } : {},
   head: () => ({
     meta: [
-      { title: "Fraud Detection — ResumeIQ" },
+      { title: "Background check — ResumeIQ" },
       {
         name: "description",
         content:
-          "Background verification and candidate fraud detection — flag verified, suspicious, and fraudulent applicants.",
+          "Background verification for a candidate — identity, employment, education, and sanctions signals.",
       },
-      { property: "og:title", content: "Fraud Detection — ResumeIQ" },
+      { property: "og:title", content: "Background check — ResumeIQ" },
       {
         property: "og:description",
-        content: "Detect candidate fraud through automated background verification.",
+        content: "Verify a candidate from the ranking workflow.",
       },
     ],
   }),
@@ -139,7 +143,10 @@ function fallbackAssessments(): FraudAssessment[] {
 }
 
 function FraudDetectionPage() {
-  const { blindMode } = useAppState();
+  const { blindMode, selectedJobId } = useAppState();
+  const { candidate: candidateParam } = Route.useSearch();
+  const navigate = Route.useNavigate();
+  const job = getJob(selectedJobId);
   const [assessments, setAssessments] = useState<FraudAssessment[]>([]);
   const [loading, setLoading] = useState(true);
   const [liveError, setLiveError] = useState<string | null>(null);
@@ -176,7 +183,11 @@ function FraudDetectionPage() {
   const stats = useMemo(() => fraudStats(assessments), [assessments]);
   const orbitNodes = useMemo(() => orbitShowcase(assessments), [assessments]);
   const [filter, setFilter] = useState<"all" | FraudStatus>("all");
-  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [selectedId, setSelectedId] = useState<string | null>(candidateParam ?? null);
+
+  useEffect(() => {
+    if (candidateParam) setSelectedId(candidateParam);
+  }, [candidateParam]);
 
   const filtered = assessments.filter((a) => (filter === "all" ? true : a.status === filter));
   const selected: FraudAssessment | undefined =
@@ -189,7 +200,7 @@ function FraudDetectionPage() {
       <div className="mx-auto flex max-w-7xl flex-col items-center justify-center gap-3 py-24 text-center">
         <Loader2 className="h-6 w-6 animate-spin text-primary" />
         <p className="text-sm text-muted-foreground">
-          Running live sanctions &amp; employer-registry checks on {CANDIDATES.length} candidates…
+          Running background checks on {CANDIDATES.length} candidates…
         </p>
       </div>
     );
@@ -201,19 +212,26 @@ function FraudDetectionPage() {
 
   return (
     <div className="mx-auto max-w-7xl space-y-6">
-      <header className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
-        <div>
-          <p className="text-xs font-bold uppercase tracking-wide text-primary-soft-foreground">
-            Recruiting security
-          </p>
-          <h1 className="mt-1 text-2xl font-extrabold sm:text-3xl">Fraud Detection</h1>
-          <p className="mt-1 max-w-2xl text-sm text-muted-foreground">
-            Background verification across identity, employment, education, location, and sanctions
-            signals. Sanctions and employer checks are verified live against the US Treasury OFAC
-            list and company-registry data.
-          </p>
-        </div>
-      </header>
+      <PageHeader
+        crumbs={[
+          { label: "Workspace", to: "/" },
+          {
+            label: job?.title ?? "Candidates",
+            to: "/candidates",
+            search: job ? { job: job.id } : undefined,
+          },
+          { label: "Background check" },
+        ]}
+        title="Background check"
+        description="Identity, employment, education, location, and sanctions signals for this evaluation."
+        actions={
+          <Button variant="outline" className="rounded-xl" asChild>
+            <Link to="/candidates" search={job ? { job: job.id } : {}}>
+              Back to candidates
+            </Link>
+          </Button>
+        }
+      />
 
       {liveError && (
         <div className="flex items-center gap-2 rounded-xl border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-800 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-300">
@@ -414,7 +432,10 @@ function FraudDetectionPage() {
               <button
                 key={item.candidate.id}
                 type="button"
-                onClick={() => setSelectedId(item.candidate.id)}
+                onClick={() => {
+                  setSelectedId(item.candidate.id);
+                  void navigate({ search: { candidate: item.candidate.id } });
+                }}
                 className={cn(
                   "grid w-full grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-3 rounded-2xl border px-3 py-3 text-left transition-colors",
                   active ? "border-primary/40 bg-primary-soft/50" : "hover:bg-secondary/60",

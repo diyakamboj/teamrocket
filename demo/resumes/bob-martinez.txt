@@ -1,0 +1,20 @@
+Name: Bob Martinez
+Email: bob.martinez@example.com
+Phone: +1-555-0103
+Title: Reporting Analyst
+Company: Globex
+Location: Austin
+Years: 2
+Duration: 2023-2025
+Skills: Java, SQL, Excel
+Education: BA Business, City College
+Certifications:
+Project: Revenue dashboards
+Summary: Built weekly Java/SQL revenue dashboards. No Python, FastAPI, Azure, or Docker evidence.
+
+Experience
+Reporting Analyst, Globex (2023–2025)
+Maintained batch Java jobs that load SQL dashboards for finance. Comfortable with Excel and stakeholder reporting. Has not shipped backend APIs or cloud services.
+
+Education
+BA Business, City College

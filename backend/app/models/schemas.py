@@ -238,12 +238,32 @@ class DashboardDistribution(BaseModel):
 # ---------- Agent ----------
 
 
+class AgentContextCandidate(BaseModel):
+    id: Optional[str] = None
+    candidate_id: Optional[str] = None
+    name: str
+    rank: Optional[int] = None
+    overall_score: Optional[float] = None
+    score: Optional[float] = None
+    skill_score: Optional[float] = None
+    experience_score: Optional[float] = None
+    skills: list[str] = Field(default_factory=list)
+    missing_skills: list[str] = Field(default_factory=list)
+    gaps: list[str] = Field(default_factory=list)
+    strengths: Optional[Any] = None
+
+
 class AgentAskRequest(BaseModel):
     query: str
     job_id: Optional[UUID] = None
     session_id: Optional[UUID] = None
     # External CWYD conversation id (string) when using the RAG chatbot service
     chatbot_conversation_id: Optional[str] = None
+    candidate_ids: list[str] = Field(default_factory=list)
+    focus_names: list[str] = Field(default_factory=list)
+    context_candidates: list[AgentContextCandidate] = Field(default_factory=list)
+    job_title: Optional[str] = None
+    blind_mode: bool = False
 
 
 class AgentAskResponse(BaseModel):
@@ -251,15 +271,26 @@ class AgentAskResponse(BaseModel):
     response: str
     candidates_referenced: list[UUID] = Field(default_factory=list)
     chat_turn: int
-    source: str = "local"  # "chatbot" | "local"
+    source: str = "local"  # "chatbot" | "local" | "fallback"
     citations: list[Any] = Field(default_factory=list)
     chatbot_conversation_id: Optional[str] = None
     job_id: Optional[UUID] = None
+    tool_used: Optional[str] = None
+    usage: dict[str, Any] = Field(default_factory=dict)
 
 
 class AgentStatusResponse(BaseModel):
     local_agent: bool = True
     chatbot: dict[str, Any]
+    tools: list[str] = Field(
+        default_factory=lambda: [
+            "search_candidates",
+            "get_verdicts",
+            "compare",
+            "gap_summary",
+            "must_have_report",
+        ]
+    )
 
 
 class AgentSessionResponse(ORMModel):

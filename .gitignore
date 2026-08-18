@@ -17,6 +17,7 @@ htmlcov/
 # backend runtime
 backend/uploads/
 *.db
+demo/.last-job-id
 
 # frontend build
 dist/

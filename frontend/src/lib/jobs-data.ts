@@ -164,6 +164,15 @@ export const PIPELINE_STAGE_LABEL: Record<PipelineStage, string> = {
   rejected: "Rejected",
 };
 
+/** Presentation pool: always appear on Backend Engineer so the live demo is deterministic. */
+const DEMO_PIPELINE: Record<string, Record<string, PipelineStage>> = {
+  "job-backend-eng": {
+    "demo-alice": "interview",
+    "demo-priya": "screening",
+    "demo-bob": "new",
+  },
+};
+
 /** Deterministic 15–49% of the pool "belongs" to a given job's pipeline. */
 function membershipThreshold(jobId: string): number {
   const seed = hashSeed(`${jobId}:membership`);
@@ -171,6 +180,8 @@ function membershipThreshold(jobId: string): number {
 }
 
 export function isInPipeline(jobId: string, candidateId: string): boolean {
+  const forced = DEMO_PIPELINE[jobId]?.[candidateId];
+  if (forced) return true;
   const seed = hashSeed(`${jobId}:${candidateId}:member`);
   return (seed % 100) / 100 < membershipThreshold(jobId);
 }
@@ -190,6 +201,8 @@ const STAGE_WEIGHTS: Record<PipelineStage, number> = {
 };
 
 export function stageOf(jobId: string, candidateId: string): PipelineStage {
+  const forced = DEMO_PIPELINE[jobId]?.[candidateId];
+  if (forced) return forced;
   const seed = hashSeed(`${jobId}:${candidateId}:stage`);
   const totalWeight = Object.values(STAGE_WEIGHTS).reduce((a, b) => a + b, 0);
   let roll = seed % totalWeight;
@@ -253,6 +266,10 @@ export function summarizeJobPipeline(
   return { jobId, total, byStage, screeningProgressPct, internalCount, externalCount, avgScore };
 }
 
+export function isActiveJobStatus(status: JobStatus) {
+  return status === "open" || status === "interviewing" || status === "offer_stage";
+}
+
 /** Deduplicated candidate count across every job's pipeline — dashboard KPI. */
 export function totalCandidatesInPipelines(pool: Candidate[] = DEFAULT_RANKED_POOL): number {
   const seen = new Set<string>();
@@ -262,4 +279,32 @@ export function totalCandidatesInPipelines(pool: Candidate[] = DEFAULT_RANKED_PO
     }
   }
   return seen.size;
+}
+
+/** High-level workspace KPIs for active (open / interviewing / offer) jobs only. */
+export function workspaceKpis(pool: Candidate[] = DEFAULT_RANKED_POOL) {
+  const activeJobs = JOBS.filter((job) => isActiveJobStatus(job.status));
+  const seen = new Set<string>();
+  let internal = 0;
+  let external = 0;
+  let screened = 0;
+
+  for (const job of activeJobs) {
+    for (const { candidate, stage } of pipelineForJob(job.id, pool)) {
+      if (seen.has(candidate.id)) continue;
+      seen.add(candidate.id);
+      if (candidate.origin === "internal") internal += 1;
+      else external += 1;
+      if (stage !== "new") screened += 1;
+    }
+  }
+
+  return {
+    activeJobs: activeJobs.length,
+    totalJobs: JOBS.length,
+    candidates: seen.size,
+    screeningPct: seen.size ? Math.round((screened / seen.size) * 100) : 0,
+    internal,
+    external,
+  };
 }

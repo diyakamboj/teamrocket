@@ -1,9 +1,10 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, Link } from "@tanstack/react-router";
 import { useEffect, useRef, useState } from "react";
 import { ArrowUp, Loader2, Plus, Sparkles, Trash2, X } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { PageHeader } from "@/components/page-header";
 import { analyzeJobDescriptionApi } from "@/lib/api";
 import { useAppState } from "@/lib/app-state";
 import { getJob } from "@/lib/jobs-data";
@@ -203,14 +204,30 @@ function JobAnalysis() {
 
   return (
     <div className="mx-auto flex max-w-6xl flex-col gap-6">
-      <header>
-        <h1 className="text-2xl font-extrabold sm:text-3xl">Job Description Analysis</h1>
-        <p className="mt-1 text-sm text-muted-foreground">
-          Ask in the chat — sections below update only for what you ask (skills, education,
-          experience, certifications).
-          {detectedTitle ? ` Last role: ${detectedTitle}.` : ""}
-        </p>
-      </header>
+      <PageHeader
+        crumbs={[
+          { label: "Workspace", to: "/" },
+          ...(job
+            ? [{ label: job.title, to: "/jobs/$jobId", params: { jobId: job.id } }]
+            : []),
+          { label: "Job description" },
+        ]}
+        title="Job description"
+        description={
+          detectedTitle
+            ? `Ask in the chat — sections update only for what you ask. Last role: ${detectedTitle}.`
+            : "Ask in the chat — sections below update only for what you ask (skills, education, experience, certifications)."
+        }
+        actions={
+          job ? (
+            <Button variant="outline" className="rounded-xl" asChild>
+              <Link to="/upload" search={{ job: job.id }}>
+                Upload resumes
+              </Link>
+            </Button>
+          ) : undefined
+        }
+      />
 
       {job && (
         <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl bg-primary-soft px-4 py-2.5 text-sm text-primary-soft-foreground">

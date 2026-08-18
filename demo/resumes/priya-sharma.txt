@@ -1,0 +1,20 @@
+Name: Priya Sharma
+Email: priya.sharma@example.com
+Phone: +1-555-0102
+Title: Cloud Platform Engineer
+Company: ResumeIQ
+Location: Berlin
+Years: 5
+Duration: 2021-2026
+Skills: Python, Azure, Kubernetes, Terraform, Docker, SQL
+Education: MSc Software Engineering
+Certifications: AZ-400, CKA
+Project: Shared AKS landing zone
+Summary: Internal platform engineer who runs our Azure/Kubernetes landing zone. Strong infra, lighter FastAPI product-API ownership.
+
+Experience
+Cloud Platform Engineer, ResumeIQ (internal) (2021–2026)
+Operate the shared AKS landing zone for 14 teams. Python is used for internal tooling, not customer-facing FastAPI services. Cut cluster cost 22% with Terraform autoscaling.
+
+Education
+MSc Software Engineering
