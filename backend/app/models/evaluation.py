@@ -1,169 +1,123 @@
 import uuid
-from datetime import datetime
+from datetime import datetime, timezone
 from decimal import Decimal
 from typing import Any, Optional
 
-from sqlalchemy import (
-    JSON,
-    Boolean,
-    DateTime,
-    ForeignKey,
-    Integer,
-    Numeric,
-    String,
-    Text,
-    UniqueConstraint,
-    Uuid,
-    func,
-)
-from sqlalchemy.dialects.postgresql import JSONB
-from sqlalchemy.orm import Mapped, mapped_column, relationship
-
-from app.database import Base
-
-JSONType = JSON().with_variant(JSONB(), "postgresql")
+from pydantic import BaseModel, Field
 
 
-class Evaluation(Base):
-    __tablename__ = "evaluations"
-    __table_args__ = (UniqueConstraint("candidate_id", "job_id", name="uq_evaluation_candidate_job"),)
-
-    id: Mapped[uuid.UUID] = mapped_column(
-        Uuid, primary_key=True, default=uuid.uuid4
-    )
-    candidate_id: Mapped[uuid.UUID] = mapped_column(
-        Uuid, ForeignKey("candidates.id"), nullable=False, index=True
-    )
-    job_id: Mapped[uuid.UUID] = mapped_column(
-        Uuid, ForeignKey("job_postings.id"), nullable=False, index=True
-    )
-    overall_score: Mapped[Optional[Decimal]] = mapped_column(Numeric(5, 2))
-    skill_match_score: Mapped[Optional[Decimal]] = mapped_column(Numeric(5, 2))
-    experience_match_score: Mapped[Optional[Decimal]] = mapped_column(Numeric(5, 2))
-    education_match_score: Mapped[Optional[Decimal]] = mapped_column(Numeric(5, 2))
-    certification_match_score: Mapped[Optional[Decimal]] = mapped_column(Numeric(5, 2))
-    project_match_score: Mapped[Optional[Decimal]] = mapped_column(Numeric(5, 2))
-    matched_skills: Mapped[Optional[list[Any]]] = mapped_column(JSONType, default=list)
-    missing_skills: Mapped[Optional[list[Any]]] = mapped_column(JSONType, default=list)
-    strengths: Mapped[Optional[str]] = mapped_column(Text)
-    weaknesses: Mapped[Optional[str]] = mapped_column(Text)
-    transferable_skills: Mapped[Optional[str]] = mapped_column(Text)
-    blind_review_mode: Mapped[bool] = mapped_column(Boolean, default=False)
-    created_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=False), server_default=func.now()
-    )
-
-    candidate = relationship("Candidate", back_populates="evaluations")
-    job = relationship("JobPosting", back_populates="evaluations")
-    evidence_items = relationship(
-        "Evidence", back_populates="evaluation", cascade="all, delete-orphan"
-    )
+def _utcnow() -> datetime:
+    return datetime.now(timezone.utc).replace(tzinfo=None)
 
 
-class Evidence(Base):
-    __tablename__ = "evidence"
-
-    id: Mapped[uuid.UUID] = mapped_column(
-        Uuid, primary_key=True, default=uuid.uuid4
-    )
-    evaluation_id: Mapped[uuid.UUID] = mapped_column(
-        Uuid,
-        ForeignKey("evaluations.id", ondelete="CASCADE"),
-        nullable=False,
-        index=True,
-    )
-    skill_name: Mapped[Optional[str]] = mapped_column(String(255))
-    resume_text_snippet: Mapped[Optional[str]] = mapped_column(Text)
-    source_section: Mapped[Optional[str]] = mapped_column(String(100))
-    confidence_score: Mapped[Optional[Decimal]] = mapped_column(Numeric(3, 2))
-    created_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=False), server_default=func.now()
-    )
-
-    evaluation = relationship("Evaluation", back_populates="evidence_items")
+class Evaluation(BaseModel):
+    id: uuid.UUID = Field(default_factory=uuid.uuid4)
+    candidate_id: uuid.UUID
+    job_id: uuid.UUID
+    overall_score: Optional[Decimal] = None
+    skill_match_score: Optional[Decimal] = None
+    experience_match_score: Optional[Decimal] = None
+    education_match_score: Optional[Decimal] = None
+    certification_match_score: Optional[Decimal] = None
+    project_match_score: Optional[Decimal] = None
+    matched_skills: list[Any] = Field(default_factory=list)
+    missing_skills: list[Any] = Field(default_factory=list)
+    strengths: Optional[str] = None
+    weaknesses: Optional[str] = None
+    transferable_skills: Optional[str] = None
+    blind_review_mode: bool = False
+    created_at: datetime = Field(default_factory=_utcnow)
 
 
-class AuditLog(Base):
-    __tablename__ = "audit_logs"
-
-    id: Mapped[uuid.UUID] = mapped_column(
-        Uuid, primary_key=True, default=uuid.uuid4
-    )
-    recruiter_email: Mapped[Optional[str]] = mapped_column(String(255))
-    action: Mapped[Optional[str]] = mapped_column(String(100))
-    resource_type: Mapped[Optional[str]] = mapped_column(String(100))
-    resource_id: Mapped[Optional[uuid.UUID]] = mapped_column(Uuid)
-    details: Mapped[Optional[dict[str, Any]]] = mapped_column(JSONType, default=dict)
-    created_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=False), server_default=func.now()
-    )
+class Evidence(BaseModel):
+    id: uuid.UUID = Field(default_factory=uuid.uuid4)
+    evaluation_id: uuid.UUID
+    skill_name: Optional[str] = None
+    resume_text_snippet: Optional[str] = None
+    source_section: Optional[str] = None
+    confidence_score: Optional[Decimal] = None
+    dimension: Optional[str] = None
+    created_at: datetime = Field(default_factory=_utcnow)
 
 
-class CandidateDecision(Base):
+class AuditLog(BaseModel):
+    id: uuid.UUID = Field(default_factory=uuid.uuid4)
+    recruiter_email: Optional[str] = None
+    action: Optional[str] = None
+    resource_type: Optional[str] = None
+    resource_id: Optional[uuid.UUID] = None
+    details: dict[str, Any] = Field(default_factory=dict)
+    created_at: datetime = Field(default_factory=_utcnow)
+
+
+class CandidateDecision(BaseModel):
     """Approve/reject decisions from the Candidate Ranking page.
 
-    candidate_id is a plain string (not an FK) because the ranking page can
-    show candidates that only exist client-side (demo/mock data), not just
-    rows in the candidates table.
+    candidate_id is a plain string (not a foreign key) because the ranking
+    page can show candidates that only exist client-side (demo/mock data),
+    not just candidates persisted in the store.
     """
 
-    __tablename__ = "candidate_decisions"
-
-    id: Mapped[uuid.UUID] = mapped_column(
-        Uuid, primary_key=True, default=uuid.uuid4
-    )
-    candidate_id: Mapped[str] = mapped_column(String(255), index=True)
-    candidate_name: Mapped[str] = mapped_column(String(255))
-    candidate_email: Mapped[str] = mapped_column(String(255))
-    job_title: Mapped[Optional[str]] = mapped_column(String(255))
-    decision: Mapped[str] = mapped_column(String(20))  # "approved" | "rejected"
-    recruiter_email: Mapped[Optional[str]] = mapped_column(String(255))
-    email_sent: Mapped[bool] = mapped_column(Boolean, default=False)
-    email_source: Mapped[Optional[str]] = mapped_column(String(20))  # "live" | "mock"
-    email_error: Mapped[Optional[str]] = mapped_column(Text)
-    created_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=False), server_default=func.now()
-    )
+    id: uuid.UUID = Field(default_factory=uuid.uuid4)
+    candidate_id: str
+    candidate_name: str
+    candidate_email: str
+    job_title: Optional[str] = None
+    decision: str  # "approved" | "rejected"
+    recruiter_email: Optional[str] = None
+    email_sent: bool = False
+    email_source: Optional[str] = None  # "live" | "mock"
+    email_error: Optional[str] = None
+    created_at: datetime = Field(default_factory=_utcnow)
 
 
-class AgentSession(Base):
+class AgentSession(BaseModel):
     """Chat history for the recruiter AI copilot."""
 
-    __tablename__ = "agent_sessions"
-
-    id: Mapped[uuid.UUID] = mapped_column(
-        Uuid, primary_key=True, default=uuid.uuid4
-    )
-    recruiter_email: Mapped[Optional[str]] = mapped_column(String(255), index=True)
-    job_id: Mapped[Optional[uuid.UUID]] = mapped_column(Uuid, index=True)
-    messages: Mapped[Optional[list[Any]]] = mapped_column(JSONType, default=list)
-    created_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=False), server_default=func.now()
-    )
-    updated_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=False), server_default=func.now(), onupdate=func.now()
-    )
+    id: uuid.UUID = Field(default_factory=uuid.uuid4)
+    recruiter_email: Optional[str] = None
+    job_id: Optional[uuid.UUID] = None
+    messages: list[Any] = Field(default_factory=list)
+    created_at: datetime = Field(default_factory=_utcnow)
+    updated_at: datetime = Field(default_factory=_utcnow)
+    candidate_id: Optional[uuid.UUID] = None
+    candidate_name: Optional[str] = None
+    title: Optional[str] = None
 
 
-class ResumeUpload(Base):
+class ChatAttachment(BaseModel):
+    """A file attached to a copilot chat session (resume, JD, notes, ...).
+
+    Same shape/field style as `ResumeUpload`, processed by a background task
+    that mirrors `resumes.py::_process_resume`'s module-level-`store`
+    pattern (see `app/services/attachment_processor.py`).
+    """
+
+    id: uuid.UUID = Field(default_factory=uuid.uuid4)
+    session_id: Optional[uuid.UUID] = None
+    recruiter_email: Optional[str] = None
+    filename: str
+    blob_path: Optional[str] = None
+    content_type: Optional[str] = None
+    size_bytes: int = 0
+    status: str = "queued"  # "queued" | "processing" | "processed" | "failed"
+    kind: Optional[str] = None  # "resume" | "job_description" | "notes" | "unknown"
+    extracted_text: Optional[str] = None
+    extracted_summary: Optional[str] = None
+    candidate_id: Optional[uuid.UUID] = None
+    error: Optional[str] = None
+    created_at: datetime = Field(default_factory=_utcnow)
+
+
+class ResumeUpload(BaseModel):
     """Tracks bulk resume upload processing status."""
 
-    __tablename__ = "resume_uploads"
-
-    id: Mapped[uuid.UUID] = mapped_column(
-        Uuid, primary_key=True, default=uuid.uuid4
-    )
-    filename: Mapped[str] = mapped_column(String(500), nullable=False)
-    blob_path: Mapped[Optional[str]] = mapped_column(String(500))
-    status: Mapped[str] = mapped_column(String(50), default="queued", index=True)
-    progress: Mapped[int] = mapped_column(Integer, default=0)
-    error: Mapped[Optional[str]] = mapped_column(Text)
-    candidate_id: Mapped[Optional[uuid.UUID]] = mapped_column(
-        Uuid, ForeignKey("candidates.id"), nullable=True
-    )
-    created_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=False), server_default=func.now()
-    )
-    updated_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=False), server_default=func.now(), onupdate=func.now()
-    )
+    id: uuid.UUID = Field(default_factory=uuid.uuid4)
+    filename: str
+    blob_path: Optional[str] = None
+    status: str = "queued"
+    progress: int = 0
+    error: Optional[str] = None
+    candidate_id: Optional[uuid.UUID] = None
+    created_at: datetime = Field(default_factory=_utcnow)
+    updated_at: datetime = Field(default_factory=_utcnow)

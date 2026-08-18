@@ -69,5 +69,56 @@ class EmailService:
             logger.exception("Failed to send email to %s", to_email)
             return EmailResult(sent=False, source="live", error=str(exc))
 
+    def send(
+        self,
+        *,
+        to_email: str,
+        subject: str,
+        body_text: str,
+        to_name: str = "",
+        html_body: str | None = None,
+    ) -> EmailResult:
+        """Compatibility wrapper used by interview scheduling."""
+        return self.send_email(
+            to_email=to_email,
+            to_name=to_name or to_email,
+            subject=subject,
+            html_body=html_body or body_text.replace("\n", "<br>"),
+            text_body=body_text,
+        )
+
+
+    def send_decision_notification(
+        self,
+        *,
+        candidate_email: str,
+        candidate_name: str,
+        job_title: str,
+        decision: str,
+        notes: str = "",
+    ) -> EmailResult:
+        subject = f"Update regarding your application for {job_title}"
+        body = f"Hello {candidate_name},\n\n{notes}\n\nBest regards,\nRecruiting Team"
+        return self.send(to_email=candidate_email, to_name=candidate_name, subject=subject, body_text=body)
+
 
 email_service = EmailService()
+
+
+def send_decision_notification(
+    *,
+    candidate_email: str,
+    candidate_name: str,
+    job_title: str,
+    decision: str,
+    notes: str = "",
+) -> EmailResult:
+    return email_service.send_decision_notification(
+        candidate_email=candidate_email,
+        candidate_name=candidate_name,
+        job_title=job_title,
+        decision=decision,
+        notes=notes,
+    )
+
+

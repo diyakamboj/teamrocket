@@ -14,6 +14,9 @@ import { useAppState, type UploadStage } from "@/lib/app-state";
 import { getJob } from "@/lib/jobs-data";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import { uploadResumesToBackend } from "@/lib/api";
+import { toast } from "sonner";
+
 
 export const Route = createFileRoute("/upload")({
   validateSearch: (search: Record<string, unknown>): { job?: string } =>
@@ -62,6 +65,7 @@ const FILTERS = ["all", "queued", "processing", "complete", "failed", "duplicate
 const PAGE_SIZE = 25;
 
 export function UploadPage() {
+
   const {
     files,
     addFiles,
@@ -88,10 +92,19 @@ export function UploadPage() {
   const fileRef = useRef<HTMLInputElement>(null);
   const folderRef = useRef<HTMLInputElement>(null);
 
-  function ingest(list: FileList | null) {
-    if (!list) return;
-    addFiles(Array.from(list).map((f) => ({ name: f.name, size: f.size })));
+  async function ingest(list: FileList | null) {
+    if (!list || list.length === 0) return;
+    const fileArray = Array.from(list);
+    addFiles(fileArray.map((f) => ({ name: f.name, size: f.size })));
+
+    try {
+      const res = await uploadResumesToBackend(fileArray);
+      toast.success(`Uploaded ${res.files.length} resume(s) to candidate store!`);
+    } catch (err: any) {
+      toast.error(`Upload error: ${err.message || "Failed to parse files"}`);
+    }
   }
+
 
   const filtered = useMemo(
     () =>

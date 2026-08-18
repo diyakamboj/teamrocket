@@ -1,0 +1,244 @@
+import { useState } from "react";
+import { ExternalLink as ExternalLinkIcon, Github, Globe, Linkedin, Loader2, RefreshCw, ShieldCheck, Star, Sparkles, Award } from "lucide-react";
+import { toast } from "sonner";
+import { enrichCandidate, type Candidate, type EnrichedProfileData } from "@/lib/api";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+
+interface CandidateEnrichmentCardProps {
+  candidate: Candidate;
+  onEnriched?: (updated: Candidate) => void;
+}
+
+export function CandidateEnrichmentCard({ candidate, onEnriched }: CandidateEnrichmentCardProps) {
+
+  const [enriching, setEnriching] = useState(false);
+  const profile = candidate.enriched_profile as EnrichedProfileData | undefined;
+
+  const handleEnrich = async () => {
+    try {
+      setEnriching(true);
+      const updated = await enrichCandidate(candidate.id);
+      toast.success("Candidate profile enriched from public sources!");
+      if (onEnriched) onEnriched(updated);
+    } catch (err: any) {
+      toast.error(err.message || "Failed to enrich profile");
+    } finally {
+      setEnriching(false);
+    }
+  };
+
+  const platformIcon = (platform: string) => {
+    switch (platform) {
+      case "github":
+        return <Github className="h-3.5 w-3.5 text-foreground" />;
+      case "linkedin":
+        return <Linkedin className="h-3.5 w-3.5 text-blue-600 dark:text-blue-400" />;
+      case "hackerrank":
+        return <Award className="h-3.5 w-3.5 text-emerald-600 dark:text-emerald-400" />;
+      case "portfolio":
+      default:
+        return <Globe className="h-3.5 w-3.5 text-purple-600 dark:text-purple-400" />;
+    }
+  };
+
+  return (
+    <Card className="border-border/60 shadow-sm">
+      <CardHeader className="flex flex-row items-center justify-between pb-3">
+        <div>
+          <CardTitle className="flex items-center gap-2 text-base font-semibold">
+            <Sparkles className="h-4 w-4 text-amber-500" />
+            Public Profile Signals & Attribution
+          </CardTitle>
+          <CardDescription className="text-xs">
+            Verified external information from GitHub, LinkedIn, HackerRank, and Portfolio links
+          </CardDescription>
+        </div>
+        <Button
+          size="sm"
+          variant="outline"
+          onClick={handleEnrich}
+          disabled={enriching}
+          className="h-8 gap-1.5 rounded-lg text-xs"
+        >
+          {enriching ? (
+            <>
+              <Loader2 className="h-3.5 w-3.5 animate-spin" /> Enriching…
+            </>
+          ) : (
+            <>
+              <RefreshCw className="h-3.5 w-3.5" /> Run Profile Enrichment
+            </>
+          )}
+        </Button>
+      </CardHeader>
+
+      <CardContent className="space-y-4 text-sm">
+        {/* DETECTED PLATFORM LINKS */}
+        <div className="flex flex-wrap gap-2">
+          {candidate.github_url && (
+            <a
+              href={candidate.github_url}
+              target="_blank"
+              rel="noreferrer"
+              className="inline-flex items-center gap-1.5 rounded-full border bg-secondary/60 px-3 py-1 text-xs font-medium text-foreground hover:bg-secondary transition-colors"
+            >
+              {platformIcon("github")} GitHub Profile <ExternalLinkIcon className="h-3 w-3 opacity-60" />
+            </a>
+          )}
+          {candidate.linkedin_url && (
+            <a
+              href={candidate.linkedin_url}
+              target="_blank"
+              rel="noreferrer"
+              className="inline-flex items-center gap-1.5 rounded-full border bg-blue-500/10 border-blue-500/20 px-3 py-1 text-xs font-medium text-blue-600 dark:text-blue-400 hover:bg-blue-500/20 transition-colors"
+            >
+              {platformIcon("linkedin")} LinkedIn Profile <ExternalLinkIcon className="h-3 w-3 opacity-60" />
+            </a>
+          )}
+          {candidate.hackerrank_url && (
+            <a
+              href={candidate.hackerrank_url}
+              target="_blank"
+              rel="noreferrer"
+              className="inline-flex items-center gap-1.5 rounded-full border bg-emerald-500/10 border-emerald-500/20 px-3 py-1 text-xs font-medium text-emerald-600 dark:text-emerald-400 hover:bg-emerald-500/20 transition-colors"
+            >
+              {platformIcon("hackerrank")} HackerRank Profile <ExternalLinkIcon className="h-3 w-3 opacity-60" />
+            </a>
+          )}
+          {candidate.portfolio_url && (
+            <a
+              href={candidate.portfolio_url}
+              target="_blank"
+              rel="noreferrer"
+              className="inline-flex items-center gap-1.5 rounded-full border bg-purple-500/10 border-purple-500/20 px-3 py-1 text-xs font-medium text-purple-600 dark:text-purple-400 hover:bg-purple-500/20 transition-colors"
+            >
+              {platformIcon("portfolio")} Portfolio Website <ExternalLinkIcon className="h-3 w-3 opacity-60" />
+            </a>
+          )}
+          {!candidate.github_url && !candidate.linkedin_url && !candidate.hackerrank_url && !candidate.portfolio_url && (
+            <p className="text-xs text-muted-foreground italic">No external profile links detected in resume.</p>
+          )}
+        </div>
+
+        {/* ENRICHMENT SUMMARY PACK */}
+        {profile?.summary && (
+          <div className="rounded-xl border border-amber-500/30 bg-amber-500/10 p-3.5 text-xs text-foreground space-y-1.5">
+            <div className="flex items-center gap-1.5 font-semibold text-amber-700 dark:text-amber-400">
+              <Sparkles className="h-4 w-4 shrink-0" />
+              Verified External Profile Summary
+            </div>
+            <p className="text-muted-foreground">{profile.summary}</p>
+          </div>
+        )}
+
+        {/* TOP GITHUB REPOSITORIES */}
+        {profile?.repositories && profile.repositories.length > 0 && (
+          <div className="space-y-2">
+            <p className="text-xs font-semibold text-foreground flex items-center gap-1.5">
+              <Github className="h-3.5 w-3.5" /> Featured Public Repositories (Attributed Source: GitHub)
+            </p>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+              {profile.repositories.map((repo, i) => (
+                <a
+                  key={i}
+                  href={repo.url}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="rounded-lg border border-border p-2.5 hover:border-primary/50 transition-colors space-y-1 block bg-card"
+                >
+                  <div className="flex items-center justify-between">
+                    <span className="font-semibold text-xs text-foreground flex items-center gap-1">
+                      {repo.name} <ExternalLinkIcon className="h-3 w-3 opacity-50" />
+                    </span>
+                    {repo.stars > 0 && (
+                      <span className="text-[11px] text-amber-600 font-medium flex items-center gap-0.5">
+                        <Star className="h-3 w-3 fill-amber-500 text-amber-500" /> {repo.stars}
+                      </span>
+                    )}
+                  </div>
+                  {repo.description && (
+                    <p className="text-[11px] text-muted-foreground line-clamp-1">{repo.description}</p>
+                  )}
+                  {repo.language && (
+                    <Badge variant="outline" className="text-[10px] py-0 px-1.5 bg-secondary/50">
+                      {repo.language}
+                    </Badge>
+                  )}
+                </a>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* INFERRED SKILLS & SOURCE ATTRIBUTION BADGES */}
+        {profile?.inferred_skills && profile.inferred_skills.length > 0 && (
+          <div className="space-y-1.5">
+            <p className="text-xs font-semibold text-foreground flex items-center gap-1.5">
+              <ShieldCheck className="h-3.5 w-3.5 text-emerald-600 dark:text-emerald-400" />
+              Verified Skills with Source Attribution
+            </p>
+            <div className="flex flex-wrap gap-1.5">
+              {profile.inferred_skills.map((skill, i) => (
+                <Badge
+                  key={i}
+                  variant="secondary"
+                  className="flex items-center gap-1 text-[11px] py-0.5 px-2 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border-emerald-500/20"
+                >
+                  <span>{skill.name}</span>
+                  <span className="text-[9px] uppercase font-semibold text-emerald-600/80 bg-emerald-500/20 px-1 rounded">
+                    {skill.origin}
+                  </span>
+                </Badge>
+              ))}
+            </div>
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
+export const CandidateEnrichmentSection = ({ candidateId }: { candidateId: string }) => {
+  return (
+    <CandidateEnrichmentCard
+      candidate={{
+        id: candidateId,
+        name: "Alex Johnson",
+        title: "Senior Cloud Architect",
+        email: "alex@example.com",
+        phone: "+15552345678",
+        summary: "Cloud Architect",
+        years: 7,
+        education: "BS CS",
+        location: "Seattle, WA",
+        rank: 1,
+        score: 94,
+        status: "top_match",
+        categories: { skills: 96, experience: 91, education: 85, certifications: 90, projects: 95 },
+        skills: ["Python", "Azure", "Kubernetes", "FastAPI"],
+        gaps: [],
+        strengths: ["Azure", "Python"],
+        evidence: [],
+        github_url: "https://github.com/alexjohnson",
+        linkedin_url: "https://linkedin.com/in/alexjohnson",
+        hackerrank_url: "https://hackerrank.com/alexjohnson",
+        portfolio_url: "https://alexjohnson.dev",
+        enriched_profile: {
+          summary: "Verified public signals: 12 open-source repositories and 4 featured Python/Azure tools.",
+          repositories: [
+            { name: "azure-microservices-kit", stars: 142, description: "Automated Azure Kubernetes deployment tool", language: "Python", url: "https://github.com/alexjohnson/azure-microservices-kit" },
+            { name: "fastapi-auth-service", stars: 89, description: "OAuth2 authentication service for Azure AD", language: "TypeScript", url: "https://github.com/alexjohnson/fastapi-auth-service" },
+          ],
+          inferred_skills: [
+            { name: "Python", origin: "github" },
+            { name: "Azure", origin: "linkedin" },
+            { name: "Docker", origin: "github" },
+          ],
+        },
+      }}
+    />
+  );
+};
+

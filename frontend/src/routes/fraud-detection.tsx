@@ -15,7 +15,12 @@ import {
 } from "lucide-react";
 import { FraudOrbit } from "@/components/fraud-orbit";
 import { Button } from "@/components/ui/button";
-import { screenCandidatesForFraud, type FraudCheckSource } from "@/lib/api";
+import {
+  checkResumeConsistency,
+  screenCandidatesForFraud,
+  type FraudCheckSource,
+  type ResumeConsistencyResult,
+} from "@/lib/api";
 import {
   assessAllCandidates,
   fraudStats,
@@ -27,7 +32,7 @@ import {
 } from "@/lib/fraud-data";
 import { CANDIDATES } from "@/lib/mock-data";
 import { useAppState } from "@/lib/app-state";
-import { cn } from "@/lib/utils";
+import { cn, isBackendUuid } from "@/lib/utils";
 
 export const Route = createFileRoute("/fraud-detection")({
   head: () => ({
@@ -183,6 +188,37 @@ function FraudDetectionPage() {
     assessments.find((a) => a.candidate.id === selectedId) ??
     orbitNodes.find((n) => n.status === "fraud") ??
     assessments[0];
+
+  const [consistency, setConsistency] = useState<ResumeConsistencyResult | null>(null);
+  const [consistencyLoading, setConsistencyLoading] = useState(false);
+  const [consistencyError, setConsistencyError] = useState<string | null>(null);
+
+  useEffect(() => {
+    const candidateId = selected?.candidate.id ?? null;
+    setConsistency(null);
+    setConsistencyError(null);
+    if (!isBackendUuid(candidateId)) {
+      setConsistencyLoading(false);
+      return;
+    }
+    let cancelled = false;
+    setConsistencyLoading(true);
+    checkResumeConsistency(candidateId)
+      .then((result) => {
+        if (!cancelled) setConsistency(result);
+      })
+      .catch((err: unknown) => {
+        if (!cancelled) {
+          setConsistencyError(err instanceof Error ? err.message : "Consistency check failed");
+        }
+      })
+      .finally(() => {
+        if (!cancelled) setConsistencyLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [selected?.candidate.id]);
 
   if (loading) {
     return (
@@ -380,6 +416,69 @@ function FraudDetectionPage() {
                 </li>
               ))}
             </ul>
+          </div>
+
+          <div>
+            <p className="text-xs font-bold uppercase tracking-wide text-muted-foreground">
+              Resume &amp; profile consistency
+            </p>
+            {!isBackendUuid(selected.candidate.id) ? (
+              <p className="mt-2 rounded-xl border bg-secondary/40 px-3 py-2 text-sm text-muted-foreground">
+                Not available for sample candidates — upload a resume to run a live consistency
+                check.
+              </p>
+            ) : consistencyLoading ? (
+              <div className="mt-2 flex items-center gap-2 text-sm text-muted-foreground">
+                <Loader2 className="h-4 w-4 animate-spin" />
+                Checking resume &amp; profile consistency…
+              </div>
+            ) : consistencyError ? (
+              <p className="mt-2 rounded-xl border border-rose-300 bg-rose-50 px-3 py-2 text-sm text-rose-700 dark:border-rose-500/30 dark:bg-rose-500/10 dark:text-rose-300">
+                Couldn&apos;t run consistency check: {consistencyError}
+              </p>
+            ) : consistency ? (
+              consistency.flags.length === 0 ? (
+                <p className="mt-2 rounded-xl border bg-emerald-50 px-3 py-2 text-sm text-emerald-700 dark:border-emerald-500/30 dark:bg-emerald-500/10 dark:text-emerald-300">
+                  {consistency.summary}
+                </p>
+              ) : (
+                <>
+                  {consistency.requires_review && (
+                    <div className="mt-2 flex items-center gap-2 rounded-xl border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-800 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-300">
+                      <AlertTriangle className="h-4 w-4 shrink-0" />
+                      Recruiter review recommended
+                    </div>
+                  )}
+                  <ul className="mt-2 space-y-2">
+                    {consistency.flags.map((flag) => (
+                      <li
+                        key={flag.id}
+                        className="rounded-xl border bg-secondary/40 px-3 py-2 text-sm text-muted-foreground"
+                      >
+                        <span
+                          className={cn(
+                            "mr-2 inline-flex rounded-full px-2 py-0.5 text-[10px] font-bold uppercase",
+                            flag.severity === "high"
+                              ? "bg-rose-100 text-rose-700"
+                              : flag.severity === "medium"
+                                ? "bg-amber-100 text-amber-800"
+                                : "bg-emerald-100 text-emerald-700",
+                          )}
+                        >
+                          {flag.severity}
+                        </span>
+                        {flag.label}
+                        {flag.detail && (
+                          <span className="mt-1 block text-xs text-muted-foreground">
+                            {flag.detail}
+                          </span>
+                        )}
+                      </li>
+                    ))}
+                  </ul>
+                </>
+              )
+            ) : null}
           </div>
         </div>
       </div>

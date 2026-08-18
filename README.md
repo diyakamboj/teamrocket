@@ -13,17 +13,30 @@ quadrant final poject/
 
 | Folder | Role |
 |--------|------|
-| `frontend` | Recruiter UI (dashboard, upload, ranking, compare, copilot panel) |
-| `backend` | FastAPI: resume parsing, jobs, ranking, evaluation, dashboard + **chat BFF** |
+| `frontend` | Recruiter UI (dashboard, upload, ranking, compare, AI interview scheduling, copilot panel) |
+| `backend` | FastAPI: resume parsing, jobs, ranking, evaluation, AI interview scheduling (Teams & Outlook), dashboard + **chat BFF** |
+
 | `copilot` | Microsoft CWYD RAG chatbot (`POST /api/conversation`) |
+
+## Documentation for Developers & AI Assistants
+
+Full technical and product documentation lives in the [`docs/`](docs/) directory:
+
+- 🤖 **[AI Assistant Technical Guide & Repository Map](docs/ai-context.md)**: Dedicated context guide for AI coding assistants (Store facade access, service map, API directory, testing rules).
+- 📋 **[Product Requirements & Feature Specifications](docs/product-requirements-and-features.md)**: Complete PM specification covering all MVP, Level 1, and Level 2 features.
+- 🧠 **[AI Architecture & Engine Specs](docs/ai-architecture.md)**: AI seams, provider interfaces, 3-signal scoring engine, Copilot tools, and prompt schemas.
+- 🏗️ **[System Architecture](docs/architecture.md)**: System layout, service boundaries, and data persistence design.
+- 🛠️ **[Development Guide](docs/development.md)**: Local setup, mock vs Azure modes, test execution (`pytest`), and Vite builds.
 
 ## How the chatbot is connected
 
+
 ```text
-frontend (Copilot panel)
-        │  POST /api/agent/ask
+frontend (Copilot panel) / external clients
+        │  POST /api/agent  (or POST /api/agent/ask)
         ▼
 backend (screening + BFF)
+
         │  enriches query with ranked candidates / job requirements
         │  POST /api/conversation  (when CHATBOT_ENABLED=true)
         ▼
@@ -46,16 +59,11 @@ pip install -r requirements.txt
 uvicorn app.main:app --reload --port 8000
 ```
 
-Default local DB is **SQLite** (`backend/resume_assistant.db`) — no Docker required.
-
-### Optional: Postgres
-
-```bash
-cd backend
-docker compose up -d
-# then set DATABASE_URL=postgresql://resume:resume@localhost:5432/resume_assistant in backend/.env
-alembic upgrade head
-```
+Structured data (candidates, jobs, evaluations, ...) is stored as JSON
+documents via the blob store — no database to set up. In mock mode
+(`USE_MOCK_AZURE=true`, the default) it writes to `backend/uploads/documents/`
+on local disk; pointing it at real Azure Blob Storage is a config change, not
+a schema migration.
 
 ### Screening API only
 

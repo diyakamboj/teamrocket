@@ -1,0 +1,58 @@
+@import "tailwindcss";
+
+@theme {
+  --color-bg: #0d1116;
+  --color-surface: #14181f;
+  --color-accent: #00df8f;
+  --color-accent-dark: #00b373;
+  --font-sans: "Outfit", ui-sans-serif, system-ui, sans-serif;
+  --font-display: "Space Grotesk", ui-sans-serif, system-ui, sans-serif;
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  background-color: #0d1116;
+  color: #ffffff;
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  overflow-x: hidden;
+}
+
+::selection {
+  background: rgba(0, 223, 143, 0.35);
+  color: #ffffff;
+}
+
+/* Outline text utility for neon stroke headings */
+.outline-text {
+  color: transparent;
+  -webkit-text-stroke: 2px #00df8f;
+  paint-order: stroke fill;
+}
+
+@media (max-width: 640px) {
+  .outline-text {
+    -webkit-text-stroke: 1.5px #00df8f;
+  }
+}
+
+/* Subtle scrollbar */
+::-webkit-scrollbar {
+  width: 8px;
+}
+::-webkit-scrollbar-track {
+  background: #0d1116;
+}
+::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.12);
+  border-radius: 999px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(0, 223, 143, 0.45);
+}

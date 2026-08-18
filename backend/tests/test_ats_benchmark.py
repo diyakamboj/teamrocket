@@ -1,0 +1,60 @@
+import pytest
+
+from app.models.schemas import WeightConfig
+from app.services import ats_benchmark_service
+from app.services.candidate_matcher import CandidateMatcher
+
+
+def test_compute_keyword_baseline_weights_required_over_nice_to_have(sample_candidate, sample_job):
+    result = ats_benchmark_service.compute_keyword_baseline(sample_candidate, sample_job)
+    # required: Python, SQL, Azure, Docker (all present) = 4*2 = 8
+    # nice-to-have: Kubernetes (absent) = 0 of 1
+    # weighted_total = 4*2 + 1 = 9 -> score = 8/9*100
+    assert result["keyword_score"] == pytest.approx(88.89, abs=0.01)
+    assert set(result["matched_keywords"]) == {"Python", "SQL", "Azure", "Docker"}
+    assert result["missing_keywords"] == ["Kubernetes"]
+
+
+def test_compute_keyword_baseline_no_requirements_scores_100(sample_candidate, sample_job):
+    sample_job.required_skills = []
+    sample_job.nice_to_have_skills = []
+    result = ats_benchmark_service.compute_keyword_baseline(sample_candidate, sample_job)
+    assert result["keyword_score"] == 100.0
+
+
+def test_ats_benchmark_404_before_evaluation_exists(client, sample_candidate, sample_job):
+    response = client.post(
+        f"/api/evaluation/{sample_candidate.id}/{sample_job.id}/ats-benchmark"
+    )
+    assert response.status_code == 404
+
+    response = client.get(f"/api/evaluation/{sample_candidate.id}/{sample_job.id}/ats-benchmark")
+    assert response.status_code == 404
+
+
+@pytest.mark.asyncio
+async def test_ats_benchmark_run_and_refetch(client, db, sample_candidate, sample_job):
+    matcher = CandidateMatcher()
+    await matcher.rank_candidates(db, sample_job.id, weight_config=WeightConfig(), persist=True)
+
+    run = client.post(f"/api/evaluation/{sample_candidate.id}/{sample_job.id}/ats-benchmark")
+    assert run.status_code == 200
+    body = run.json()
+    # Decimal fields serialize as JSON strings (pydantic v2 default) — cast for comparison.
+    assert float(body["keyword_score"]) == pytest.approx(88.89, abs=0.01)
+    assert float(body["semantic_score"]) == 78.0  # deterministic mock LLM response
+    assert body["verdict"] == "aligned"
+    benchmark_id = body["id"]
+
+    fetched = client.get(f"/api/evaluation/{sample_candidate.id}/{sample_job.id}/ats-benchmark")
+    assert fetched.status_code == 200
+    assert fetched.json()["id"] == benchmark_id
+
+    # Re-running upserts the same row rather than creating a duplicate.
+    rerun = client.post(f"/api/evaluation/{sample_candidate.id}/{sample_job.id}/ats-benchmark")
+    assert rerun.status_code == 200
+    assert rerun.json()["id"] == benchmark_id
+
+    history = client.get(f"/api/handoff/history/{sample_candidate.id}")
+    assert history.status_code == 200
+    assert any(e["event_type"] == "ats_benchmark_computed" for e in history.json())

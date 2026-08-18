@@ -1,9 +1,8 @@
 import re
 from typing import Any, Optional
 
-from sqlalchemy.orm import Session
-
 from app.models.evaluation import Evidence
+from app.storage.store import Store
 from app.utils.validators import normalize_skill
 
 
@@ -44,6 +43,7 @@ class EvidenceTracker:
         matched_skills: list[Any],
         experience: list[Any] | None = None,
         projects: list[Any] | None = None,
+        dimension: str | None = None,
     ) -> list[dict[str, Any]]:
         evidence: list[dict[str, Any]] = []
         for item in matched_skills:
@@ -80,11 +80,12 @@ class EvidenceTracker:
                     "resume_text_snippet": snippet or f"Mentioned in candidate profile: {skill}",
                     "source_section": section,
                     "confidence_score": confidence,
+                    "dimension": dimension,
                 }
             )
         return evidence
 
-    def persist(self, db: Session, evaluation_id, evidence_items: list[dict[str, Any]]) -> list[Evidence]:
+    def persist(self, store: Store, evaluation_id, evidence_items: list[dict[str, Any]]) -> list[Evidence]:
         rows: list[Evidence] = []
         for item in evidence_items:
             row = Evidence(
@@ -93,10 +94,10 @@ class EvidenceTracker:
                 resume_text_snippet=item.get("resume_text_snippet"),
                 source_section=item.get("source_section"),
                 confidence_score=item.get("confidence_score"),
+                dimension=item.get("dimension"),
             )
-            db.add(row)
+            store.evidence.save(row)
             rows.append(row)
-        db.flush()
         return rows
 
 

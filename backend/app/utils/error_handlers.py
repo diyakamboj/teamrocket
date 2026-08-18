@@ -51,9 +51,25 @@ def setup_exception_handlers(app: FastAPI) -> None:
     async def validation_exception_handler(
         _: Request, exc: RequestValidationError
     ) -> JSONResponse:
+        errors = []
+        for err in exc.errors():
+            ctx = err.get("ctx") or {}
+            safe_ctx = {
+                key: value if isinstance(value, (str, int, float, bool, type(None))) else str(value)
+                for key, value in ctx.items()
+            }
+            errors.append(
+                {
+                    "type": err.get("type"),
+                    "loc": err.get("loc"),
+                    "msg": err.get("msg"),
+                    "input": err.get("input"),
+                    "ctx": safe_ctx,
+                }
+            )
         return JSONResponse(
             status_code=422,
-            content={"error": "Validation error", "details": {"errors": exc.errors()}},
+            content={"error": "Validation error", "details": {"errors": errors}},
         )
 
     @app.exception_handler(Exception)

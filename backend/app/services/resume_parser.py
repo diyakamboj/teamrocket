@@ -1,11 +1,23 @@
-import json
+import re
 from typing import Any
 
 from app.services.azure_services import doc_intelligence_service, openai_service
+from app.services.jd_heuristics import analyze_job_text
 from app.utils.logger import get_logger
 from app.utils.validators import normalize_email, unique_normalized
 
 logger = get_logger(__name__)
+
+RESUME_SYSTEM_PROMPT = """You are a resume parsing engine for a recruiting platform.
+Extract structured data from the resume text exactly as written — never invent, infer or embellish facts.
+Rules:
+- Use "" or omit a field when the resume does not state it. Do not guess.
+- totalYearsExperience is the summed duration of professional roles (exclude internships shorter than 6 months and education). Round to one decimal.
+- skills must be concrete technologies, tools, languages, methodologies or domain skills. No soft-skill filler like "team player".
+- For every skill, evidence should quote or tightly paraphrase where in the resume it is demonstrated, when such a mention exists.
+- highlights are the candidate's own bullet points, condensed to one line each.
+- Keep dates in the format written on the resume.
+Return JSON only."""
 
 
 class ResumeParser:
@@ -13,32 +25,70 @@ class ResumeParser:
         return doc_intelligence_service.extract_text(file_bytes, filename)
 
     async def parse_resume(self, resume_text: str) -> dict[str, Any]:
-        prompt = f"""
-Parse this resume and extract the following in JSON format:
-- skills (list of strings)
-- work_experience (list with company, title, duration, years, description)
-- education (list with school, degree, field)
-- certifications (list of strings)
-- projects (list with name, description, technologies)
-- contact_info (name, email, phone)
-- github_url, linkedin_url, portfolio_url if present
+        if not openai_service.mock:
+            prompt = f'Resume text:\n"""\n{resume_text[:40000]}\n"""'
+            parsed = openai_service.chat_json(
+                prompt,
+                system=RESUME_SYSTEM_PROMPT,
+                temperature=0,
+            )
+            normalized = self._normalize_parsed(parsed, resume_text)
+            if normalized.get("skills"):
+                normalized["parse_engine"] = "azure-openai"
+                return normalized
 
-Resume text:
-{resume_text[:12000]}
+        heuristic = self._heuristic_parse(resume_text)
+        heuristic["parse_engine"] = "heuristic"
+        return heuristic
 
-Return ONLY valid JSON.
-"""
-        parsed = openai_service.chat_json(prompt, temperature=0.2)
-        return self._normalize_parsed(parsed, resume_text)
+    def _heuristic_parse(self, resume_text: str) -> dict[str, Any]:
+        lines = [line.strip() for line in resume_text.splitlines() if line.strip()]
+        name = lines[0] if lines else "Unknown Candidate"
+        email_match = re.search(r"[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}", resume_text, re.I)
+        phone_match = re.search(r"\+?\d[\d\s().-]{7,}\d", resume_text)
+        skills_block = ""
+        for label in ("skills:", "technical skills:", "core competencies:"):
+            idx = resume_text.lower().find(label)
+            if idx != -1:
+                skills_block = resume_text[idx : idx + 400]
+                break
+        skills = re.findall(r"[A-Za-z][A-Za-z0-9+#.]{1,30}", skills_block or resume_text[:2000])
+        skills = unique_normalized(skills)[:25]
+        return self._normalize_parsed(
+            {
+                "contact_info": {
+                    "name": name,
+                    "email": email_match.group(0) if email_match else None,
+                    "phone": phone_match.group(0) if phone_match else None,
+                },
+                "skills": skills,
+                "work_experience": [],
+                "education": [],
+                "certifications": [],
+                "projects": [],
+            },
+            resume_text,
+        )
 
     def _normalize_parsed(self, parsed: dict[str, Any], resume_text: str) -> dict[str, Any]:
         contact = parsed.get("contact_info") or {}
         if not isinstance(contact, dict):
             contact = {}
 
-        skills = parsed.get("skills") or []
-        if isinstance(skills, str):
-            skills = [s.strip() for s in skills.split(",")]
+        skills_raw = parsed.get("skills") or []
+        if isinstance(skills_raw, str):
+            skills_raw = [s.strip() for s in skills_raw.split(",")]
+        skills: list[str] = []
+        skill_evidence: dict[str, str] = {}
+        for item in skills_raw:
+            if isinstance(item, dict):
+                name = str(item.get("name") or "").strip()
+                if name:
+                    skills.append(name)
+                    if item.get("evidence"):
+                        skill_evidence[name] = str(item["evidence"])
+            elif item:
+                skills.append(str(item))
 
         experience = parsed.get("work_experience") or parsed.get("experience") or []
         education = parsed.get("education") or []
@@ -55,7 +105,8 @@ Return ONLY valid JSON.
             "name": name,
             "email": normalize_email(str(email)),
             "phone": contact.get("phone"),
-            "skills": unique_normalized([str(s) for s in skills]),
+            "skills": unique_normalized(skills),
+            "skill_evidence": skill_evidence,
             "experience": experience if isinstance(experience, list) else [],
             "education": education if isinstance(education, list) else [],
             "certifications": [str(c) for c in certifications] if isinstance(certifications, list) else [],
@@ -63,6 +114,7 @@ Return ONLY valid JSON.
             "github_url": parsed.get("github_url"),
             "linkedin_url": parsed.get("linkedin_url"),
             "portfolio_url": parsed.get("portfolio_url"),
+            "total_years_experience": parsed.get("totalYearsExperience") or parsed.get("total_years_experience"),
             "raw": parsed,
         }
 
@@ -72,7 +124,6 @@ Return ONLY valid JSON.
         github_url: str | None = None,
         linkedin_url: str | None = None,
     ) -> dict[str, Any]:
-        """Lightweight enrichment placeholder using LLM summarization of public URLs."""
         prompt = f"""
 Summarize public professional signals for enrichment as JSON with keys:
 github_summary, linkedin_summary, inferred_skills (list), notes.

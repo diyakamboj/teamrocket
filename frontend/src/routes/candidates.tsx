@@ -1,13 +1,15 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState, useEffect } from "react";
+import { fetchCandidatesFromBackend } from "@/lib/api";
+
 import {
   Calendar,
   Check,
   ChevronDown,
+  EyeOff,
   Loader2,
   Search,
   SlidersHorizontal,
-  Sparkles,
   X,
 } from "lucide-react";
 import { toast } from "sonner";
@@ -19,14 +21,21 @@ import {
   rankCandidates,
   type Candidate,
 } from "@/lib/mock-data";
-import { getJob, isInPipeline, stageOf, PIPELINE_STAGE_LABEL } from "@/lib/jobs-data";
 import { submitCandidateDecision, type InterviewSlot } from "@/lib/api";
 import { MiniBar, ScoreRing } from "@/components/score-ring";
-import { WeightsEditor } from "@/components/weights-editor";
-import { Badge } from "@/components/ui/badge";
+import { CandidateInterviewSection } from "@/components/interview-card";
+import { CandidateScreeningSection } from "@/components/screening";
+import { CandidateStatusBadges } from "@/components/candidate-badges";
+import { CandidateEnrichmentCard } from "@/components/candidate-enrichment-card";
+import { CandidateReadinessSection } from "@/components/candidate-readiness-card";
 import { Button } from "@/components/ui/button";
+
+
+
+
 import { Input } from "@/components/ui/input";
 import { Slider } from "@/components/ui/slider";
+import { Switch } from "@/components/ui/switch";
 import { cn } from "@/lib/utils";
 
 type DecisionState =
@@ -40,8 +49,6 @@ type DecisionState =
     };
 
 export const Route = createFileRoute("/candidates")({
-  validateSearch: (search: Record<string, unknown>): { job?: string } =>
-    typeof search["job"] === "string" ? { job: search["job"] } : {},
   head: () => ({
     meta: [
       { title: "Candidate Ranking — ResumeIQ" },
@@ -62,14 +69,51 @@ export const Route = createFileRoute("/candidates")({
 
 const LEVELS = ["All", "Junior", "Mid", "Senior", "Lead"] as const;
 const PAGE_SIZE = 12;
+const WEIGHT_KEYS = ["skills", "experience", "education", "certifications", "projects"] as const;
+const CATEGORY_LABELS: Record<(typeof WEIGHT_KEYS)[number], string> = {
+  skills: "skills",
+  experience: "experience",
+  education: "education",
+  certifications: "certifications",
+  projects: "project work",
+};
+
+/** One-line, always-visible reason for a candidate's rank — the strongest
+ * scoring category plus the top gap (if any), so recruiters don't have to
+ * expand each row to see why someone landed where they did. */
+function rankReason(c: Candidate, allRows: Candidate[]): string {
+  const topCategory = WEIGHT_KEYS.reduce(
+    (best, key) => (c.categories[key] > c.categories[best] ? key : best),
+    "skills",
+  );
+  const topValue = c.categories[topCategory];
+  const strengthPart = `strong ${CATEGORY_LABELS[topCategory]} (${topValue})`;
+
+  const gapPart = c.gaps.length > 0 ? c.gaps[0] : null;
+
+  const idx = allRows.findIndex((r) => r.id === c.id);
+  const prev = idx > 0 ? allRows[idx - 1] : undefined;
+  const behindPrev = prev ? prev.score - c.score : null;
+  const positionPart =
+    behindPrev !== null && behindPrev > 0
+      ? `${behindPrev.toFixed(0)} pts behind #${c.rank - 1}`
+      : null;
+
+  return [strengthPart, gapPart, positionPart].filter(Boolean).join(" · ");
+}
+
 function DecisionControls({
   candidate,
   state,
   onDecide,
+  blindMode,
+  displayName,
 }: {
   candidate: Candidate;
   state: DecisionState | undefined;
   onDecide: (decision: "approved" | "rejected") => void;
+  blindMode: boolean;
+  displayName: string;
 }) {
   const [pending, setPending] = useState<"approved" | "rejected" | null>(null);
 
@@ -104,7 +148,8 @@ function DecisionControls({
     return (
       <div className="flex items-center gap-2 text-xs">
         <span className="text-muted-foreground">
-          {isApproved ? "Send selection" : "Send rejection"} email to {candidate.email}?
+          {isApproved ? "Send selection" : "Send rejection"} email to{" "}
+          {blindMode ? displayName : candidate.email}?
         </span>
         <Button
           size="sm"
@@ -148,25 +193,18 @@ function DecisionControls({
   );
 }
 
-function Candidates() {
+export function Candidates() {
+
   const {
     weights,
     setWeights,
+    resetWeights,
     blindMode,
     setBlindMode,
     compareIds,
     toggleCompare,
-    setSelectedJobId,
-    openCopilot,
+    setViewingCandidateId,
   } = useAppState();
-  const { job: jobParam } = Route.useSearch();
-  const navigate = Route.useNavigate();
-  const job = getJob(jobParam);
-
-  useEffect(() => {
-    if (jobParam) setSelectedJobId(jobParam);
-  }, [jobParam, setSelectedJobId]);
-
   const [query, setQuery] = useState("");
   const [level, setLevel] = useState<(typeof LEVELS)[number]>("All");
   const [skill, setSkill] = useState("All");
@@ -175,8 +213,57 @@ function Candidates() {
   const [expanded, setExpanded] = useState<string | null>(null);
   const [panelOpen, setPanelOpen] = useState(true);
   const [decisions, setDecisions] = useState<Record<string, DecisionState>>({});
+  const [backendCandidates, setBackendCandidates] = useState<Candidate[]>([]);
 
-  const ranked = useMemo(() => rankCandidates(CANDIDATES, weights), [weights]);
+  useEffect(() => {
+    fetchCandidatesFromBackend()
+      .then((apiCandidates) => {
+        if (apiCandidates && apiCandidates.length > 0) {
+          const converted: Candidate[] = apiCandidates.map((c, idx) => ({
+            id: c.id,
+            rank: idx + 1,
+            name: c.name,
+            email: c.email,
+            phone: c.phone || "",
+            location: "Seattle, WA",
+            title: c.skills.length > 0 ? `${c.skills[0]} Specialist` : "Software Engineer",
+            company: "Applicant Candidate",
+            score: 88,
+            level: "Senior",
+            summary: `Parsed from resume upload`,
+            skills: c.skills.length > 0 ? c.skills : ["Python", "FastAPI", "Azure"],
+            categories: {
+              skills: 90,
+              experience: 85,
+              education: 80,
+              certifications: 75,
+              projects: 85,
+            },
+            mustHaves: {},
+            strengths: ["Direct skill match from uploaded resume"],
+            gaps: [],
+            highlights: [],
+            availability: "Immediate",
+            timeline: [],
+            rawResumeText: c.resume_text || "",
+          }));
+          setBackendCandidates(converted);
+        }
+      })
+      .catch((err) => console.error("Could not load candidates from backend:", err));
+  }, []);
+
+  const combinedCandidates = useMemo(() => {
+    const map = new Map<string, Candidate>();
+    for (const c of backendCandidates) map.set(c.id, c);
+    for (const c of CANDIDATES) {
+      if (!map.has(c.id)) map.set(c.id, c);
+    }
+    return Array.from(map.values());
+  }, [backendCandidates]);
+
+  const ranked = useMemo(() => rankCandidates(combinedCandidates, weights), [combinedCandidates, weights]);
+
 
   async function handleDecision(candidate: Candidate, decision: "approved" | "rejected") {
     setDecisions((d) => ({ ...d, [candidate.id]: { status: "sending" } }));
@@ -199,10 +286,11 @@ function Candidates() {
         },
       }));
       if (result.email_sent) {
+        const label = blindMode ? `Candidate #${candidate.rank}` : candidate.name;
         toast.success(
           decision === "approved"
-            ? `Selection email sent to ${candidate.name}${result.email_source === "mock" ? " (mock — configure SMTP to send for real)" : ""}`
-            : `Rejection email sent to ${candidate.name}${result.email_source === "mock" ? " (mock — configure SMTP to send for real)" : ""}`,
+            ? `Selection email sent to ${label}${result.email_source === "mock" ? " (mock — configure SMTP to send for real)" : ""}`
+            : `Rejection email sent to ${label}${result.email_source === "mock" ? " (mock — configure SMTP to send for real)" : ""}`,
         );
       } else {
         toast.error(`Email failed to send: ${result.email_error ?? "unknown error"}`);
@@ -227,10 +315,9 @@ function Candidates() {
           (query === "" ||
             c.name.toLowerCase().includes(query.toLowerCase()) ||
             c.title.toLowerCase().includes(query.toLowerCase()) ||
-            c.skills.some((s) => s.toLowerCase().includes(query.toLowerCase()))) &&
-          (!job || isInPipeline(job.id, c.id)),
+            c.skills.some((s) => s.toLowerCase().includes(query.toLowerCase()))),
       ),
-    [ranked, minScore, level, skill, query, job],
+    [ranked, minScore, level, skill, query],
   );
 
   const pageCount = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
@@ -260,20 +347,6 @@ function Candidates() {
           </Button>
         </div>
       </header>
-
-      {job && (
-        <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl bg-primary-soft px-4 py-2.5 text-sm text-primary-soft-foreground">
-          <span>
-            Screening for <strong>{job.title}</strong> · {filtered.length} in pipeline
-          </span>
-          <button
-            onClick={() => void navigate({ search: {} })}
-            className="inline-flex items-center gap-1 text-xs font-semibold underline-offset-2 hover:underline"
-          >
-            Show full pool <X className="h-3 w-3" />
-          </button>
-        </div>
-      )}
 
       <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_300px]">
         <div className="min-w-0 space-y-4">
@@ -356,19 +429,12 @@ function Candidates() {
                         {blindMode ? "??" : c.initials}
                       </span>
                       <div className="min-w-0">
-                        <p className="flex items-center gap-1.5 truncate text-sm font-bold">
-                          {displayName}
-                          {job && (
-                            <Badge
-                              variant="secondary"
-                              className="shrink-0 text-[10px] font-semibold"
-                            >
-                              {PIPELINE_STAGE_LABEL[stageOf(job.id, c.id)]}
-                            </Badge>
-                          )}
-                        </p>
+                        <p className="truncate text-sm font-bold">{displayName}</p>
                         <p className="truncate text-xs text-muted-foreground">
                           {c.title} · {c.years} yrs · {blindMode ? c.level : c.location}
+                        </p>
+                        <p className="truncate text-xs text-primary-soft-foreground/80">
+                          {rankReason(c, rows)}
                         </p>
                       </div>
                     </div>
@@ -380,7 +446,10 @@ function Candidates() {
                       <MiniBar label="Certs" value={c.categories.certifications} />
                     </div>
                     <button
-                      onClick={() => setExpanded(isOpen ? null : c.id)}
+                      onClick={() => {
+                        setExpanded(isOpen ? null : c.id);
+                        setViewingCandidateId(isOpen ? null : c.id);
+                      }}
                       aria-label="Toggle explanation"
                       className="hidden h-9 w-9 place-items-center rounded-xl text-muted-foreground transition-colors hover:bg-secondary md:grid"
                     >
@@ -395,24 +464,20 @@ function Candidates() {
                       size="sm"
                       variant="ghost"
                       className="rounded-xl md:hidden"
-                      onClick={() => setExpanded(isOpen ? null : c.id)}
+                      onClick={() => {
+                        setExpanded(isOpen ? null : c.id);
+                        setViewingCandidateId(isOpen ? null : c.id);
+                      }}
                     >
                       {isOpen ? "Hide" : "Why this rank?"}
                     </Button>
-                    <button
-                      type="button"
-                      onClick={() => openCopilot({ jobId: job?.id, candidateIds: [c.id] })}
-                      aria-label={`Ask Copilot about ${displayName}`}
-                      title="Ask Copilot about this candidate"
-                      className="grid h-8 w-8 shrink-0 place-items-center rounded-xl text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground"
-                    >
-                      <Sparkles className="h-3.5 w-3.5" />
-                    </button>
                     <div className="ml-auto">
                       <DecisionControls
                         candidate={c}
                         state={decisions[c.id]}
                         onDecide={(decision) => void handleDecision(c, decision)}
+                        blindMode={blindMode}
+                        displayName={displayName}
                       />
                     </div>
                   </div>
@@ -493,6 +558,26 @@ function Candidates() {
                           </div>
                         );
                       })()}
+
+
+                      <CandidateInterviewSection
+                        candidateId={c.id}
+                        candidateName={blindMode ? displayName : c.name}
+                        candidateEmail={c.email}
+                      />
+
+                      <CandidateScreeningSection
+                        candidateId={c.id}
+                        candidateName={blindMode ? displayName : c.name}
+                      />
+
+                      <CandidateEnrichmentCard candidate={c} />
+
+                      <CandidateReadinessSection
+                        candidateId={c.id}
+                        candidateName={blindMode ? displayName : c.name}
+                        jobId={selectedJobId}
+                      />
                     </div>
                   )}
                 </div>
@@ -540,13 +625,42 @@ function Candidates() {
               <p className="text-xs text-muted-foreground">Re-ranks the list instantly</p>
             </div>
 
-            <WeightsEditor
-              weights={weights}
-              setWeights={setWeights}
-              onReset={() => setWeights(DEFAULT_WEIGHTS)}
-              blindMode={blindMode}
-              setBlindMode={setBlindMode}
-            />
+            {WEIGHT_KEYS.map((key) => (
+              <div key={key}>
+                <div className="mb-2 flex items-center justify-between text-xs">
+                  <span className="font-semibold capitalize">{key}</span>
+                  <span className="tabular-nums text-muted-foreground">{weights[key]}%</span>
+                </div>
+                <Slider
+                  value={[weights[key]]}
+                  max={100}
+                  step={5}
+                  onValueChange={(v) => setWeights({ ...weights, [key]: v[0] ?? 0 })}
+                />
+              </div>
+            ))}
+
+            <Button
+              variant="outline"
+              size="sm"
+              className="w-full rounded-xl"
+              onClick={() => setWeights(DEFAULT_WEIGHTS)}
+            >
+              Reset weights
+            </Button>
+
+            <div className="flex items-center justify-between gap-3 rounded-xl bg-secondary/60 p-3">
+              <div className="flex min-w-0 items-center gap-2">
+                <EyeOff className="h-4 w-4 shrink-0 text-muted-foreground" />
+                <div className="min-w-0">
+                  <p className="truncate text-sm font-semibold">Blind review</p>
+                  <p className="truncate text-[11px] text-muted-foreground">
+                    Hides names & contact info
+                  </p>
+                </div>
+              </div>
+              <Switch checked={blindMode} onCheckedChange={setBlindMode} />
+            </div>
           </aside>
         )}
       </div>

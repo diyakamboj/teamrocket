@@ -13,9 +13,10 @@ import appCss from "../styles.css?url";
 import { reportLovableError } from "../lib/lovable-error-reporting";
 import { ThemeProvider } from "@/lib/theme";
 import { AppStateProvider } from "@/lib/app-state";
+import { CopilotProvider } from "@/lib/copilot-state";
 import { AppShell } from "@/components/app-shell";
+import { CopilotLauncher } from "@/components/copilot/copilot-launcher";
 import { Toaster } from "@/components/ui/sonner";
-
 
 function NotFoundComponent() {
   return (
@@ -130,14 +131,16 @@ function RootComponent() {
     <QueryClientProvider client={queryClient}>
       <ThemeProvider>
         <AppStateProvider>
-          <AppShell>
-            {/* Required: nested routes render here. */}
-            <Outlet />
-          </AppShell>
-          <Toaster position="bottom-center" richColors />
+          <CopilotProvider>
+            <AppShell>
+              {/* Required: nested routes render here. */}
+              <Outlet />
+            </AppShell>
+            <CopilotLauncher />
+            <Toaster position="bottom-center" richColors />
+          </CopilotProvider>
         </AppStateProvider>
       </ThemeProvider>
     </QueryClientProvider>
   );
 }
-
