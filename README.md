@@ -139,3 +139,74 @@ USE_MOCK_AZURE=true
 3. Check `GET http://localhost:8000/api/agent/status`:
    - `chatbot.reachable: true` when copilot is up
    - otherwise Copilot uses `source: "local"`
+
+---
+
+# GitHub Codespaces Development
+
+This repository includes a complete, reproducible **GitHub Codespaces** development environment configured via `.devcontainer/`.
+
+### 1. Creating a Codespace
+1. Navigate to the GitHub repository page.
+2. Click **Code** → select the **Codespaces** tab.
+3. Click **Create codespace on devcontainer/setup** (or `main`).
+4. The environment will automatically launch and execute `.devcontainer/setup.sh` to configure all tools and dependencies.
+
+### 2. Installed Developer Tools
+- **Python 3.12**
+- **Node.js (LTS)** & **npm**
+- **Bun**
+- **Terraform**
+- **Azure CLI (`az`)**
+- **GitHub CLI (`gh`)**
+
+### 3. Exposed Application Ports
+- **`8080`**: Frontend (ResumeIQ UI)
+- **`8000`**: Backend (FastAPI Screening API)
+- **`8001`**: Copilot (RAG Chatbot Service)
+
+### 4. Running Services Manually Inside Codespace
+
+**Frontend (Port 8080):**
+```bash
+cd frontend
+npm run dev
+```
+
+**Backend (Port 8000):**
+```bash
+cd backend
+source .venv/bin/activate
+uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
+```
+
+**Copilot Service (Port 8001):**
+```bash
+cd copilot
+source ../backend/.venv/bin/activate
+uvicorn backend.app:app --reload --host 0.0.0.0 --port 8001 --app-dir src
+```
+
+### 5. Architecture & Roles Distinction
+- **Codespaces**: Developer workspace for code editing, local testing, and environment reproducibility.
+- **Terraform**: Infrastructure-as-code definitions.
+- **GitHub Actions**: Automated CI/CD pipeline execution.
+- **GitHub Environment `dev`**: Environment specified in deployment workflows for OIDC federated Azure access.
+- **Azure**: Target cloud infrastructure provider.
+
+### 6. Working with Infrastructure (Terraform)
+Developers can review and validate Terraform infrastructure code inside Codespaces:
+```bash
+# From the infrastructure directory
+terraform init
+terraform fmt
+terraform validate
+terraform plan
+```
+> [!WARNING]
+> **DO NOT run `terraform apply` inside Codespaces.** Infrastructure deployment is handled safely via GitHub Actions CI/CD workflows using OIDC and the `dev` environment.
+
+### 7. Managing Secrets
+- **NEVER** commit real API keys, secrets, or certificates into git.
+- Copy `.env.example` templates to `.env` for local/Codespaces usage. `.env` files are protected by `.gitignore`.
+
