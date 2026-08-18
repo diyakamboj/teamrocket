@@ -16,8 +16,8 @@ blob_container_name              = "resumes"
 
 app_service_sku = "B1"
 
-chatbot_enabled  = false
-chatbot_api_url  = ""
+chatbot_enabled = false
+chatbot_api_url = ""
 
 tags = {
   project     = "resumeiq"
