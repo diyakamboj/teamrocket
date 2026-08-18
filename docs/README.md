@@ -26,9 +26,11 @@ teamrocket/
 | 📋 **[product-requirements-and-features.md](product-requirements-and-features.md)** | Product Managers, Engineering Leads | Full PM specification detailing all MVP, Level 1, and Level 2 product features, user personas, API contracts, and user flows. |
 | 🧠 **[ai-architecture.md](ai-architecture.md)** | AI/ML Engineers, Backend Developers | Deep dive into AI provider seams, structured output schemas, 3-signal scoring engine, Copilot agent tools, and scheduling NL processing. |
 | 🏗️ **[architecture.md](architecture.md)** | System Architects, Backend Engineers | High-level system architecture, service boundaries, `JsonBlobStore` repository pattern, and REST API directory. |
-| 🛠️ **[development.md](development.md)** | All Developers & AI Assistants | Quick-start guide for local development, running mock vs live Azure modes, running backend test suites, and frontend Vite builds. |
+| 🎨 **[frontend-overview.md](frontend-overview.md)** | Frontend Developers, UI/UX Engineers | Deep dive into React 19, Vite, TanStack Router pages, Tailwind v4 styling, component hierarchy, and API wiring. |
+| 🐍 **[backend-overview.md](backend-overview.md)** | Backend Engineers, AI/ML Developers | In-depth breakdown of FastAPI routes, `JsonBlobStore` facade repository pattern, 3-signal candidate matcher, resume OCR parser, and test suite. |
 | 🔒 **[security-and-guardrails.md](security-and-guardrails.md)** | Security Engineers, AI Safety Leads, Developers | Comprehensive spec covering AI prompt safety, PII redaction (blind review), model RBAC allowlists, secret management, and input validation. |
 | 🚀 **[deployment.md](deployment.md)** | DevOps & Site Reliability Engineers | Production deployment procedures, Azure infrastructure, environment variable matrix, and monitoring. |
+
 
 
 
