@@ -113,7 +113,7 @@ def _fallback_semantic_score(baseline_score: float) -> float:
 async def compute_semantic_score(
     candidate: Candidate, job: JobPosting, *, baseline_score: float
 ) -> dict[str, Any]:
-    result = openai_service.chat_json(_semantic_prompt(candidate, job), temperature=0.2)
+    result = openai_service.chat_json_or_empty(_semantic_prompt(candidate, job), temperature=0.2)
 
     raw_score = result.get("semantic_score")
     try:

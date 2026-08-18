@@ -30,7 +30,7 @@ import {
   type FraudAssessment,
   type FraudStatus,
 } from "@/lib/fraud-data";
-import { CANDIDATES } from "@/lib/mock-data";
+import { useCandidatePool } from "@/lib/use-candidate-pool";
 import { useAppState } from "@/lib/app-state";
 import { cn, isBackendUuid } from "@/lib/utils";
 
@@ -137,37 +137,42 @@ function CheckRow({
   );
 }
 
-/** Falls back to the fully offline heuristic assessment for candidates the
- * live batch call didn't return a result for (e.g. backend unreachable). */
-function fallbackAssessments(): FraudAssessment[] {
-  return assessAllCandidates();
-}
-
 function FraudDetectionPage() {
   const { blindMode } = useAppState();
+  const { candidates: pool, loading: poolLoading, error: poolError } = useCandidatePool();
   const [assessments, setAssessments] = useState<FraudAssessment[]>([]);
   const [loading, setLoading] = useState(true);
   const [liveError, setLiveError] = useState<string | null>(null);
 
   useEffect(() => {
+    if (poolLoading) return;
+    if (pool.length === 0) {
+      setAssessments([]);
+      setLoading(false);
+      setLiveError(poolError);
+      return;
+    }
+
     let cancelled = false;
     setLoading(true);
     setLiveError(null);
 
-    const inputs = CANDIDATES.map(toFraudScreenInput);
-    screenCandidatesForFraud(inputs)
+    screenCandidatesForFraud(pool.map(toFraudScreenInput))
       .then((byId) => {
         if (cancelled) return;
-        const merged = CANDIDATES.map((c) =>
-          byId[c.id] ? mergeFraudResult(c, byId[c.id]!) : null,
-        ).filter((a): a is FraudAssessment => a !== null);
+        const merged = pool
+          .map((c) => (byId[c.id] ? mergeFraudResult(c, byId[c.id]!) : null))
+          .filter((a): a is FraudAssessment => a !== null);
         if (merged.length === 0) throw new Error("Verification API returned no results");
         setAssessments(merged.sort((a, b) => b.riskScore - a.riskScore));
       })
       .catch((err) => {
         if (cancelled) return;
+        // Offline fallback: resume-consistency heuristics only. It raises no
+        // sanctions/identity findings, so the queue degrades to "unverified"
+        // rather than to invented accusations.
         setLiveError(err instanceof Error ? err.message : "Verification API unavailable");
-        setAssessments(fallbackAssessments());
+        setAssessments(assessAllCandidates(pool));
       })
       .finally(() => {
         if (!cancelled) setLoading(false);
@@ -176,7 +181,7 @@ function FraudDetectionPage() {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [pool, poolLoading, poolError]);
 
   const stats = useMemo(() => fraudStats(assessments), [assessments]);
   const orbitNodes = useMemo(() => orbitShowcase(assessments), [assessments]);
@@ -225,7 +230,7 @@ function FraudDetectionPage() {
       <div className="mx-auto flex max-w-7xl flex-col items-center justify-center gap-3 py-24 text-center">
         <Loader2 className="h-6 w-6 animate-spin text-primary" />
         <p className="text-sm text-muted-foreground">
-          Running live sanctions &amp; employer-registry checks on {CANDIDATES.length} candidates…
+          Running live sanctions &amp; employer-registry checks on {pool.length} candidates…
         </p>
       </div>
     );

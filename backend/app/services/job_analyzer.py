@@ -33,7 +33,7 @@ Job description:
 {description[:30000]}
 \"\"\"
 """
-        result = openai_service.chat_json(prompt, system=JD_SYSTEM_PROMPT, temperature=0)
+        result = openai_service.chat_json_or_empty(prompt, system=JD_SYSTEM_PROMPT, temperature=0)
         requirements = self._normalize_requirements(result.get("requirements") or [])
         required = result.get("required_skills") or [
             r["text"] for r in requirements if r.get("must") and r.get("category") == "Skills"

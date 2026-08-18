@@ -5,7 +5,13 @@ from fastapi import APIRouter
 from app.dependencies import AppStore, RecruiterEmail
 from app.models.evaluation import AuditLog
 from app.models.job_posting import JobPosting
-from app.models.schemas import JobAnalyzeResponse, JobCreate, JobResponse, JobUpdate
+from app.models.schemas import (
+    JobAnalyzeResponse,
+    JobCreate,
+    JobDraftAnalyzeRequest,
+    JobResponse,
+    JobUpdate,
+)
 from app.services.job_analyzer import job_analyzer
 from app.storage.store import Store
 from app.utils.error_handlers import NotFoundError, ValidationAppError
@@ -91,6 +97,31 @@ def update_job(
         resource_id=job.id,
     )
     return job
+
+
+@router.post("/analyze-draft", response_model=JobAnalyzeResponse)
+async def analyze_job_draft(payload: JobDraftAnalyzeRequest, recruiter_email: RecruiterEmail):
+    """Extracts requirements from a draft JD without creating a job.
+
+    Lets the job-creation flow show real extracted requirements while the
+    recruiter is still editing, instead of persisting a throwaway job just to
+    be able to call the analyzer.
+    """
+    if not payload.title.strip():
+        raise ValidationAppError("A job title is required to analyze a draft")
+
+    analysis = await job_analyzer.analyze(payload.title, payload.description)
+    return JobAnalyzeResponse(
+        job_id=None,
+        title=payload.title,
+        required_skills=list(analysis.get("required_skills") or []),
+        nice_to_have_skills=list(analysis.get("nice_to_have_skills") or []),
+        required_experience_years=analysis.get("required_experience_years"),
+        education_requirements=analysis.get("education_requirements"),
+        summary=analysis.get("summary"),
+        requirements=analysis.get("requirements") or [],
+        analyzed_by=analysis.get("analyzed_by"),
+    )
 
 
 @router.post("/{job_id}/analyze", response_model=JobAnalyzeResponse)

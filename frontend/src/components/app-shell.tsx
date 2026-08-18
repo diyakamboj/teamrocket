@@ -16,7 +16,7 @@ import {
   LogOut,
   Building2,
 } from "lucide-react";
-import { useState, type ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { useAppState } from "@/lib/app-state";
 import { useTheme } from "@/lib/theme";
 import { cn } from "@/lib/utils";
@@ -24,20 +24,16 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { getSession, logoutSession } from "@/lib/auth";
 import { CreateJobModal } from "@/components/create-job-modal";
+import { listJobPipelines, type JobPipelineSummary } from "@/lib/api";
 
 const PRIMARY_NAV = [
   { to: "/", label: "Dashboard", icon: LayoutDashboard },
   { to: "/internal-hiring", label: "Internal Hiring", icon: Briefcase },
   { to: "/external-hiring", label: "External Hiring", icon: Globe },
-  { to: "/actions", label: "Actions Center", icon: Zap, badge: 3 },
+  { to: "/actions", label: "Actions Center", icon: Zap },
   { to: "/settings", label: "Settings & Context", icon: Settings },
 ] as const;
 
-const RECENT_JOBS = [
-  { id: "job_1", title: "Senior Software Engineer", count: "12 candidates" },
-  { id: "job_2", title: "Cloud Engineer", count: "8 candidates" },
-  { id: "job_3", title: "Data Engineer", count: "5 candidates" },
-];
 
 export function AppShell({ children }: { children: ReactNode }) {
   const [collapsed, setCollapsed] = useState(false);
@@ -45,25 +41,41 @@ export function AppShell({ children }: { children: ReactNode }) {
   const { active, counts, overallProgress } = useAppState();
   const pathname = useRouterState({ select: (s) => s.location.pathname });
   const session = getSession();
+  const [recentJobs, setRecentJobs] = useState<JobPipelineSummary[]>([]);
+
+  // Real open jobs and their live candidate counts, from the backend store.
+  useEffect(() => {
+    let cancelled = false;
+    listJobPipelines()
+      .then((jobs) => {
+        if (!cancelled) setRecentJobs(jobs.slice(0, 5));
+      })
+      .catch(() => {
+        if (!cancelled) setRecentJobs([]);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
 
   return (
-    <div className="flex min-h-screen bg-slate-50/50 font-sans text-slate-900">
+    <div className="flex min-h-screen bg-background font-sans text-foreground">
 
       <aside
         className={cn(
-          "sticky top-0 flex h-screen shrink-0 flex-col border-r border-slate-200/80 bg-white transition-[width] duration-300 shadow-sm z-20",
+          "sticky top-0 z-20 flex h-screen shrink-0 flex-col border-r border-border bg-sidebar shadow-sm transition-[width] duration-300",
           collapsed ? "w-[72px]" : "w-[240px]",
         )}
       >
-        <div className="flex items-center gap-3 px-4 py-5 border-b border-slate-100">
+        <div className="flex items-center gap-3 px-4 py-5 border-b border-border">
           <span className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-blue-600 text-sm font-extrabold text-white shadow-sm">
             R
           </span>
           {!collapsed && (
             <div className="min-w-0">
-              <p className="truncate text-sm font-bold tracking-tight text-slate-900">ResumeIQ</p>
-              <p className="truncate text-[10px] font-medium text-slate-500">Recruiting Intelligence</p>
+              <p className="truncate text-sm font-bold tracking-tight text-foreground">ResumeIQ</p>
+              <p className="truncate text-[10px] font-medium text-muted-foreground">Recruiting Intelligence</p>
             </div>
           )}
         </div>
@@ -80,41 +92,42 @@ export function AppShell({ children }: { children: ReactNode }) {
                   "flex items-center gap-3 rounded-lg px-3 py-2 text-xs font-medium transition-all justify-between",
                   isActive
                     ? "bg-blue-50 text-blue-700 font-semibold border-l-2 border-blue-600"
-                    : "text-slate-600 hover:bg-slate-100/80 hover:text-slate-900",
+                    : "text-muted-foreground hover:bg-accent hover:text-foreground",
                 )}
               >
                 <div className="flex items-center gap-2.5 min-w-0">
-                  <item.icon className={cn("h-4 w-4 shrink-0", isActive ? "text-blue-600" : "text-slate-400")} />
+                  <item.icon className={cn("h-4 w-4 shrink-0", isActive ? "text-primary" : "text-muted-foreground")} />
                   {!collapsed && <span className="truncate">{item.label}</span>}
                 </div>
-                {!collapsed && "badge" in item && (
-                  <span className="px-1.5 py-0.5 rounded-full bg-amber-100 text-amber-800 text-[10px] font-bold border border-amber-200">
-                    {item.badge}
-                  </span>
-                )}
               </Link>
             );
           })}
 
           {!collapsed && (
             <div className="pt-6 px-1 space-y-2">
-              <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider px-2">
+              <div className="px-2 text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
                 Recent Jobs
               </div>
               <div className="space-y-0.5">
-                {RECENT_JOBS.map((job) => (
-                  <Link
-                    key={job.id}
-                    to="/jobs/$jobId"
-                    params={{ jobId: job.id }}
-                    className="block p-2 rounded-lg hover:bg-slate-100/80 transition-all group"
-                  >
-                    <div className="text-xs font-semibold text-slate-700 truncate group-hover:text-blue-600">
-                      {job.title}
-                    </div>
-                    <div className="text-[10px] text-slate-400">{job.count}</div>
-                  </Link>
-                ))}
+                {recentJobs.length === 0 ? (
+                  <div className="px-2 py-1 text-[10px] text-muted-foreground">No jobs yet</div>
+                ) : (
+                  recentJobs.map((job) => (
+                    <Link
+                      key={job.job_id}
+                      to="/jobs/$jobId"
+                      params={{ jobId: job.job_id }}
+                      className="group block rounded-lg p-2 transition-all hover:bg-accent"
+                    >
+                      <div className="truncate text-xs font-semibold text-foreground group-hover:text-primary">
+                        {job.title}
+                      </div>
+                      <div className="text-[10px] text-muted-foreground">
+                        {job.total_candidates} candidate{job.total_candidates === 1 ? "" : "s"}
+                      </div>
+                    </Link>
+                  ))
+                )}
               </div>
             </div>
           )}
@@ -144,7 +157,7 @@ export function AppShell({ children }: { children: ReactNode }) {
 
         <button
           onClick={() => setCollapsed((c) => !c)}
-          className="m-3 flex items-center justify-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-600 transition-colors hover:bg-slate-50 hover:text-slate-900 shadow-sm"
+          className="m-3 flex items-center justify-center gap-2 rounded-lg border border-border bg-card px-3 py-1.5 text-xs font-medium text-muted-foreground shadow-sm transition-colors hover:bg-accent hover:text-foreground"
         >
           {collapsed ? (
             <ChevronsRight className="h-3.5 w-3.5" />
@@ -157,12 +170,12 @@ export function AppShell({ children }: { children: ReactNode }) {
       </aside>
 
       <div className="flex min-w-0 flex-1 flex-col">
-        <header className="sticky top-0 z-30 flex items-center justify-between gap-4 border-b border-slate-200/80 bg-white/90 px-6 py-3 backdrop-blur-md shadow-xs">
+        <header className="sticky top-0 z-30 flex items-center justify-between gap-4 border-b border-border bg-card/90 px-6 py-3 shadow-xs backdrop-blur-md">
           <div className="relative min-w-0 max-w-md w-full">
-            <Search className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-slate-400" />
+            <Search className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
             <Input
               placeholder="Search candidates, active jobs, skills..."
-              className="rounded-lg border-slate-200 bg-slate-50/70 text-slate-900 placeholder:text-slate-400 text-xs focus:bg-white focus:border-blue-500"
+              className="rounded-lg text-xs"
               aria-label="Global Search"
             />
           </div>
@@ -179,7 +192,7 @@ export function AppShell({ children }: { children: ReactNode }) {
             <Link to="/actions">
               <button
                 aria-label="Actions Center"
-                className="relative grid h-8 w-8 place-items-center rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-50 transition-colors"
+                className="relative grid h-8 w-8 place-items-center rounded-lg border border-border text-muted-foreground transition-colors hover:bg-accent"
               >
                 <Zap className="h-4 w-4 text-amber-500" />
                 <span className="absolute right-1 top-1 h-2 w-2 rounded-full bg-amber-500" />
@@ -187,20 +200,20 @@ export function AppShell({ children }: { children: ReactNode }) {
             </Link>
 
             <Link to="/settings">
-              <div className="flex items-center gap-2 pl-2 border-l border-slate-200 cursor-pointer hover:opacity-90 transition-all">
+              <div className="flex items-center gap-2 cursor-pointer border-l border-border pl-2 hover:opacity-90 transition-all">
                 <span className="grid h-8 w-8 place-items-center rounded-full bg-blue-100 border border-blue-200 text-xs font-bold text-blue-700">
                   {session.name ? session.name.substring(0, 2) : "AS"}
                 </span>
                 <div className="hidden md:block text-left">
-                  <div className="text-xs font-semibold text-slate-900 leading-none">{session.name}</div>
-                  <div className="text-[10px] text-slate-500 mt-0.5">{session.role}</div>
+                  <div className="text-xs font-semibold leading-none text-foreground">{session.name}</div>
+                  <div className="mt-0.5 text-[10px] text-muted-foreground">{session.role}</div>
                 </div>
               </div>
             </Link>
           </div>
         </header>
 
-        <main className="flex-1 bg-slate-50/50">{children}</main>
+        <main className="flex-1 bg-background p-8">{children}</main>
 
         <CreateJobModal
           isOpen={isCreateModalOpen}

@@ -238,9 +238,9 @@ function HandoffView() {
       <CandidateInterviewSection
         candidateId={b.candidate_id}
         candidateName={b.candidate_name}
-        candidateEmail={b.candidate_email}
-        jobId={b.job_id}
-        jobTitle={b.job_title}
+        candidateEmail={b.candidate_email ?? null}
+        jobId={b.job_id ?? null}
+        jobTitle={b.job_title ?? null}
       />
 
       <section className="card-surface space-y-3 p-5">

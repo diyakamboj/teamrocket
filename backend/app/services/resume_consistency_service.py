@@ -119,7 +119,9 @@ def _analyze_with_llm(candidate: Candidate, resume_text: str) -> ConsistencyResu
     if candidate.enriched_profile:
         prompt += f"\n\nCandidate's own enriched external profile data: {candidate.enriched_profile}"
 
-    result = openai_service.chat_json(prompt, system=CONSISTENCY_SYSTEM_PROMPT, temperature=0)
+    result = openai_service.chat_json_or_empty(
+        prompt, system=CONSISTENCY_SYSTEM_PROMPT, temperature=0
+    )
     raw_flags = result.get("flags") or []
 
     flags: list[Flag] = []

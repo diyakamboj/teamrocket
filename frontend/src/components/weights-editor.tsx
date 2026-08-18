@@ -2,7 +2,7 @@ import { EyeOff } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Slider } from "@/components/ui/slider";
 import { Switch } from "@/components/ui/switch";
-import type { Weights } from "@/lib/mock-data";
+import type { Weights } from "@/lib/candidates";
 
 const WEIGHT_KEYS = ["skills", "experience", "education", "certifications", "projects"] as const;
 

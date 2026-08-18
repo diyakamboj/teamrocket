@@ -52,19 +52,30 @@ def setup_exception_handlers(app: FastAPI) -> None:
         _: Request, exc: RequestValidationError
     ) -> JSONResponse:
         errors = []
+        def _jsonable(value: object) -> object:
+            """Pydantic puts the offending value straight into the error. For a
+            body that failed to parse at all that value is the raw `bytes`,
+            which json.dumps() cannot encode — serializing it unguarded turned
+            every malformed request into a 500 instead of a 422."""
+            if isinstance(value, (str, int, float, bool, type(None))):
+                return value
+            if isinstance(value, bytes):
+                return value.decode("utf-8", errors="replace")
+            if isinstance(value, (list, tuple)):
+                return [_jsonable(item) for item in value]
+            if isinstance(value, dict):
+                return {str(k): _jsonable(v) for k, v in value.items()}
+            return str(value)
+
         for err in exc.errors():
             ctx = err.get("ctx") or {}
-            safe_ctx = {
-                key: value if isinstance(value, (str, int, float, bool, type(None))) else str(value)
-                for key, value in ctx.items()
-            }
             errors.append(
                 {
                     "type": err.get("type"),
-                    "loc": err.get("loc"),
+                    "loc": _jsonable(err.get("loc")),
                     "msg": err.get("msg"),
-                    "input": err.get("input"),
-                    "ctx": safe_ctx,
+                    "input": _jsonable(err.get("input")),
+                    "ctx": {str(key): _jsonable(value) for key, value in ctx.items()},
                 }
             )
         return JSONResponse(

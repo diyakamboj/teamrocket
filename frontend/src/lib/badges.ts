@@ -1,6 +1,6 @@
 export type BadgeEvidence = {
-  label: str;
-  detail: str;
+  label: string;
+  detail: string;
   origin: "resume" | "external_profile" | "screening";
   confidence?: number;
   url?: string | null;

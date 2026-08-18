@@ -1,6 +1,12 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useState, useEffect } from "react";
-import { getRecruiterSettings, saveRecruiterSettings, RecruiterSettings, CompanyDoc } from "@/lib/settings";
+import { useEffect, useRef, useState } from "react";
+import {
+  getRecruiterSettings,
+  saveRecruiterSettings,
+  type CompanyDocCategory,
+  type CompanyDocRef,
+  type RecruiterSettings,
+} from "@/lib/settings";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -17,233 +23,406 @@ import {
   FileText,
   Trash2,
   CheckCircle,
+  Loader2,
   Sparkles,
   Info,
 } from "lucide-react";
 import { toast } from "sonner";
+import {
+  getAgentModels,
+  getChatAttachment,
+  uploadChatAttachment,
+  type ChatAttachmentInfo,
+  type CopilotModelInfo,
+} from "@/lib/api";
+import { useAppState } from "@/lib/app-state";
+import { cn } from "@/lib/utils";
 
 export const Route = createFileRoute("/settings")({
+  head: () => ({
+    meta: [
+      { title: "Settings & Context — ResumeIQ" },
+      {
+        name: "description",
+        content:
+          "Manage your recruiter profile, choose the Copilot model, and upload company context documents.",
+      },
+    ],
+  }),
   component: SettingsPage,
 });
 
+const DOC_CATEGORIES: { value: CompanyDocCategory; label: string }[] = [
+  { value: "values", label: "Core Values" },
+  { value: "vision", label: "Vision & Mission" },
+  { value: "culture", label: "Engineering Culture" },
+  { value: "guidelines", label: "Hiring Guidelines" },
+];
+
+const WEIGHT_FIELDS = [
+  { key: "skills", label: "Technical Skills" },
+  { key: "experience", label: "Role Experience" },
+  { key: "education", label: "Education Level" },
+  { key: "certifications", label: "Certifications" },
+  { key: "projects", label: "Portfolio Projects" },
+] as const;
+
+/** A company doc: local category label + its live backend attachment record. */
+type CompanyDocView = CompanyDocRef & {
+  attachment: ChatAttachmentInfo | null;
+  missing?: boolean;
+};
+
 function SettingsPage() {
+  const { setWeights } = useAppState();
   const [settings, setSettings] = useState<RecruiterSettings>(getRecruiterSettings());
   const [savedSuccess, setSavedSuccess] = useState(false);
-  const [isUploadingDoc, setIsUploadingDoc] = useState(false);
-  const [newDocName, setNewDocName] = useState("");
-  const [newDocCategory, setNewDocCategory] = useState<"vision" | "values" | "culture" | "guidelines">("values");
+  const [docs, setDocs] = useState<CompanyDocView[]>([]);
+  const [uploading, setUploading] = useState(false);
+  const [newDocCategory, setNewDocCategory] = useState<CompanyDocCategory>("values");
+  const [models, setModels] = useState<CopilotModelInfo[]>([]);
+  const [modelsError, setModelsError] = useState<string | null>(null);
+  const fileRef = useRef<HTMLInputElement>(null);
+
+  // The Copilot model list is server-enforced — never a hardcoded menu here.
+  useEffect(() => {
+    let cancelled = false;
+    getAgentModels()
+      .then((res) => {
+        if (cancelled) return;
+        setModels(res.models);
+        setSettings((prev) =>
+          res.models.some((m) => m.id === prev.copilotConfig.modelId)
+            ? prev
+            : {
+                ...prev,
+                copilotConfig: { ...prev.copilotConfig, modelId: res.default_model_id },
+              },
+        );
+      })
+      .catch((err: unknown) => {
+        if (!cancelled) {
+          setModelsError(err instanceof Error ? err.message : "Could not load models");
+        }
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  // Re-hydrate each stored document from the backend so the list reflects real
+  // processing status and the AI-extracted summary, not a local placeholder.
+  useEffect(() => {
+    let cancelled = false;
+    const refs = getRecruiterSettings().companyDocs;
+    if (refs.length === 0) {
+      setDocs([]);
+      return;
+    }
+    void Promise.all(
+      refs.map(async (ref) => {
+        try {
+          return { ...ref, attachment: await getChatAttachment(ref.attachmentId) };
+        } catch {
+          return { ...ref, attachment: null, missing: true };
+        }
+      }),
+    ).then((rows) => {
+      if (!cancelled) setDocs(rows);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  // Documents are processed in the background — poll until each settles.
+  useEffect(() => {
+    const pending = docs.filter(
+      (d) => d.attachment && (d.attachment.status === "queued" || d.attachment.status === "processing"),
+    );
+    if (pending.length === 0) return;
+
+    let cancelled = false;
+    const timer = window.setInterval(() => {
+      void Promise.all(
+        pending.map(async (d) => {
+          try {
+            return { id: d.attachmentId, attachment: await getChatAttachment(d.attachmentId) };
+          } catch {
+            return null;
+          }
+        }),
+      ).then((updates) => {
+        if (cancelled) return;
+        setDocs((prev) =>
+          prev.map((row) => {
+            const update = updates.find((u) => u?.id === row.attachmentId);
+            return update ? { ...row, attachment: update.attachment } : row;
+          }),
+        );
+      });
+    }, 1500);
+
+    return () => {
+      cancelled = true;
+      window.clearInterval(timer);
+    };
+  }, [docs]);
+
+  function persist(next: RecruiterSettings) {
+    setSettings(next);
+    saveRecruiterSettings(next);
+  }
 
   const handleSave = () => {
     saveRecruiterSettings(settings);
+    // Default weights are only meaningful if they actually take effect.
+    setWeights(settings.defaultWeights);
     setSavedSuccess(true);
-    toast.success("Recruiter settings and AI Copilot preferences saved!");
+    toast.success("Preferences saved — default scoring weights applied.");
     setTimeout(() => setSavedSuccess(false), 2500);
   };
 
-  const handleAddCompanyDoc = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!newDocName.trim()) return;
-
-    setIsUploadingDoc(true);
-    setTimeout(() => {
-      const doc: CompanyDoc = {
-        id: `doc_${Date.now()}`,
-        filename: newDocName.trim().endsWith(".pdf") ? newDocName.trim() : `${newDocName.trim()}.pdf`,
-        uploadedAt: new Date().toISOString().split("T")[0],
+  async function handleUpload(file: File | undefined) {
+    if (!file) return;
+    setUploading(true);
+    try {
+      // Real upload: the backend stores the file in blob storage and runs
+      // text extraction + AI classification over it in the background.
+      const attachment = await uploadChatAttachment(file);
+      const ref: CompanyDocRef = {
+        attachmentId: attachment.id,
         category: newDocCategory,
-        summary: `Uploaded company ${newDocCategory} document used for AI cultural alignment and matching.`,
       };
+      persist({ ...settings, companyDocs: [...settings.companyDocs, ref] });
+      setDocs((prev) => [...prev, { ...ref, attachment }]);
+      toast.success(`Uploaded ${attachment.filename} — extracting context…`);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Upload failed");
+    } finally {
+      setUploading(false);
+      if (fileRef.current) fileRef.current.value = "";
+    }
+  }
 
-      const updatedDocs = [...settings.companyDocs, doc];
-      const updated = { ...settings, companyDocs: updatedDocs };
-      setSettings(updated);
-      saveRecruiterSettings(updated);
-      setNewDocName("");
-      setIsUploadingDoc(false);
-      toast.success(`Uploaded ${doc.filename} to Company Context Hub!`);
-    }, 600);
+  const handleDeleteDoc = (attachmentId: string) => {
+    persist({
+      ...settings,
+      companyDocs: settings.companyDocs.filter((d) => d.attachmentId !== attachmentId),
+    });
+    setDocs((prev) => prev.filter((d) => d.attachmentId !== attachmentId));
+    toast.info("Company context document removed from this list.");
   };
 
-  const handleDeleteDoc = (docId: string) => {
-    const updatedDocs = settings.companyDocs.filter((d) => d.id !== docId);
-    const updated = { ...settings, companyDocs: updatedDocs };
-    setSettings(updated);
-    saveRecruiterSettings(updated);
-    toast.info("Company context document removed.");
-  };
+  const totalWeight = Object.values(settings.defaultWeights).reduce((a, b) => a + b, 0);
 
   return (
-    <div className="p-8 max-w-6xl mx-auto space-y-8 bg-slate-50/50 text-slate-900 min-h-screen">
-      {/* Header */}
-      <div className="flex items-center justify-between border-b border-slate-200 pb-6">
+    <div className="mx-auto max-w-6xl space-y-8">
+      <header className="flex flex-wrap items-center justify-between gap-4 border-b border-border pb-6">
         <div>
-          <div className="flex items-center gap-2 text-blue-600 text-xs font-semibold uppercase tracking-wider mb-1">
-            <SettingsIcon className="w-4 h-4" /> Recruiter Settings & Organizational Context Hub
+          <div className="mb-1 flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-primary">
+            <SettingsIcon className="h-4 w-4" /> Recruiter Settings &amp; Organizational Context
           </div>
-          <h1 className="text-2xl font-bold tracking-tight text-slate-900">
-            Settings & Organizational Context
+          <h1 className="text-2xl font-extrabold tracking-tight sm:text-3xl">
+            Settings &amp; Organizational Context
           </h1>
-          <p className="text-slate-500 text-xs mt-1">
-            Manage recruiter profile, select Copilot LLM engine models, and upload company vision/culture docs.
+          <p className="mt-1 text-sm text-muted-foreground">
+            Manage your recruiter profile, choose the Copilot model, and upload company
+            vision/culture documents.
           </p>
         </div>
 
-        <Button
-          onClick={handleSave}
-          className="bg-blue-600 hover:bg-blue-700 text-white font-medium text-xs px-4 py-2 rounded-lg shadow-sm"
-        >
-          {savedSuccess ? <CheckCircle className="w-4 h-4 mr-2" /> : <Sparkles className="w-4 h-4 mr-2" />}
-          {savedSuccess ? "Saved!" : "Save Preferences"}
+        <Button onClick={handleSave} className="rounded-xl">
+          {savedSuccess ? (
+            <CheckCircle className="mr-2 h-4 w-4" />
+          ) : (
+            <Sparkles className="mr-2 h-4 w-4" />
+          )}
+          {savedSuccess ? "Saved!" : "Save preferences"}
         </Button>
-      </div>
+      </header>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-        {/* Left 2 Columns: Main Settings */}
-        <div className="lg:col-span-2 space-y-8">
-          {/* SECTION 1: Company Context & Culture Documents */}
-          <Card className="bg-slate-900/80 border-slate-800 shadow-xl">
+      <div className="grid grid-cols-1 gap-8 lg:grid-cols-3">
+        <div className="space-y-8 lg:col-span-2">
+          {/* Company context documents */}
+          <Card className="card-surface">
             <CardHeader>
-              <div className="flex items-center gap-2 text-indigo-400 text-sm font-semibold">
-                <Building2 className="w-4 h-4" /> Company Context & Culture Hub
+              <div className="flex items-center gap-2 text-sm font-semibold text-primary">
+                <Building2 className="h-4 w-4" /> Company Context &amp; Culture Hub
               </div>
-              <CardTitle className="text-xl text-white">Company Vision & Culture Documents</CardTitle>
-              <CardDescription className="text-slate-400 text-xs">
-                Upload one-time company documents (vision, core values, leadership principles, culture guidelines). Once uploaded, AI automatically factors this context into candidate matching, culture fit scoring, and JD optimization.
+              <CardTitle className="text-xl">Company vision &amp; culture documents</CardTitle>
+              <CardDescription className="text-xs">
+                Upload company documents (vision, core values, leadership principles, culture
+                guidelines). Each file is stored in blob storage and its text is extracted and
+                summarized so it can be referenced as Copilot context.
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-6">
-              {/* Document List */}
               <div className="space-y-3">
-                {settings.companyDocs.length === 0 ? (
-                  <div className="p-6 text-center border border-dashed border-slate-800 rounded-lg text-slate-500 text-xs">
-                    No company context documents uploaded yet. Upload a document below to inform AI candidate evaluations.
+                {docs.length === 0 ? (
+                  <div className="rounded-lg border border-dashed border-border p-6 text-center text-xs text-muted-foreground">
+                    No company context documents uploaded yet.
                   </div>
                 ) : (
-                  settings.companyDocs.map((doc) => (
-                    <div
-                      key={doc.id}
-                      className="p-4 rounded-lg bg-slate-950/70 border border-slate-800 flex items-start justify-between gap-4 transition-all hover:border-slate-700"
-                    >
-                      <div className="flex items-start gap-3">
-                        <div className="p-2 rounded-lg bg-sky-500/10 border border-sky-500/20 text-sky-400 mt-0.5">
-                          <FileText className="w-5 h-5" />
-                        </div>
-                        <div>
-                          <div className="flex items-center gap-2">
-                            <span className="font-semibold text-slate-200 text-sm">{doc.filename}</span>
-                            <Badge className="bg-indigo-500/20 text-indigo-300 border-indigo-500/30 text-[10px] uppercase">
-                              {doc.category}
-                            </Badge>
-                          </div>
-                          <p className="text-xs text-slate-400 mt-1">{doc.summary}</p>
-                          <span className="text-[10px] text-slate-500 mt-2 block">
-                            Uploaded on {doc.uploadedAt} • Active in AI Matching Engine
-                          </span>
-                        </div>
-                      </div>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => handleDeleteDoc(doc.id)}
-                        className="text-slate-500 hover:text-rose-400 hover:bg-rose-500/10"
+                  docs.map((doc) => {
+                    const a = doc.attachment;
+                    const processing = a?.status === "queued" || a?.status === "processing";
+                    return (
+                      <div
+                        key={doc.attachmentId}
+                        className="flex items-start justify-between gap-4 rounded-lg border border-border bg-secondary/40 p-4 transition-colors hover:border-primary/40"
                       >
-                        <Trash2 className="w-4 h-4" />
-                      </Button>
-                    </div>
-                  ))
+                        <div className="flex min-w-0 items-start gap-3">
+                          <div className="mt-0.5 rounded-lg border border-primary/20 bg-primary-soft p-2 text-primary-soft-foreground">
+                            <FileText className="h-5 w-5" />
+                          </div>
+                          <div className="min-w-0">
+                            <div className="flex flex-wrap items-center gap-2">
+                              <span className="text-sm font-semibold">
+                                {a?.filename ?? "Unavailable document"}
+                              </span>
+                              <Badge variant="outline" className="text-[10px] uppercase">
+                                {doc.category}
+                              </Badge>
+                              {processing && (
+                                <span className="inline-flex items-center gap-1 text-[10px] text-muted-foreground">
+                                  <Loader2 className="h-3 w-3 animate-spin" /> Extracting…
+                                </span>
+                              )}
+                              {a?.status === "failed" && (
+                                <Badge className="border-destructive/30 bg-destructive/15 text-[10px] text-destructive">
+                                  Failed
+                                </Badge>
+                              )}
+                            </div>
+                            <p className="mt-1 text-xs text-muted-foreground">
+                              {doc.missing
+                                ? "This document is no longer available on the server."
+                                : (a?.extracted_summary ??
+                                  a?.error ??
+                                  "Waiting for text extraction…")}
+                            </p>
+                            {a && (
+                              <span className="mt-2 block text-[10px] text-muted-foreground">
+                                Uploaded {new Date(a.created_at).toLocaleDateString()} ·{" "}
+                                {Math.max(1, Math.round(a.size_bytes / 1024))} KB
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => handleDeleteDoc(doc.attachmentId)}
+                          className="text-muted-foreground hover:text-destructive"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    );
+                  })
                 )}
               </div>
 
-              {/* Upload Form */}
-              <form onSubmit={handleAddCompanyDoc} className="p-4 rounded-lg bg-slate-950/40 border border-slate-800/80 space-y-4">
-                <div className="text-xs font-semibold text-slate-300 flex items-center gap-2">
-                  <Upload className="w-4 h-4 text-sky-400" /> Upload New Company Context Document
+              <div className="space-y-4 rounded-lg border border-border bg-secondary/30 p-4">
+                <div className="flex items-center gap-2 text-xs font-semibold">
+                  <Upload className="h-4 w-4 text-primary" /> Upload a company context document
                 </div>
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
                   <div className="md:col-span-2">
-                    <Input
-                      placeholder="Document name (e.g. Leadership_Principles_2026.pdf)"
-                      value={newDocName}
-                      onChange={(e) => setNewDocName(e.target.value)}
-                      className="bg-slate-950 border-slate-800 text-slate-200 placeholder:text-slate-600 text-xs"
+                    <input
+                      ref={fileRef}
+                      type="file"
+                      accept=".pdf,.docx,.txt,.png,.jpg"
+                      className="block w-full cursor-pointer rounded-md border border-border bg-background text-xs file:mr-3 file:cursor-pointer file:rounded-l-md file:border-0 file:bg-secondary file:px-3 file:py-2 file:text-xs file:font-semibold"
+                      onChange={(e) => void handleUpload(e.target.files?.[0])}
+                      disabled={uploading}
                     />
                   </div>
-                  <div>
-                    <select
-                      value={newDocCategory}
-                      onChange={(e) => setNewDocCategory(e.target.value as any)}
-                      className="w-full h-9 px-3 rounded-md bg-slate-950 border border-slate-800 text-slate-200 text-xs focus:outline-none focus:border-sky-500"
-                    >
-                      <option value="values">Core Values</option>
-                      <option value="vision">Vision & Mission</option>
-                      <option value="culture">Engineering Culture</option>
-                      <option value="guidelines">Hiring Guidelines</option>
-                    </select>
-                  </div>
+                  <select
+                    value={newDocCategory}
+                    onChange={(e) => setNewDocCategory(e.target.value as CompanyDocCategory)}
+                    className="h-9 w-full rounded-md border border-border bg-background px-3 text-xs"
+                  >
+                    {DOC_CATEGORIES.map((c) => (
+                      <option key={c.value} value={c.value}>
+                        {c.label}
+                      </option>
+                    ))}
+                  </select>
                 </div>
-                <Button
-                  type="submit"
-                  disabled={isUploadingDoc || !newDocName.trim()}
-                  className="bg-sky-500/10 hover:bg-sky-500/20 text-sky-400 border border-sky-500/30 text-xs font-medium w-full"
-                >
-                  {isUploadingDoc ? "Processing Document Context..." : "Upload & Integrate into AI Knowledge Base"}
-                </Button>
-              </form>
+                {uploading && (
+                  <p className="flex items-center gap-2 text-xs text-muted-foreground">
+                    <Loader2 className="h-3.5 w-3.5 animate-spin" /> Uploading to blob storage…
+                  </p>
+                )}
+              </div>
             </CardContent>
           </Card>
 
-          {/* SECTION 2: AI Copilot Model Configuration */}
-          <Card className="bg-slate-900/80 border-slate-800 shadow-xl">
+          {/* Copilot model */}
+          <Card className="card-surface">
             <CardHeader>
-              <div className="flex items-center gap-2 text-sky-400 text-sm font-semibold">
-                <Bot className="w-4 h-4" /> Recruiter Copilot Intelligence Model
+              <div className="flex items-center gap-2 text-sm font-semibold text-primary">
+                <Bot className="h-4 w-4" /> Recruiter Copilot Intelligence Model
               </div>
-              <CardTitle className="text-xl text-white">AI Model Selection & Reasoning Configuration</CardTitle>
-              <CardDescription className="text-slate-400 text-xs">
-                Configure the LLM engine powering Recruiter Copilot, JD optimization, evidence tracing, and L1 screening.
+              <CardTitle className="text-xl">AI model selection</CardTitle>
+              <CardDescription className="text-xs">
+                Choose the model powering Recruiter Copilot. The list comes from the server's
+                allowlist for your account.
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-6">
-              {/* Model Choice */}
               <div className="space-y-3">
-                <label className="text-xs font-medium text-slate-300">Default AI Model Engine</label>
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-                  {[
-                    { id: "gpt-4o", name: "Azure OpenAI GPT-4o", desc: "Flagship multi-modal reasoning. Best for candidate evaluation & evidence extraction." },
-                    { id: "gpt-4o-mini", name: "Azure OpenAI GPT-4o mini", desc: "High speed, low latency model for fast bulk operations." },
-                    { id: "gpt-4.1", name: "Azure OpenAI GPT-4.1 Preview", desc: "Deep analytical reasoning for JD optimization & complex candidate comparisons." },
-                  ].map((m) => (
-                    <button
-                      key={m.id}
-                      type="button"
-                      onClick={() =>
-                        setSettings({
-                          ...settings,
-                          copilotConfig: { ...settings.copilotConfig, modelId: m.id as any },
-                        })
-                      }
-                      className={`p-3 rounded-lg border text-left transition-all ${
-                        settings.copilotConfig.modelId === m.id
-                          ? "bg-sky-500/10 border-sky-500 text-white"
-                          : "bg-slate-950/60 border-slate-800 text-slate-400 hover:border-slate-700"
-                      }`}
-                    >
-                      <div className="font-semibold text-xs text-slate-200 flex items-center justify-between">
-                        {m.name}
-                        {settings.copilotConfig.modelId === m.id && <CheckCircle className="w-3.5 h-3.5 text-sky-400" />}
-                      </div>
-                      <p className="text-[11px] text-slate-400 mt-1">{m.desc}</p>
-                    </button>
-                  ))}
-                </div>
+                <label className="text-xs font-medium">Default AI model engine</label>
+                {modelsError ? (
+                  <p className="text-xs text-destructive">
+                    Could not load available models: {modelsError}
+                  </p>
+                ) : models.length === 0 ? (
+                  <p className="flex items-center gap-2 text-xs text-muted-foreground">
+                    <Loader2 className="h-3.5 w-3.5 animate-spin" /> Loading available models…
+                  </p>
+                ) : (
+                  <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
+                    {models.map((m) => {
+                      const selected = settings.copilotConfig.modelId === m.id;
+                      return (
+                        <button
+                          key={m.id}
+                          type="button"
+                          onClick={() =>
+                            setSettings({
+                              ...settings,
+                              copilotConfig: { ...settings.copilotConfig, modelId: m.id },
+                            })
+                          }
+                          className={cn(
+                            "rounded-lg border p-3 text-left transition-colors",
+                            selected
+                              ? "border-primary bg-primary-soft"
+                              : "border-border bg-background hover:border-primary/40",
+                          )}
+                        >
+                          <div className="flex items-center justify-between text-xs font-semibold">
+                            {m.label}
+                            {selected && <CheckCircle className="h-3.5 w-3.5 text-primary" />}
+                          </div>
+                          <p className="mt-1 text-[11px] text-muted-foreground">{m.description}</p>
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
               </div>
 
-              {/* Temperature & Reasoning */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
                 <div className="space-y-2">
                   <div className="flex justify-between text-xs">
-                    <label className="font-medium text-slate-300">Creativity / Temperature</label>
-                    <span className="text-sky-400 font-mono">{settings.copilotConfig.temperature}</span>
+                    <label className="font-medium">Creativity / temperature</label>
+                    <span className="font-mono text-primary">
+                      {settings.copilotConfig.temperature}
+                    </span>
                   </div>
                   <Slider
                     min={0}
@@ -253,15 +432,20 @@ function SettingsPage() {
                     onValueChange={([val]) =>
                       setSettings({
                         ...settings,
-                        copilotConfig: { ...settings.copilotConfig, temperature: val },
+                        copilotConfig: {
+                          ...settings.copilotConfig,
+                          temperature: val ?? settings.copilotConfig.temperature,
+                        },
                       })
                     }
                   />
-                  <span className="text-[10px] text-slate-500">Lower values produce strict factual evidence analysis.</span>
+                  <span className="text-[10px] text-muted-foreground">
+                    Lower values produce stricter, more factual evidence analysis.
+                  </span>
                 </div>
 
                 <div className="space-y-2">
-                  <label className="text-xs font-medium text-slate-300">Reasoning Depth</label>
+                  <label className="text-xs font-medium">Reasoning depth</label>
                   <select
                     value={settings.copilotConfig.reasoningEffort}
                     onChange={(e) =>
@@ -269,22 +453,22 @@ function SettingsPage() {
                         ...settings,
                         copilotConfig: {
                           ...settings.copilotConfig,
-                          reasoningEffort: e.target.value as any,
+                          reasoningEffort: e.target
+                            .value as RecruiterSettings["copilotConfig"]["reasoningEffort"],
                         },
                       })
                     }
-                    className="w-full h-9 px-3 rounded-md bg-slate-950 border border-slate-800 text-slate-200 text-xs focus:outline-none focus:border-sky-500"
+                    className="h-9 w-full rounded-md border border-border bg-background px-3 text-xs"
                   >
-                    <option value="low">Low (Fast summaries)</option>
-                    <option value="medium">Medium (Standard analytical rigor)</option>
-                    <option value="high">High (Exhaustive evidence verification)</option>
+                    <option value="low">Low (fast summaries)</option>
+                    <option value="medium">Medium (standard analytical rigor)</option>
+                    <option value="high">High (exhaustive evidence verification)</option>
                   </select>
                 </div>
               </div>
 
-              {/* System Prompt Addendum */}
               <div className="space-y-2">
-                <label className="text-xs font-medium text-slate-300">Custom Recruiter System Instructions</label>
+                <label className="text-xs font-medium">Custom recruiter system instructions</label>
                 <Textarea
                   value={settings.copilotConfig.systemPromptAddendum}
                   onChange={(e) =>
@@ -297,107 +481,104 @@ function SettingsPage() {
                     })
                   }
                   rows={3}
-                  className="bg-slate-950 border-slate-800 text-slate-200 text-xs placeholder:text-slate-600 focus:border-sky-500"
-                  placeholder="Additional instructions for Copilot when reviewing candidates..."
+                  className="text-xs"
+                  placeholder="Additional instructions for Copilot when reviewing candidates…"
                 />
               </div>
             </CardContent>
           </Card>
         </div>
 
-        {/* Right Column: Profile & Category Default Weights */}
+        {/* Right column */}
         <div className="space-y-8">
-          {/* Recruiter Profile */}
-          <Card className="bg-slate-900/80 border-slate-800 shadow-xl">
+          <Card className="card-surface">
             <CardHeader>
-              <div className="flex items-center gap-2 text-sky-400 text-sm font-semibold">
-                <User className="w-4 h-4" /> Profile Details
+              <div className="flex items-center gap-2 text-sm font-semibold text-primary">
+                <User className="h-4 w-4" /> Profile details
               </div>
-              <CardTitle className="text-lg text-white">Recruiter Identity</CardTitle>
+              <CardTitle className="text-lg">Recruiter identity</CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="space-y-1.5">
-                <label className="text-xs font-medium text-slate-300">Full Name</label>
+                <label className="text-xs font-medium">Full name</label>
                 <Input
                   value={settings.recruiterName}
                   onChange={(e) => setSettings({ ...settings, recruiterName: e.target.value })}
-                  className="bg-slate-950 border-slate-800 text-slate-200 text-xs"
+                  className="text-xs"
                 />
               </div>
               <div className="space-y-1.5">
-                <label className="text-xs font-medium text-slate-300">Work Email</label>
+                <label className="text-xs font-medium">Work email</label>
                 <Input
+                  type="email"
                   value={settings.recruiterEmail}
                   onChange={(e) => setSettings({ ...settings, recruiterEmail: e.target.value })}
-                  className="bg-slate-950 border-slate-800 text-slate-200 text-xs"
+                  className="text-xs"
                 />
               </div>
               <div className="space-y-1.5">
-                <label className="text-xs font-medium text-slate-300">Department</label>
+                <label className="text-xs font-medium">Department</label>
                 <Input
                   value={settings.department}
                   onChange={(e) => setSettings({ ...settings, department: e.target.value })}
-                  className="bg-slate-950 border-slate-800 text-slate-200 text-xs"
+                  className="text-xs"
                 />
               </div>
               <div className="space-y-1.5">
-                <label className="text-xs font-medium text-slate-300">Email Signature for Invites</label>
+                <label className="text-xs font-medium">Email signature for invites</label>
                 <Textarea
                   value={settings.emailSignature}
                   onChange={(e) => setSettings({ ...settings, emailSignature: e.target.value })}
                   rows={3}
-                  className="bg-slate-950 border-slate-800 text-slate-200 text-xs font-mono"
+                  className="font-mono text-xs"
                 />
               </div>
             </CardContent>
           </Card>
 
-          {/* Default Scoring Category Weights */}
-          <Card className="bg-slate-900/80 border-slate-800 shadow-xl">
+          <Card className="card-surface">
             <CardHeader>
-              <div className="flex items-center gap-2 text-indigo-400 text-sm font-semibold">
-                <Sliders className="w-4 h-4" /> Global Default Scoring Weights
+              <div className="flex items-center gap-2 text-sm font-semibold text-primary">
+                <Sliders className="h-4 w-4" /> Default scoring weights
               </div>
-              <CardTitle className="text-lg text-white">Default Category Importance</CardTitle>
-              <CardDescription className="text-slate-400 text-xs">
-                Sets default weighting breakdown across newly created jobs. Can be adjusted per-job inside the Candidate Workspace.
+              <CardTitle className="text-lg">Default category importance</CardTitle>
+              <CardDescription className="text-xs">
+                Applied to the candidate ranking when you save. Can still be adjusted per session
+                from the ranking page.
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-5">
-              {[
-                { key: "skills", label: "Technical Skills", val: settings.defaultWeights.skills },
-                { key: "experience", label: "Role Experience", val: settings.defaultWeights.experience },
-                { key: "education", label: "Education Level", val: settings.defaultWeights.education },
-                { key: "certifications", label: "Certifications", val: settings.defaultWeights.certifications },
-                { key: "projects", label: "Portfolio Projects", val: settings.defaultWeights.projects },
-              ].map((item) => (
+              {WEIGHT_FIELDS.map((item) => (
                 <div key={item.key} className="space-y-1.5">
                   <div className="flex justify-between text-xs">
-                    <span className="text-slate-300 font-medium">{item.label}</span>
-                    <span className="text-sky-400 font-semibold">{item.val}%</span>
+                    <span className="font-medium">{item.label}</span>
+                    <span className="font-semibold text-primary">
+                      {settings.defaultWeights[item.key]}%
+                    </span>
                   </div>
                   <Slider
                     min={0}
                     max={50}
                     step={5}
-                    value={[item.val]}
+                    value={[settings.defaultWeights[item.key]]}
                     onValueChange={([v]) =>
                       setSettings({
                         ...settings,
-                        defaultWeights: { ...settings.defaultWeights, [item.key]: v },
+                        defaultWeights: {
+                          ...settings.defaultWeights,
+                          [item.key]: v ?? settings.defaultWeights[item.key],
+                        },
                       })
                     }
                   />
                 </div>
               ))}
 
-              <div className="p-3 rounded-lg bg-sky-500/10 border border-sky-500/20 text-sky-300 text-xs flex items-start gap-2">
-                <Info className="w-4 h-4 text-sky-400 shrink-0 mt-0.5" />
+              <div className="flex items-start gap-2 rounded-lg border border-primary/20 bg-primary-soft p-3 text-xs text-primary-soft-foreground">
+                <Info className="mt-0.5 h-4 w-4 shrink-0" />
                 <span>
-                  Total Weight:{" "}
-                  <strong>
-                    {Object.values(settings.defaultWeights).reduce((a, b) => a + b, 0)}%
-                  </strong>
+                  Total weight: <strong>{totalWeight}%</strong>
+                  {totalWeight !== 100 && " — scores are normalized, so this need not sum to 100."}
                 </span>
               </div>
             </CardContent>

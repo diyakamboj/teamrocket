@@ -274,6 +274,7 @@ export async function createJob(input: {
   title: string;
   description: string;
   required_skills?: string[];
+  nice_to_have_skills?: string[];
   required_experience_years?: number;
 }): Promise<JobResponse> {
   return request<JobResponse>("/api/jobs", {
@@ -295,7 +296,8 @@ export async function ensureActiveJob(): Promise<JobResponse> {
 }
 
 export type JobAnalyzeResponse = {
-  job_id: string;
+  /** Null when analyzing an unsaved draft. */
+  job_id: string | null;
   title: string;
   required_skills: string[];
   nice_to_have_skills: string[];
@@ -394,15 +396,23 @@ export async function decideJdRecommendation(
   );
 }
 
-export async function analyzeJobDescriptionApi(input: {
+/**
+ * Extracts requirements from a draft JD without persisting a job — used while
+ * the recruiter is still editing in the create-job flow.
+ */
+export async function analyzeJob(input: {
   title: string;
   description: string;
 }): Promise<JobAnalyzeResponse> {
-  const job = await createJob({
-    title: input.title,
-    description: input.description,
+  return request<JobAnalyzeResponse>("/api/jobs/analyze-draft", {
+    method: "POST",
+    body: JSON.stringify(input),
   });
-  return request<JobAnalyzeResponse>(`/api/jobs/${job.id}/analyze`, {
+}
+
+/** Re-runs requirement extraction on a saved job and persists the result. */
+export async function analyzeSavedJob(jobId: string): Promise<JobAnalyzeResponse> {
+  return request<JobAnalyzeResponse>(`/api/jobs/${encodeURIComponent(jobId)}/analyze`, {
     method: "POST",
   });
 }
@@ -973,7 +983,7 @@ export type EnrichedProfileData = {
   enriched_at: string;
 };
 
-export async function enrichCandidate(candidateId: string): Promise<Candidate> {
+export async function enrichCandidate(candidateId: string): Promise<BackendCandidate> {
   return request(`/api/candidates/${encodeURIComponent(candidateId)}/enrich`, {
     method: "POST",
   });
@@ -1067,22 +1077,51 @@ export type BackendResumeUploadResponse = {
   message: string;
 };
 
+export type ResumeDetail = {
+  resume_id: string;
+  filename: string;
+  status: string;
+  progress: number;
+  error?: string | null;
+  blob_path?: string | null;
+  candidate?: BackendCandidate | null;
+};
+
+/** Live status of one upload as the backend OCR/parse pipeline advances it. */
+export async function getResumeStatus(resumeId: string): Promise<ResumeDetail> {
+  return request<ResumeDetail>(`/api/resumes/${encodeURIComponent(resumeId)}`);
+}
+
+/** Re-runs OCR + parsing on an already-stored resume blob. */
+export async function reparseResume(resumeId: string): Promise<ResumeDetail> {
+  return request<ResumeDetail>(`/api/resumes/${encodeURIComponent(resumeId)}/parse`, {
+    method: "POST",
+  });
+}
+
 export async function uploadResumesToBackend(files: File[]): Promise<BackendResumeUploadResponse> {
   const formData = new FormData();
   for (const f of files) {
     formData.append("files", f);
   }
 
+  const email =
+    (import.meta.env["VITE_RECRUITER_EMAIL"] as string | undefined) || "recruiter@example.com";
   const res = await fetch(`${API_BASE}/api/resumes/upload`, {
     method: "POST",
-    headers: {
-      "X-Recruiter-Email": "recruiter@company.com",
-    },
+    headers: { "X-Recruiter-Email": email },
     body: formData,
   });
 
   if (!res.ok) {
-    throw new Error(`Upload failed with status ${res.status}`);
+    let detail = `Upload failed (${res.status})`;
+    try {
+      const body = await res.json();
+      detail = body?.error || body?.detail || detail;
+    } catch {
+      // ignore parse errors
+    }
+    throw new Error(detail);
   }
   return res.json();
 }
@@ -1092,18 +1131,109 @@ export type BackendCandidate = {
   name: string;
   email: string;
   phone?: string | null;
+  location?: string | null;
+  title?: string | null;
   resume_file_id?: string | null;
   resume_text?: string | null;
-  skills: string[];
-  experience: any[];
-  education: any[];
+  skills: unknown[];
+  experience: unknown[];
+  education: unknown[];
+  certifications?: unknown[];
+  projects?: unknown[];
+  github_url?: string | null;
+  linkedin_url?: string | null;
+  portfolio_url?: string | null;
+  hackerrank_url?: string | null;
+  enriched_profile?: EnrichedProfileData | null;
   source?: string | null;
   employment_status?: string | null;
+  current_assignment?: string | null;
+  bench_since?: string | null;
   created_at: string;
 };
 
+/** Full candidate record as stored in the backend document store. */
+export type Candidate = BackendCandidate;
+
 export async function fetchCandidatesFromBackend(): Promise<BackendCandidate[]> {
   return request("/api/candidates");
+}
+
+export async function getCandidate(candidateId: string): Promise<BackendCandidate> {
+  return request(`/api/candidates/${encodeURIComponent(candidateId)}`);
+}
+
+export type CandidateScore = RankedCandidate & {
+  years_of_experience?: number | null;
+  skills?: unknown[];
+  technical_skills_score?: number | null;
+  communication_score?: number | null;
+  role_alignment_score?: number | null;
+  evidence?: EvidenceSnippet[];
+};
+
+/** One candidate's full evaluation against a job, from the scoring pipeline. */
+export async function getCandidateScore(
+  candidateId: string,
+  jobId: string,
+): Promise<CandidateScore> {
+  return request(
+    `/api/candidates/${encodeURIComponent(candidateId)}/score?job_id=${encodeURIComponent(jobId)}`,
+  );
+}
+
+// ---------- Backend scoring pipeline (real ranked candidates) ----------
+
+export type EvidenceSnippet = {
+  skill_name: string;
+  resume_text_snippet: string;
+  source_section?: string | null;
+  confidence_score?: number | null;
+  dimension?: string | null;
+};
+
+export type ScoreDimension = {
+  score: number;
+  explanation?: string | null;
+  evidence?: EvidenceSnippet[];
+};
+
+export type RankedCandidate = {
+  candidate_id: string;
+  name: string;
+  email?: string | null;
+  rank: number;
+  overall_score: number;
+  skill_score: number;
+  experience_score: number;
+  education_score: number;
+  certification_score: number;
+  project_score: number;
+  matched_skills: unknown[];
+  missing_skills: unknown[];
+  strengths?: string | null;
+  weaknesses?: string | null;
+  transferable_skills?: string | null;
+  evaluation_id?: string | null;
+  source?: string | null;
+  employment_status?: string | null;
+  current_assignment?: string | null;
+  dimensions?: Record<string, ScoreDimension> | null;
+};
+
+/**
+ * Ranks every stored candidate against a job using the backend's own
+ * three-signal matching engine. Category weights are intentionally left at
+ * the server defaults — the UI re-weights the returned per-category scores
+ * locally so the sliders stay responsive.
+ */
+export async function rankCandidatesApi(
+  jobId: string,
+  options?: { blindMode?: boolean },
+): Promise<RankedCandidate[]> {
+  const params = new URLSearchParams({ job_id: jobId });
+  if (options?.blindMode) params.set("blind_mode", "true");
+  return request<RankedCandidate[]>(`/api/candidates/rank?${params.toString()}`);
 }
 
 export { API_BASE };

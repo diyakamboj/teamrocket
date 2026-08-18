@@ -14,6 +14,8 @@ class Candidate(BaseModel):
     name: str
     email: str
     phone: Optional[str] = None
+    location: Optional[str] = None
+    title: Optional[str] = None
     resume_file_id: Optional[str] = None
     resume_text: Optional[str] = None
     skills: list[Any] = Field(default_factory=list)

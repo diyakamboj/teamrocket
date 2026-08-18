@@ -1,4 +1,4 @@
-import { CANDIDATES, type Candidate } from "@/lib/mock-data";
+import type { Candidate } from "@/lib/candidates";
 import type { FraudCheckSource, FraudScreenCandidateInput, FraudScreenResult } from "@/lib/api";
 
 export type FraudStatus = "verified" | "suspicious" | "fraud";
@@ -30,18 +30,21 @@ export type FraudAssessment = {
   details?: FraudScreenResult["details"];
 };
 
-function hashSeed(id: string): number {
-  let h = 0;
-  for (let i = 0; i < id.length; i++) h = (h * 31 + id.charCodeAt(i)) >>> 0;
-  return h;
-}
-
+/**
+ * Offline fallback only. The real verification path is
+ * `POST /api/fraud/screen/batch`, which runs live OFAC sanctions and employer
+ * registry lookups server-side; this is what the page shows when that call
+ * fails so the queue is not simply blank.
+ *
+ * Every signal below is derived from data actually present on the candidate
+ * record. It deliberately raises no sanctions, identity, or location findings:
+ * those require an external source, and inventing them from a hash of the
+ * candidate id would put fabricated accusations in front of a recruiter.
+ */
 export function assessCandidate(candidate: Candidate): FraudAssessment {
-  const seed = hashSeed(candidate.id);
   const signals: FraudSignal[] = [];
-  let risk = 12 + (seed % 18);
+  let risk = 10;
 
-  // Background-verification style heuristics on profile signals
   if (candidate.years >= 12 && candidate.categories.experience < 45) {
     risk += 28;
     signals.push({
@@ -64,17 +67,8 @@ export function assessCandidate(candidate: Candidate): FraudAssessment {
     risk += 10;
     signals.push({
       id: "credential-gap",
-      label: "Background check found thin credential history",
+      label: "Thin credential history in parsed resume",
       severity: "medium",
-    });
-  }
-
-  if (candidate.email.endsWith("@mail.com") && seed % 5 === 0) {
-    risk += 22;
-    signals.push({
-      id: "identity-reuse",
-      label: "Identity markers overlap with known disposable patterns",
-      severity: "high",
     });
   }
 
@@ -87,20 +81,11 @@ export function assessCandidate(candidate: Candidate): FraudAssessment {
     });
   }
 
-  if (seed % 17 === 0) {
-    risk += 35;
+  if (candidate.evidence.length === 0) {
+    risk += 12;
     signals.push({
-      id: "sanctions-flag",
-      label: "Possible sanctions / OFAC watchlist collision",
-      severity: "high",
-    });
-  }
-
-  if (seed % 11 === 0) {
-    risk += 18;
-    signals.push({
-      id: "location-spoof",
-      label: "Location / IP signals inconsistent with claimed city",
+      id: "no-evidence",
+      label: "No supporting resume evidence extracted",
       severity: "medium",
     });
   }
@@ -108,7 +93,7 @@ export function assessCandidate(candidate: Candidate): FraudAssessment {
   if (signals.length === 0) {
     signals.push({
       id: "clean",
-      label: "Identity, employment, and education checks passed",
+      label: "No inconsistencies found in the parsed resume",
       severity: "low",
     });
   }
@@ -119,25 +104,27 @@ export function assessCandidate(candidate: Candidate): FraudAssessment {
   if (risk >= 70) status = "fraud";
   else if (risk >= 42) status = "suspicious";
 
+  // identity/location/sanctions are unknown offline — reported as not-failed
+  // rather than as passed checks, since nothing verified them.
   const checks = {
-    identity: status !== "fraud" && !signals.some((s) => s.id === "identity-reuse"),
+    identity: true,
     employment: !signals.some((s) => s.id === "exp-mismatch"),
     education: candidate.categories.education >= 50,
-    location: !signals.some((s) => s.id === "location-spoof"),
-    sanctions: !signals.some((s) => s.id === "sanctions-flag"),
+    location: true,
+    sanctions: true,
   };
 
   const summary =
     status === "fraud"
-      ? "Background verification failed. High-confidence fraud indicators detected — do not advance."
+      ? "Resume-consistency review failed — multiple inconsistencies found. Live background checks unavailable."
       : status === "suspicious"
-        ? "Partial verification. Manual review recommended before interview."
-        : "Background verification passed. Identity and history look consistent.";
+        ? "Resume-consistency review flagged items for manual review. Live background checks unavailable."
+        : "No inconsistencies found in the parsed resume. Live background checks unavailable.";
 
   return { candidate, status, riskScore: risk, signals, summary, checks };
 }
 
-export function assessAllCandidates(list: Candidate[] = CANDIDATES): FraudAssessment[] {
+export function assessAllCandidates(list: Candidate[]): FraudAssessment[] {
   return list.map(assessCandidate).sort((a, b) => b.riskScore - a.riskScore);
 }
 

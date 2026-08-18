@@ -16,6 +16,7 @@ import {
   cancelInterview,
   confirmInterview,
   confirmRescheduleInterview,
+  getKnownInterviewers,
   listCandidateInterviews,
   proposeInterview,
   rescheduleInterviewPropose,
@@ -38,12 +39,6 @@ interface CandidateInterviewSectionProps {
   jobTitle?: string | null;
 }
 
-const AVAILABLE_INTERVIEWERS = [
-  { name: "Alex Chen", title: "Lead Software Engineer" },
-  { name: "Priya Sharma", title: "Senior Technical Recruiter" },
-  { name: "Sarah Jenkins", title: "Staff Backend Engineer" },
-  { name: "David Kim", title: "Principal Architect" },
-];
 
 export function CandidateInterviewSection({
   candidateId,
@@ -57,11 +52,30 @@ export function CandidateInterviewSection({
   const [showScheduleForm, setShowScheduleForm] = useState(false);
   const [durationMinutes, setDurationMinutes] = useState<number>(45);
   const [interviewType, setInterviewType] = useState<string>("Technical Interview");
-  const [selectedInterviewers, setSelectedInterviewers] = useState<string[]>([
-    "Alex Chen",
-    "Priya Sharma",
-  ]);
+  // The interviewer roster and their calendars both live server-side.
+  const [availableInterviewers, setAvailableInterviewers] = useState<
+    { name: string; email: string; title: string }[]
+  >([]);
+  const [selectedInterviewers, setSelectedInterviewers] = useState<string[]>([]);
   const [notes, setNotes] = useState<string>("");
+
+  useEffect(() => {
+    let cancelled = false;
+    getKnownInterviewers()
+      .then((people) => {
+        if (cancelled) return;
+        setAvailableInterviewers(people);
+        setSelectedInterviewers((current) =>
+          current.length > 0 ? current : people.slice(0, 2).map((p) => p.name),
+        );
+      })
+      .catch(() => {
+        if (!cancelled) setAvailableInterviewers([]);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
   const [proposal, setProposal] = useState<InterviewProposal | null>(null);
   const [proposing, setProposing] = useState(false);
   const [selectedSlot, setSelectedSlot] = useState<TimeSlot | null>(null);
@@ -109,16 +123,14 @@ export function CandidateInterviewSection({
       setProposing(true);
       const res = await proposeInterview({
         candidate_id: candidateId,
-        job_id: jobId,
+        job_id: jobId ?? null,
         interview_type: interviewType,
         duration_minutes: durationMinutes,
         required_interviewers: selectedInterviewers,
-        notes: notes || undefined,
+        notes: notes || null,
       });
       setProposal(res);
-      if (res.proposed_slots.length > 0) {
-        setSelectedSlot(res.proposed_slots[0]);
-      }
+      setSelectedSlot(res.proposed_slots[0] ?? null);
       toast.success("AI found suitable slots based on interviewer availability!");
     } catch (err: any) {
       toast.error(err.message || "Failed to find interview slots");
@@ -134,13 +146,13 @@ export function CandidateInterviewSection({
       await confirmInterview({
         proposal_id: proposal.proposal_id,
         candidate_id: candidateId,
-        job_id: jobId,
+        job_id: jobId ?? null,
         interview_type: proposal.interview_type,
         duration_minutes: proposal.duration_minutes,
         interviewers: proposal.required_interviewers,
         start_time: selectedSlot.start_time,
         end_time: selectedSlot.end_time,
-        notes: notes || undefined,
+        notes: notes || null,
       });
       toast.success("Interview scheduled! Microsoft Teams link & Outlook calendar event created.");
       setShowScheduleForm(false);
@@ -159,9 +171,7 @@ export function CandidateInterviewSection({
       setReschedulingId(interviewId);
       const res = await rescheduleInterviewPropose(interviewId);
       setRescheduleProposal(res);
-      if (res.proposed_slots.length > 0) {
-        setSelectedRescheduleSlot(res.proposed_slots[0]);
-      }
+      setSelectedRescheduleSlot(res.proposed_slots[0] ?? null);
     } catch (err: any) {
       toast.error(err.message || "Failed to propose reschedule slots");
       setReschedulingId(null);
@@ -284,7 +294,7 @@ export function CandidateInterviewSection({
                 <div>
                   <Label className="text-xs">Required Interviewers (Calendar Sync)</Label>
                   <div className="mt-1.5 grid grid-cols-1 gap-2 sm:grid-cols-2">
-                    {AVAILABLE_INTERVIEWERS.map((inv) => {
+                    {availableInterviewers.map((inv) => {
                       const isSelected = selectedInterviewers.includes(inv.name);
                       return (
                         <button
@@ -357,7 +367,7 @@ export function CandidateInterviewSection({
                 </div>
 
                 <RadioGroup
-                  value={selectedSlot?.slot_id}
+                  value={selectedSlot?.slot_id ?? null}
                   onValueChange={(id) => {
                     const slot = proposal.proposed_slots.find((s) => s.slot_id === id);
                     if (slot) setSelectedSlot(slot);

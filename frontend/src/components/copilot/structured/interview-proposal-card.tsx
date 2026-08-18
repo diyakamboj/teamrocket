@@ -11,7 +11,7 @@ interface InterviewProposalCardProps {
 
 export function InterviewProposalCard({ proposal }: InterviewProposalCardProps) {
   const [selectedSlot, setSelectedSlot] = useState<TimeSlot | null>(
-    proposal.proposed_slots.length > 0 ? proposal.proposed_slots[0] : null,
+    proposal.proposed_slots[0] ?? null,
   );
   const [confirming, setConfirming] = useState(false);
   const [scheduled, setScheduled] = useState<ScheduledInterview | null>(null);
@@ -23,13 +23,13 @@ export function InterviewProposalCard({ proposal }: InterviewProposalCardProps) 
       const res = await confirmInterview({
         proposal_id: proposal.proposal_id,
         candidate_id: proposal.candidate_id,
-        job_id: proposal.job_id,
+        job_id: proposal.job_id ?? null,
         interview_type: proposal.interview_type,
         duration_minutes: proposal.duration_minutes,
         interviewers: proposal.required_interviewers,
         start_time: selectedSlot.start_time,
         end_time: selectedSlot.end_time,
-        notes: proposal.notes || undefined,
+        notes: proposal.notes ?? null,
       });
       setScheduled(res);
       toast.success("Interview confirmed! Microsoft Teams meeting & Outlook invite generated.");

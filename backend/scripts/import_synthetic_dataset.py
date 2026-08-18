@@ -71,6 +71,8 @@ def _row_to_candidate(row: dict[str, object]) -> Candidate:
         name=row["name"] or candidate_key,
         email=email,
         phone=row["phone"],
+        location=row["location"],
+        title=row["current_title"],
         resume_text=row["resume_text"],
         skills=_split(row["skills"]),
         experience=experience,

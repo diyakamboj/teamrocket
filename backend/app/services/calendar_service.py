@@ -103,7 +103,12 @@ def build_ics_content(
     dtstamp = datetime.now(timezone.utc).strftime(fmt)
     uid = hashlib.md5(f"{title}-{st}".encode()).hexdigest() + "@resumeiq.com"
 
-    attendee_lines = "\n".join([f"ATTENDEE;ROLE=REQ-PARTICIPANT;RSVP=TRUE:MAILTO:{a}" for a in attendees])
+    attendee_lines = "\r\n".join(
+        [f"ATTENDEE;ROLE=REQ-PARTICIPANT;RSVP=TRUE:MAILTO:{a}" for a in attendees]
+    )
+    # RFC 5545 escapes newlines inside TEXT values. Precomputed because a
+    # backslash inside an f-string expression is a SyntaxError before 3.12.
+    escaped_description = description.replace("\n", "\\n")
 
     ics = (
         "BEGIN:VCALENDAR\r\n"
@@ -117,7 +122,7 @@ def build_ics_content(
         f"DTSTART:{st}\r\n"
         f"DTEND:{et}\r\n"
         f"SUMMARY:{title}\r\n"
-        f"DESCRIPTION:{description.replace('\n', '\\n')}\r\n"
+        f"DESCRIPTION:{escaped_description}\r\n"
         f"LOCATION:{location}\r\n"
         f"ORGANIZER;CN=Recruiter:MAILTO:{organizer_email}\r\n"
         f"{attendee_lines}\r\n"

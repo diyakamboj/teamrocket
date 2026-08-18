@@ -118,6 +118,12 @@ class CandidateMatcher:
         if not text:
             return self._heuristic_communication("")
 
+        # Same convention as JobAnalyzer.analyze: skip the round-trip in mock
+        # mode rather than calling a stub that cannot answer this prompt and
+        # then discarding the unparseable result.
+        if openai_service.mock:
+            return self._heuristic_communication(text)
+
         prompt = f"""
 Score the candidate's communication quality from 0 to 100 based on resume/profile text only.
 
@@ -543,7 +549,9 @@ role_alignment_explanation (string),
 overall_fit_explanation (string),
 dimensions (object with the four keys above containing short explanations).
 """
-        result = openai_service.chat_json(prompt, temperature=0.3)
+        # Falls back to the deterministic matched/missing-skill computation
+        # below when Azure is unreachable.
+        result = openai_service.chat_json_or_empty(prompt, temperature=0.3)
 
         # Deterministic fallbacks when model output is incomplete
         cand_skills = {normalize_skill(str(s)): str(s) for s in (candidate.skills or [])}

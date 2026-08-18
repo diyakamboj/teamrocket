@@ -11,7 +11,6 @@ import {
   YAxis,
 } from "recharts";
 import {
-  ArrowUpRight,
   BadgeCheck,
   Brain,
   CircleAlert,
@@ -38,12 +37,12 @@ import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
-  CANDIDATES,
-  EXPERIENCE_BREAKDOWN,
-  SKILL_DISTRIBUTION,
+  experienceBreakdown,
   rankCandidates,
   scoreBuckets,
-} from "@/lib/mock-data";
+  skillDistribution,
+} from "@/lib/candidates";
+import { useCandidatePool } from "@/lib/use-candidate-pool";
 
 export const Route = createFileRoute("/insights")({
   head: () => ({
@@ -86,7 +85,9 @@ function StatCard({
   icon: typeof Users;
   label: string;
   value: string;
-  delta: string;
+  /** Short qualifier for the figure. Omitted when there is nothing true to say
+   * — this app stores no historical snapshots, so it cannot show a trend. */
+  delta?: string | undefined;
 }) {
   return (
     <div className="card-surface p-5 transition-shadow duration-300 hover:shadow-[var(--shadow-lift)]">
@@ -94,9 +95,11 @@ function StatCard({
         <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-primary-soft text-primary-soft-foreground">
           <Icon className="h-5 w-5" />
         </span>
-        <span className="inline-flex items-center gap-0.5 rounded-full bg-secondary px-2 py-0.5 text-[11px] font-semibold text-muted-foreground">
-          <ArrowUpRight className="h-3 w-3" /> {delta}
-        </span>
+        {delta && (
+          <span className="inline-flex items-center gap-0.5 rounded-full bg-secondary px-2 py-0.5 text-[11px] font-semibold text-muted-foreground">
+            {delta}
+          </span>
+        )}
       </div>
       <p className="mt-4 text-3xl font-extrabold tabular-nums tracking-tight">{value}</p>
       <p className="mt-1 text-sm text-muted-foreground">{label}</p>
@@ -191,9 +194,14 @@ function dictChart(
 function Insights() {
   const navigate = useNavigate();
   const { weights, activeJobId, backendReady, setActiveJobId } = useAppState();
-  const ranked = useMemo(() => rankCandidates(CANDIDATES, weights), [weights]);
-  const avg = Math.round(ranked.reduce((s, c) => s + c.score, 0) / ranked.length);
+  const { candidates: pool } = useCandidatePool();
+  const ranked = useMemo(() => rankCandidates(pool, weights), [pool, weights]);
+  const avg = ranked.length
+    ? Math.round(ranked.reduce((s, c) => s + c.score, 0) / ranked.length)
+    : 0;
   const buckets = useMemo(() => scoreBuckets(ranked), [ranked]);
+  const skillCounts = useMemo(() => skillDistribution(pool), [pool]);
+  const levelCounts = useMemo(() => experienceBreakdown(pool), [pool]);
   const [insights, setInsights] = useState<DashboardInsights | null>(null);
   const [distribution, setDistribution] = useState<DashboardDistribution | null>(null);
   const [optimization, setOptimization] = useState<JDOptimizationResponse | null>(null);
@@ -292,7 +300,10 @@ function Insights() {
     if (!activeJobId) return;
     setPendingId(item.id);
     try {
-      await decideJdRecommendation(activeJobId, item.id, { status, note });
+      await decideJdRecommendation(activeJobId, item.id, {
+        status,
+        ...(note === undefined ? {} : { note }),
+      });
       await reloadAnalytics();
       if (status === "rejected") {
         toast.success(`Dismissed ${item.skill}`);
@@ -337,21 +348,25 @@ function Insights() {
           icon={Gauge}
           label="Average match score"
           value={`${insights?.average_score ?? avg}`}
-          delta="4 pts"
+          delta="across pool"
         />
         <StatCard
           icon={Brain}
-          label={`Top skill · ${insights?.top_skills?.[0]?.skill ?? SKILL_DISTRIBUTION[0]!.skill}`}
-          value={`${insights?.top_skills?.[0]?.count ?? SKILL_DISTRIBUTION[0]!.count}`}
-          delta="8%"
+          label={`Top skill · ${insights?.top_skills?.[0]?.skill ?? skillCounts[0]?.skill ?? "—"}`}
+          value={`${insights?.top_skills?.[0]?.count ?? skillCounts[0]?.count ?? 0}`}
+          delta="candidates"
         />
-        <StatCard icon={FileCheck2} label="Resumes processed" value="1,486" delta="230 today" />
+        <StatCard
+          icon={FileCheck2}
+          label="Candidates in store"
+          value={String(insights?.total_candidates ?? pool.length)}
+        />
       </div>
 
       <div className="grid gap-4 lg:grid-cols-2">
         <ChartCard title="Skill distribution" subtitle="Candidates per detected skill (this job)">
           <ResponsiveContainer width="100%" height="100%">
-            <BarChart data={(insights?.top_skills?.length ? insights.top_skills : SKILL_DISTRIBUTION).slice(0, 10)}>
+            <BarChart data={(insights?.top_skills?.length ? insights.top_skills : skillCounts).slice(0, 10)}>
               <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="var(--border)" />
               <XAxis dataKey="skill" tick={{ fontSize: 11 }} stroke="var(--muted-foreground)" />
               <YAxis tick={{ fontSize: 11 }} stroke="var(--muted-foreground)" />
@@ -385,7 +400,7 @@ function Insights() {
               data={
                 distribution?.experience_levels
                   ? Object.entries(distribution.experience_levels).map(([level, count]) => ({ level, count }))
-                  : EXPERIENCE_BREAKDOWN
+                  : levelCounts
               }
               layout="vertical"
             >

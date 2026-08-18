@@ -18,7 +18,8 @@ import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { MiniBar, ScoreRing } from "@/components/score-ring";
 import { useAppState } from "@/lib/app-state";
-import { CANDIDATES, DEFAULT_WEIGHTS, rankCandidates, type Candidate } from "@/lib/mock-data";
+import { DEFAULT_WEIGHTS, rankCandidates, type Candidate } from "@/lib/candidates";
+import { useCandidatePool } from "@/lib/use-candidate-pool";
 import {
   API_BASE,
   createHandoff,
@@ -94,7 +95,11 @@ function statusBadge(status: InterviewHandoffRecord["status"]) {
 
 function InterviewHandoffPage() {
   const { weights, activeJobId, setViewingCandidateId } = useAppState();
-  const ranked = useMemo(() => rankCandidates(CANDIDATES, weights || DEFAULT_WEIGHTS), [weights]);
+  const { candidates: pool } = useCandidatePool();
+  const ranked = useMemo(
+    () => rankCandidates(pool, weights || DEFAULT_WEIGHTS),
+    [pool, weights],
+  );
   const [query, setQuery] = useState("");
   const [selectedId, setSelectedId] = useState<string | null>(ranked[0]?.id ?? null);
   const [jobTitle, setJobTitle] = useState<string | null>(null);

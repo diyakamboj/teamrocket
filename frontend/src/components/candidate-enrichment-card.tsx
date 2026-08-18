@@ -1,29 +1,46 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { ExternalLink as ExternalLinkIcon, Github, Globe, Linkedin, Loader2, RefreshCw, ShieldCheck, Star, Sparkles, Award } from "lucide-react";
 import { toast } from "sonner";
-import { enrichCandidate, type Candidate, type EnrichedProfileData } from "@/lib/api";
+import {
+  enrichCandidate,
+  getCandidate,
+  type BackendCandidate,
+  type EnrichedProfileData,
+} from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 
+/** Only the fields this card actually renders — so both the ranked-list row
+ * and a freshly fetched backend record can be passed in. */
+export type EnrichmentSubject = {
+  id: string;
+  github_url?: string | null;
+  linkedin_url?: string | null;
+  hackerrank_url?: string | null;
+  portfolio_url?: string | null;
+  enriched_profile?: EnrichedProfileData | null | undefined;
+};
+
 interface CandidateEnrichmentCardProps {
-  candidate: Candidate;
-  onEnriched?: (updated: Candidate) => void;
+  candidate: EnrichmentSubject;
+  onEnriched?: (updated: BackendCandidate) => void;
 }
 
 export function CandidateEnrichmentCard({ candidate, onEnriched }: CandidateEnrichmentCardProps) {
-
   const [enriching, setEnriching] = useState(false);
-  const profile = candidate.enriched_profile as EnrichedProfileData | undefined;
+  const [enriched, setEnriched] = useState<EnrichedProfileData | null>(null);
+  const profile = enriched ?? (candidate.enriched_profile as EnrichedProfileData | undefined);
 
   const handleEnrich = async () => {
     try {
       setEnriching(true);
       const updated = await enrichCandidate(candidate.id);
+      setEnriched((updated.enriched_profile as EnrichedProfileData | null) ?? null);
       toast.success("Candidate profile enriched from public sources!");
       if (onEnriched) onEnriched(updated);
-    } catch (err: any) {
-      toast.error(err.message || "Failed to enrich profile");
+    } catch (err: unknown) {
+      toast.error(err instanceof Error ? err.message : "Failed to enrich profile");
     } finally {
       setEnriching(false);
     }
@@ -200,45 +217,40 @@ export function CandidateEnrichmentCard({ candidate, onEnriched }: CandidateEnri
   );
 }
 
+/**
+ * Loads the candidate's stored record (including any previously enriched
+ * profile) from the backend and renders the card for it.
+ */
 export const CandidateEnrichmentSection = ({ candidateId }: { candidateId: string }) => {
-  return (
-    <CandidateEnrichmentCard
-      candidate={{
-        id: candidateId,
-        name: "Alex Johnson",
-        title: "Senior Cloud Architect",
-        email: "alex@example.com",
-        phone: "+15552345678",
-        summary: "Cloud Architect",
-        years: 7,
-        education: "BS CS",
-        location: "Seattle, WA",
-        rank: 1,
-        score: 94,
-        status: "top_match",
-        categories: { skills: 96, experience: 91, education: 85, certifications: 90, projects: 95 },
-        skills: ["Python", "Azure", "Kubernetes", "FastAPI"],
-        gaps: [],
-        strengths: ["Azure", "Python"],
-        evidence: [],
-        github_url: "https://github.com/alexjohnson",
-        linkedin_url: "https://linkedin.com/in/alexjohnson",
-        hackerrank_url: "https://hackerrank.com/alexjohnson",
-        portfolio_url: "https://alexjohnson.dev",
-        enriched_profile: {
-          summary: "Verified public signals: 12 open-source repositories and 4 featured Python/Azure tools.",
-          repositories: [
-            { name: "azure-microservices-kit", stars: 142, description: "Automated Azure Kubernetes deployment tool", language: "Python", url: "https://github.com/alexjohnson/azure-microservices-kit" },
-            { name: "fastapi-auth-service", stars: 89, description: "OAuth2 authentication service for Azure AD", language: "TypeScript", url: "https://github.com/alexjohnson/fastapi-auth-service" },
-          ],
-          inferred_skills: [
-            { name: "Python", origin: "github" },
-            { name: "Azure", origin: "linkedin" },
-            { name: "Docker", origin: "github" },
-          ],
-        },
-      }}
-    />
-  );
-};
+  const [candidate, setCandidate] = useState<BackendCandidate | null>(null);
+  const [error, setError] = useState<string | null>(null);
 
+  useEffect(() => {
+    let cancelled = false;
+    getCandidate(candidateId)
+      .then((c) => {
+        if (!cancelled) setCandidate(c);
+      })
+      .catch((err: unknown) => {
+        if (!cancelled) {
+          setError(err instanceof Error ? err.message : "Could not load candidate");
+        }
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [candidateId]);
+
+  if (error) {
+    return <p className="px-1 py-3 text-xs text-destructive">{error}</p>;
+  }
+  if (!candidate) {
+    return (
+      <p className="flex items-center gap-2 px-1 py-3 text-xs text-muted-foreground">
+        <Loader2 className="h-3.5 w-3.5 animate-spin" /> Loading public profile signals…
+      </p>
+    );
+  }
+
+  return <CandidateEnrichmentCard candidate={candidate} />;
+};

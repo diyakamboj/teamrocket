@@ -4,8 +4,7 @@ import { ArrowUp, Loader2, Plus, Sparkles, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { analyzeJobDescriptionApi } from "@/lib/api";
-import { useAppState } from "@/lib/app-state";
+import { analyzeJob } from "@/lib/api";
 import {
   analyzeJobDescription,
   type ExtractedRequirement,
@@ -66,7 +65,6 @@ function requestedCategories(query: string): RequirementCategory[] | "all" {
 }
 
 function JobAnalysis() {
-  const { setActiveJobId } = useAppState();
   const { highlight } = Route.useSearch();
   const sectionsRef = useRef<HTMLDivElement>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -139,11 +137,12 @@ function JobAnalysis() {
       setDetectedTitle(local.title);
 
       try {
-        const remote = await analyzeJobDescriptionApi({
+        // Draft analysis only — this screen is a JD playground, so it must not
+        // persist a throwaway job (and therefore does not change the active job).
+        const remote = await analyzeJob({
           title: local.title,
           description: query,
         });
-        setActiveJobId(remote.job_id);
 
         if (categories.includes("Skills") && remote.required_skills?.length) {
           const skillReqs: ExtractedRequirement[] = [

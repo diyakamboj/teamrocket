@@ -18,6 +18,8 @@ class CandidateBase(BaseModel):
     name: str
     email: EmailStr
     phone: Optional[str] = None
+    location: Optional[str] = None
+    title: Optional[str] = None
     skills: list[Any] = Field(default_factory=list)
     experience: list[Any] = Field(default_factory=list)
     education: list[Any] = Field(default_factory=list)
@@ -41,6 +43,8 @@ class CandidateCreate(CandidateBase):
 class CandidateUpdate(BaseModel):
     name: Optional[str] = None
     phone: Optional[str] = None
+    location: Optional[str] = None
+    title: Optional[str] = None
     skills: Optional[list[Any]] = None
     experience: Optional[list[Any]] = None
     education: Optional[list[Any]] = None
@@ -110,6 +114,13 @@ class JobCreate(BaseModel):
     created_by: Optional[str] = None
 
 
+class JobDraftAnalyzeRequest(BaseModel):
+    """A not-yet-created job description, analyzed without persisting it."""
+
+    title: str
+    description: str
+
+
 class JobUpdate(BaseModel):
     title: Optional[str] = None
     description: Optional[str] = None
@@ -137,7 +148,8 @@ class JobResponse(ORMModel):
 
 
 class JobAnalyzeResponse(BaseModel):
-    job_id: UUID
+    # None when analyzing an unsaved draft (POST /api/jobs/analyze-draft).
+    job_id: Optional[UUID] = None
     title: str
     required_skills: list[str]
     nice_to_have_skills: list[str]

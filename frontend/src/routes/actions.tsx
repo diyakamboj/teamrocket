@@ -1,257 +1,377 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { useState } from "react";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { useEffect, useMemo, useState } from "react";
+import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
-  Zap,
-  Bot,
-  Users,
   AlertTriangle,
+  Bot,
   CheckCircle2,
-  ArrowRight,
+  Loader2,
   Sparkles,
-  Filter,
-  Search,
+  Users,
+  Zap,
 } from "lucide-react";
 import { toast } from "sonner";
+import {
+  decideJdRecommendation,
+  getInternalMatches,
+  getJdOptimization,
+  listJobPipelines,
+  type AgentEvaluationSummary,
+  type JDRecommendation,
+  type JobPipelineSummary,
+} from "@/lib/api";
+import { cn } from "@/lib/utils";
 
 export const Route = createFileRoute("/actions")({
+  head: () => ({
+    meta: [
+      { title: "Actions Center — ResumeIQ" },
+      {
+        name: "description",
+        content:
+          "Review AI recommendations across every open job: bench matches, JD calibration warnings, and candidates ready for assessment.",
+      },
+    ],
+  }),
   component: ActionsPage,
 });
 
+type ActionType = "bench_match" | "jd_optimization" | "readiness_assessment";
+
 type ActionItem = {
   id: string;
-  type: "bench_match" | "jd_optimization" | "readiness_assessment" | "batch_processed";
+  type: ActionType;
   title: string;
   description: string;
-  timestamp: string;
-  jobTitle?: string;
+  jobId: string;
+  jobTitle: string;
   candidateName?: string;
-  status: "pending" | "approved" | "dismissed";
   urgency: "high" | "medium" | "low";
   targetUrl: string;
   actionLabel: string;
+  /** Present only when acting on the item writes back to the backend. */
+  recommendationId?: string;
 };
 
-const INITIAL_ACTIONS: ActionItem[] = [
-  {
-    id: "act_1",
-    type: "bench_match",
-    title: "New Internal Bench Candidate Match",
-    description: "Copilot identified bench employee Employee A (Senior Cloud Architect) whose profile matches 94% with the open Cloud Engineer position requirements.",
-    timestamp: "5 minutes ago",
-    jobTitle: "Cloud Engineer",
-    candidateName: "Employee A",
-    status: "pending",
-    urgency: "high",
-    targetUrl: "/internal-hiring",
-    actionLabel: "Review & Place Employee →",
-  },
-  {
-    id: "act_2",
-    type: "jd_optimization",
-    title: "JD Optimization Skew Warning",
-    description: "Senior Kubernetes Engineer role has received 47 applicants, but only 5 candidates demonstrate Kubernetes experience. Copilot recommends making Kubernetes a nice-to-have.",
-    timestamp: "42 minutes ago",
-    jobTitle: "Senior Kubernetes Engineer",
-    status: "pending",
-    urgency: "high",
-    targetUrl: "/jobs/job_1",
-    actionLabel: "Review JD Requirement →",
-  },
-  {
-    id: "act_3",
-    type: "readiness_assessment",
-    title: "3 Candidates Ready for Readiness Validation",
-    description: "Candidates Candidate A, Candidate B, and Candidate C meet initial match criteria but require technical assessment validation before scheduling Interview Round 1.",
-    timestamp: "2 hours ago",
-    jobTitle: "Senior Software Engineer",
-    status: "pending",
-    urgency: "medium",
-    targetUrl: "/jobs/job_1",
-    actionLabel: "Send Readiness Assessments →",
-  },
-  {
-    id: "act_4",
-    type: "batch_processed",
-    title: "Batch Resume Parsing Complete",
-    description: "18 new applicant resumes for Data Engineer position were parsed, scored, and enriched with public GitHub/LinkedIn signals.",
-    timestamp: "4 hours ago",
-    jobTitle: "Data Engineer",
-    status: "pending",
-    urgency: "low",
-    targetUrl: "/jobs/job_3",
-    actionLabel: "View Processed Batch →",
-  },
-];
+const FILTERS = [
+  { id: "all", label: "All Actions" },
+  { id: "bench_match", label: "Bench Matches" },
+  { id: "jd_optimization", label: "JD Skew Warnings" },
+  { id: "readiness_assessment", label: "Readiness Prompts" },
+] as const;
+
+type FilterId = (typeof FILTERS)[number]["id"];
+
+const TYPE_ICON: Record<ActionType, typeof Users> = {
+  bench_match: Users,
+  jd_optimization: AlertTriangle,
+  readiness_assessment: Bot,
+};
+
+const TYPE_TONE: Record<ActionType, string> = {
+  bench_match: "bg-success/10 border-success/30 text-success",
+  jd_optimization: "bg-warning/15 border-warning/40 text-warning-foreground dark:text-warning",
+  readiness_assessment: "bg-primary-soft border-primary/30 text-primary-soft-foreground",
+};
+
+/** JD recommendations worth surfacing — the calibration flags, not "balanced". */
+const ACTIONABLE_JD = new Set(["too_strict", "low_signal", "under_filtered"]);
+
+function jdUrgency(rec: JDRecommendation): ActionItem["urgency"] {
+  if (rec.classification === "too_strict") return "high";
+  if (rec.classification === "low_signal") return "medium";
+  return "low";
+}
+
+async function buildActions(jobs: JobPipelineSummary[]): Promise<ActionItem[]> {
+  const perJob = await Promise.all(
+    jobs.map(async (job) => {
+      const items: ActionItem[] = [];
+
+      const [optimization, matches] = await Promise.all([
+        getJdOptimization(job.job_id).catch(() => null),
+        getInternalMatches(job.job_id, true).catch(() => [] as AgentEvaluationSummary[]),
+      ]);
+
+      for (const rec of optimization?.recommendations ?? []) {
+        if (rec.status !== "pending" || !ACTIONABLE_JD.has(rec.classification)) continue;
+        items.push({
+          id: `jd-${job.job_id}-${rec.id}`,
+          type: "jd_optimization",
+          title: `JD calibration: ${rec.skill}`,
+          description: `${rec.suggested_modification} Only ${rec.candidates_matching} of ${rec.total_candidates} candidates (${Math.round(rec.coverage_pct)}%) match this ${rec.is_must_have ? "must-have" : "nice-to-have"} requirement.`,
+          jobId: job.job_id,
+          jobTitle: job.title,
+          urgency: jdUrgency(rec),
+          targetUrl: "/insights",
+          actionLabel: "Accept recommendation",
+          recommendationId: rec.id,
+        });
+      }
+
+      for (const match of matches.slice(0, 3)) {
+        const candidate = match.candidate;
+        if (candidate.employment_status !== "bench") continue;
+        items.push({
+          id: `bench-${job.job_id}-${candidate.candidate_id ?? candidate.label}`,
+          type: "bench_match",
+          title: "Internal bench candidate match",
+          description: `${candidate.label} is on the bench and scores ${Math.round(candidate.score ?? 0)} against this role's requirements.`,
+          jobId: job.job_id,
+          jobTitle: job.title,
+          candidateName: candidate.label,
+          urgency: (candidate.score ?? 0) >= 75 ? "high" : "medium",
+          targetUrl: "/talent-marketplace",
+          actionLabel: "Review & place employee",
+        });
+      }
+
+      const screened = job.stage_counts?.screened ?? 0;
+      if (screened > 0) {
+        items.push({
+          id: `readiness-${job.job_id}`,
+          type: "readiness_assessment",
+          title: `${screened} candidate${screened === 1 ? "" : "s"} ready for assessment`,
+          description: `${screened} screened candidate${screened === 1 ? " has" : "s have"} not yet moved to interview. Run a readiness assessment to validate competency gaps first.`,
+          jobId: job.job_id,
+          jobTitle: job.title,
+          urgency: screened >= 5 ? "medium" : "low",
+          targetUrl: "/candidates",
+          actionLabel: "Send readiness assessments",
+        });
+      }
+
+      return items;
+    }),
+  );
+
+  const urgencyRank = { high: 0, medium: 1, low: 2 };
+  return perJob.flat().sort((a, b) => urgencyRank[a.urgency] - urgencyRank[b.urgency]);
+}
 
 function ActionsPage() {
-  const [actions, setActions] = useState<ActionItem[]>(INITIAL_ACTIONS);
-  const [filter, setFilter] = useState<"all" | "pending" | "approved">("all");
+  const [actions, setActions] = useState<ActionItem[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [filter, setFilter] = useState<FilterId>("all");
+  const [resolved, setResolved] = useState<Record<string, "approved" | "dismissed">>({});
+  const [pendingId, setPendingId] = useState<string | null>(null);
 
-  const handleExecute = (id: string, label: string) => {
-    setActions((prev) =>
-      prev.map((a) => (a.id === id ? { ...a, status: "approved" as const } : a))
-    );
-    toast.success(`Action Executed: "${label}"`);
-  };
+  useEffect(() => {
+    let cancelled = false;
+    setLoading(true);
+    setError(null);
 
-  const handleDismiss = (id: string) => {
-    setActions((prev) =>
-      prev.map((a) => (a.id === id ? { ...a, status: "dismissed" as const } : a))
-    );
+    listJobPipelines()
+      .then(buildActions)
+      .then((items) => {
+        if (!cancelled) {
+          setActions(items);
+          setLoading(false);
+        }
+      })
+      .catch((err: unknown) => {
+        if (cancelled) return;
+        setError(err instanceof Error ? err.message : "Could not load recommendations");
+        setLoading(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const filtered = useMemo(
+    () =>
+      actions.filter(
+        (a) => resolved[a.id] !== "dismissed" && (filter === "all" || a.type === filter),
+      ),
+    [actions, filter, resolved],
+  );
+
+  const pendingCount = actions.filter((a) => !resolved[a.id]).length;
+
+  async function handleExecute(item: ActionItem) {
+    // Only JD recommendations have a backend decision endpoint; the others
+    // are navigational, so acting on them just marks them handled locally.
+    if (!item.recommendationId) {
+      setResolved((prev) => ({ ...prev, [item.id]: "approved" }));
+      return;
+    }
+
+    setPendingId(item.id);
+    try {
+      await decideJdRecommendation(item.jobId, item.recommendationId, { status: "accepted" });
+      setResolved((prev) => ({ ...prev, [item.id]: "approved" }));
+      toast.success(`Recommendation accepted for ${item.jobTitle}`);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Could not save that decision");
+    } finally {
+      setPendingId(null);
+    }
+  }
+
+  async function handleDismiss(item: ActionItem) {
+    if (item.recommendationId) {
+      try {
+        await decideJdRecommendation(item.jobId, item.recommendationId, { status: "rejected" });
+      } catch {
+        // Falls through to a local dismiss — the recruiter still wanted it gone.
+      }
+    }
+    setResolved((prev) => ({ ...prev, [item.id]: "dismissed" }));
     toast.info("Action item dismissed.");
-  };
-
-  const filtered = actions.filter((a) => {
-    if (filter === "pending") return a.status === "pending";
-    if (filter === "approved") return a.status === "approved";
-    return a.status !== "dismissed";
-  });
+  }
 
   return (
-    <div className="p-8 max-w-7xl mx-auto space-y-8 bg-slate-50/50 text-slate-900 min-h-screen">
-      {/* Header */}
-      <div className="flex items-center justify-between border-b border-slate-200 pb-6">
+    <div className="mx-auto max-w-7xl space-y-6">
+      <header className="flex flex-wrap items-center justify-between gap-4 border-b border-border pb-6">
         <div>
-          <div className="flex items-center gap-2 text-amber-600 text-xs font-semibold uppercase tracking-wider mb-1">
-            <Zap className="w-4 h-4" /> Recruiter Copilot Decision Queue
+          <div className="mb-1 flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-primary">
+            <Zap className="h-4 w-4" /> Recruiter Copilot Decision Queue
           </div>
-          <h1 className="text-2xl font-bold tracking-tight text-slate-900 flex items-center gap-3">
-            Actions Center
-          </h1>
-          <p className="text-slate-500 text-xs mt-1">
-            Review AI recommendations, trigger 1-click candidate placements, and manage pipeline actions.
+          <h1 className="text-2xl font-extrabold tracking-tight sm:text-3xl">Actions Center</h1>
+          <p className="mt-1 text-sm text-muted-foreground">
+            AI recommendations generated from your live pipelines — JD calibration, bench matches,
+            and readiness prompts.
           </p>
         </div>
+        <Badge className="border-warning/40 bg-warning/15 text-xs font-semibold text-warning-foreground dark:text-warning">
+          ⚡ {pendingCount} pending action{pendingCount === 1 ? "" : "s"}
+        </Badge>
+      </header>
 
-        <div className="flex items-center gap-2">
-          <Badge className="bg-amber-50 text-amber-800 border-amber-200 text-xs font-semibold">
-            ⚡ {actions.filter((a) => a.status === "pending").length} Pending Actions
-          </Badge>
-        </div>
+      <div className="flex flex-wrap items-center gap-2">
+        {FILTERS.map((tab) => (
+          <button
+            key={tab.id}
+            onClick={() => setFilter(tab.id)}
+            className={cn(
+              "rounded-lg px-3 py-1.5 text-xs font-medium transition-colors",
+              filter === tab.id
+                ? "bg-primary text-primary-foreground"
+                : "bg-secondary text-muted-foreground hover:text-foreground",
+            )}
+          >
+            {tab.label}
+          </button>
+        ))}
       </div>
 
-      {/* Filter Tabs */}
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-2">
-          {[
-            { id: "all", label: "All Actions" },
-            { id: "bench_match", label: "Bench Matches" },
-            { id: "jd_optimization", label: "JD Skew Warnings" },
-            { id: "readiness_assessment", label: "Readiness Prompts" },
-            { id: "batch_processed", label: "Batch Uploads" },
-          ].map((tab) => (
-            <button
-              key={tab.id}
-              onClick={() => setFilterType(tab.id)}
-              className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
-                filterType === tab.id
-                  ? "bg-sky-500/20 text-sky-300 border border-sky-500/40"
-                  : "bg-slate-900/60 text-slate-400 border border-slate-800 hover:text-slate-200"
-              }`}
-            >
-              {tab.label}
-            </button>
-          ))}
-        </div>
-      </div>
-
-      {/* Action Items List */}
       <div className="space-y-4">
-        {filteredItems.length === 0 ? (
-          <Card className="bg-slate-900/50 border-slate-800 text-center p-12">
-            <CheckCircle2 className="w-12 h-12 text-emerald-400 mx-auto mb-3" />
-            <h3 className="text-lg font-semibold text-white">Queue Clear!</h3>
-            <p className="text-slate-400 text-xs mt-1">
-              All background Copilot recommendation items have been reviewed and acted upon.
+        {loading ? (
+          <Card className="card-surface p-12 text-center">
+            <Loader2 className="mx-auto mb-3 h-8 w-8 animate-spin text-muted-foreground" />
+            <p className="text-sm text-muted-foreground">
+              Analysing open jobs for recommendations…
+            </p>
+          </Card>
+        ) : error ? (
+          <Card className="card-surface p-12 text-center">
+            <AlertTriangle className="mx-auto mb-3 h-10 w-10 text-destructive" />
+            <h3 className="text-lg font-bold">Could not load recommendations</h3>
+            <p className="mt-1 text-sm text-muted-foreground">{error}</p>
+          </Card>
+        ) : filtered.length === 0 ? (
+          <Card className="card-surface p-12 text-center">
+            <CheckCircle2 className="mx-auto mb-3 h-12 w-12 text-success" />
+            <h3 className="text-lg font-bold">Queue clear</h3>
+            <p className="mt-1 text-sm text-muted-foreground">
+              No outstanding Copilot recommendations for your open jobs.
             </p>
           </Card>
         ) : (
-          filteredItems.map((item) => (
-            <Card
-              key={item.id}
-              className={`bg-slate-900/80 border-slate-800 transition-all ${
-                item.status !== "pending" ? "opacity-60" : "hover:border-slate-700"
-              }`}
-            >
-              <CardContent className="p-6">
-                <div className="flex items-start justify-between gap-6">
-                  <div className="flex items-start gap-4">
-                    <div
-                      className={`p-2.5 rounded-xl border mt-0.5 ${
-                        item.type === "bench_match"
-                          ? "bg-emerald-500/10 border-emerald-500/30 text-emerald-400"
-                          : item.type === "jd_optimization"
-                          ? "bg-amber-500/10 border-amber-500/30 text-amber-400"
-                          : item.type === "readiness_assessment"
-                          ? "bg-sky-500/10 border-sky-500/30 text-sky-400"
-                          : "bg-indigo-500/10 border-indigo-500/30 text-indigo-400"
-                      }`}
-                    >
-                      {item.type === "bench_match" && <Users className="w-5 h-5" />}
-                      {item.type === "jd_optimization" && <AlertTriangle className="w-5 h-5" />}
-                      {item.type === "readiness_assessment" && <Bot className="w-5 h-5" />}
-                      {item.type === "batch_processed" && <Sparkles className="w-5 h-5" />}
-                    </div>
-
-                    <div className="space-y-1">
-                      <div className="flex items-center gap-3">
-                        <h3 className="font-semibold text-slate-100 text-base">{item.title}</h3>
-                        {item.urgency === "high" && (
-                          <Badge className="bg-rose-500/20 text-rose-300 border-rose-500/30 text-[10px] uppercase">
-                            High Priority
-                          </Badge>
+          filtered.map((item) => {
+            const Icon = TYPE_ICON[item.type];
+            const status = resolved[item.id];
+            return (
+              <Card
+                key={item.id}
+                className={cn("card-surface transition-all", status && "opacity-60")}
+              >
+                <CardContent className="p-6">
+                  <div className="flex flex-wrap items-start justify-between gap-6">
+                    <div className="flex min-w-0 items-start gap-4">
+                      <div
+                        className={cn(
+                          "mt-0.5 rounded-xl border p-2.5",
+                          TYPE_TONE[item.type],
                         )}
-                        <span className="text-xs text-slate-500">{item.timestamp}</span>
+                      >
+                        <Icon className="h-5 w-5" />
                       </div>
-                      <p className="text-sm text-slate-300 max-w-3xl leading-relaxed">{item.description}</p>
-                      {item.jobTitle && (
-                        <div className="pt-2 flex items-center gap-2">
-                          <span className="text-xs text-slate-500">Target Role:</span>
-                          <Badge variant="outline" className="text-slate-300 border-slate-700 text-xs">
+
+                      <div className="min-w-0 space-y-1">
+                        <div className="flex flex-wrap items-center gap-3">
+                          <h3 className="text-base font-bold">{item.title}</h3>
+                          {item.urgency === "high" && (
+                            <Badge className="border-destructive/30 bg-destructive/15 text-[10px] uppercase text-destructive">
+                              High priority
+                            </Badge>
+                          )}
+                        </div>
+                        <p className="max-w-3xl text-sm leading-relaxed text-muted-foreground">
+                          {item.description}
+                        </p>
+                        <div className="flex items-center gap-2 pt-2">
+                          <span className="text-xs text-muted-foreground">Target role:</span>
+                          <Badge variant="outline" className="text-xs">
                             {item.jobTitle}
                           </Badge>
                         </div>
+                      </div>
+                    </div>
+
+                    <div className="flex shrink-0 items-center gap-2">
+                      {status === "approved" ? (
+                        <Badge className="border-success/30 bg-success/15 text-xs text-success">
+                          ✓ Action completed
+                        </Badge>
+                      ) : (
+                        <>
+                          <Button
+                            size="sm"
+                            className="rounded-xl text-xs"
+                            disabled={pendingId === item.id}
+                            onClick={() => void handleExecute(item)}
+                          >
+                            {pendingId === item.id && (
+                              <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
+                            )}
+                            {item.actionLabel}
+                          </Button>
+                          <Link to={item.targetUrl}>
+                            <Button size="sm" variant="outline" className="rounded-xl text-xs">
+                              Open
+                            </Button>
+                          </Link>
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            className="rounded-xl text-xs text-muted-foreground"
+                            onClick={() => void handleDismiss(item)}
+                          >
+                            Dismiss
+                          </Button>
+                        </>
                       )}
                     </div>
                   </div>
-
-                  {/* Actions */}
-                  <div className="flex flex-col sm:flex-row items-center gap-2 shrink-0">
-                    {item.status === "pending" ? (
-                      <>
-                        <Link to={item.targetUrl}>
-                          <Button
-                            size="sm"
-                            onClick={() => handleApprove(item.id, item.title)}
-                            className="bg-sky-500 hover:bg-sky-400 text-slate-950 font-semibold text-xs flex items-center gap-1.5"
-                          >
-                            {item.actionLabel}
-                          </Button>
-                        </Link>
-                        <Button
-                          size="sm"
-                          variant="ghost"
-                          onClick={() => handleDismiss(item.id)}
-                          className="text-slate-500 hover:text-slate-300 text-xs"
-                        >
-                          Dismiss
-                        </Button>
-                      </>
-                    ) : (
-                      <Badge className="bg-emerald-500/20 text-emerald-300 border-emerald-500/30 text-xs">
-                        ✓ Action Completed
-                      </Badge>
-                    )}
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-          ))
+                </CardContent>
+              </Card>
+            );
+          })
         )}
       </div>
+
+      {!loading && !error && filtered.length > 0 && (
+        <p className="flex items-center gap-1.5 text-xs text-muted-foreground">
+          <Sparkles className="h-3.5 w-3.5" /> Recommendations refresh from your live pipelines on
+          each visit.
+        </p>
+      )}
     </div>
   );
 }

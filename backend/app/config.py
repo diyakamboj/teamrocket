@@ -31,6 +31,12 @@ class Settings(BaseSettings):
     AZURE_OPENAI_EMBEDDING_API_KEY: Optional[str] = None
     AZURE_OPENAI_EMBEDDING_ENDPOINT: Optional[str] = None
     AZURE_OPENAI_API_VERSION: str = "2024-02-15-preview"
+    # Own-fallback retries: every LLM seam degrades deterministically, so the
+    # SDK retrying 3x per call only multiplies outage latency.
+    AZURE_OPENAI_MAX_RETRIES: int = 1
+    # Consecutive failures before the breaker opens, and how long it stays open.
+    AZURE_OPENAI_FAILURE_THRESHOLD: int = 3
+    AZURE_OPENAI_BREAKER_COOLDOWN_SECONDS: float = 60.0
 
 
     # Azure AI Search
