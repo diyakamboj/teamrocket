@@ -25,7 +25,9 @@ import { CandidateInterviewSection } from "@/components/interview-card";
 import { CandidateScreeningSection } from "@/components/screening";
 import { CandidateStatusBadges } from "@/components/candidate-badges";
 import { CandidateEnrichmentCard } from "@/components/candidate-enrichment-card";
+import { CandidateReadinessSection } from "@/components/candidate-readiness-card";
 import { Button } from "@/components/ui/button";
+
 
 
 
@@ -517,6 +519,12 @@ function Candidates() {
                       />
 
                       <CandidateEnrichmentCard candidate={c} />
+
+                      <CandidateReadinessSection
+                        candidateId={c.id}
+                        candidateName={blindMode ? displayName : c.name}
+                        jobId={selectedJobId}
+                      />
                     </div>
                   )}
                 </div>

@@ -12,6 +12,7 @@ from app.routes import (
     internal_marketplace,
     interviews,
     jobs,
+    readiness,
     resumes,
     screening,
 )
@@ -47,11 +48,13 @@ app.include_router(fraud.router, prefix="/api/fraud", tags=["Fraud Detection"])
 app.include_router(handoff.router, prefix="/api/handoff", tags=["Interview Handoff"])
 app.include_router(interviews.router, prefix="/api/interviews", tags=["Interviews"])
 app.include_router(screening.router, prefix="/api/screening", tags=["Preliminary Screening"])
+app.include_router(readiness.router, prefix="/api/readiness", tags=["Readiness & Assessment"])
 app.include_router(
     internal_marketplace.router,
     prefix="/api/internal-marketplace",
     tags=["Internal Talent Marketplace"],
 )
+
 
 
 

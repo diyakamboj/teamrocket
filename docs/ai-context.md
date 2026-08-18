@@ -28,7 +28,9 @@
 | **Interviewer Handoff** | [`backend/app/services/handoff_service.py`](file:///d:/github/teamrocket/backend/app/services/handoff_service.py) | Handoff briefing packs & candidate history event logging |
 | **Internal Talent Mobility** | [`backend/app/services/internal_marketplace_service.py`](file:///d:/github/teamrocket/backend/app/services/internal_marketplace_service.py) | Bench candidate auto-matching for open internal positions |
 | **Profile Enrichment** | [`backend/app/services/profile_enrichment_service.py`](file:///d:/github/teamrocket/backend/app/services/profile_enrichment_service.py) | External profile link detection (GitHub, LinkedIn, HackerRank, Portfolio), GitHub REST retrieval, source attribution |
+| **Readiness & Assessment** | [`backend/app/services/readiness_service.py`](file:///d:/github/teamrocket/backend/app/services/readiness_service.py) | Aptitude & readiness criteria evaluation, explainable recommendations, recruiter approval, score tracking |
 | **Evidence Line Tracking** | [`backend/app/services/evidence_tracker.py`](file:///d:/github/teamrocket/backend/app/services/evidence_tracker.py) | Snippet extraction quoting exact resume text for scores |
+
 
 
 ---

@@ -21,11 +21,14 @@ teamrocket/
 | Document | Focus & Target Audience | Description |
 |---|---|---|
 | 🤖 **[ai-context.md](ai-context.md)** | **AI Coding Assistants** (Antigravity, Claude, Copilot) | Primary repository map, store access patterns, service paths, API directory, and coding rules for AI agents. |
+| 🔍 **[product-gap-analysis.md](product-gap-analysis.md)** | Product Managers, Engineering Leads | Comprehensive Gap Analysis evaluating implemented features against the intended unified recruiter experience. |
+| 📈 **[project-progress.md](project-progress.md)** | Engineering Leads, Stakeholders | Master progress report detailing all frontend, backend, AI architecture, and verification metrics. |
 | 📋 **[product-requirements-and-features.md](product-requirements-and-features.md)** | Product Managers, Engineering Leads | Full PM specification detailing all MVP, Level 1, and Level 2 product features, user personas, API contracts, and user flows. |
 | 🧠 **[ai-architecture.md](ai-architecture.md)** | AI/ML Engineers, Backend Developers | Deep dive into AI provider seams, structured output schemas, 3-signal scoring engine, Copilot agent tools, and scheduling NL processing. |
 | 🏗️ **[architecture.md](architecture.md)** | System Architects, Backend Engineers | High-level system architecture, service boundaries, `JsonBlobStore` repository pattern, and REST API directory. |
 | 🛠️ **[development.md](development.md)** | All Developers & AI Assistants | Quick-start guide for local development, running mock vs live Azure modes, running backend test suites, and frontend Vite builds. |
 | 🚀 **[deployment.md](deployment.md)** | DevOps & Site Reliability Engineers | Production deployment procedures, Azure infrastructure, environment variable matrix, and monitoring. |
+
 
 
 ---

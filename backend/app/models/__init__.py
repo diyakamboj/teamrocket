@@ -11,6 +11,7 @@ from app.models.evaluation import (
 from app.models.handoff import CandidateHistoryEvent, InterviewHandoff
 from app.models.interview import InterviewProposal, ScheduledInterview, TimeSlot
 from app.models.job_posting import JobPosting
+from app.models.readiness import AssessmentRecommendation, CandidateAssessmentRecord
 
 __all__ = [
     "Candidate",
@@ -27,5 +28,8 @@ __all__ = [
     "ScheduledInterview",
     "InterviewProposal",
     "TimeSlot",
+    "AssessmentRecommendation",
+    "CandidateAssessmentRecord",
 ]
+
 

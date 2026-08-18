@@ -889,7 +889,79 @@ export async function enrichCandidate(candidateId: string): Promise<Candidate> {
   });
 }
 
+// ---------- Candidate Readiness & Assessment Notification ----------
+
+export type AssessmentRecommendation = {
+  candidate_id: string;
+  candidate_name: string;
+  job_id?: string | null;
+  job_title?: string | null;
+  assessment_type: "technical_depth" | "aptitude" | "communication" | "domain_knowledge";
+  reason: string;
+  target_competency: string;
+  triggered_by_gap: string;
+  recommended_at: string;
+};
+
+export type CandidateAssessmentRecord = {
+  id: string;
+  candidate_id: string;
+  candidate_name: string;
+  job_id?: string | null;
+  job_title?: string | null;
+  assessment_type: "technical_depth" | "aptitude" | "communication" | "domain_knowledge";
+  title: string;
+  status: "recommended" | "sent" | "in_progress" | "completed" | "reviewed" | "cancelled";
+
+  recommendation_reason: string;
+  target_competency: string;
+  notification_sent: boolean;
+  score?: number | null;
+  result_summary?: string | null;
+  recruiter_approved: boolean;
+  recruiter_approved_by?: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+export async function evaluateCandidateReadiness(
+  candidateId: string,
+  jobId?: string | null,
+): Promise<AssessmentRecommendation> {
+  const query = jobId ? `?job_id=${encodeURIComponent(jobId)}` : "";
+  return request(`/api/readiness/evaluate/${encodeURIComponent(candidateId)}${query}`);
+}
+
+export async function triggerCandidateAssessment(input: {
+  candidate_id: string;
+  job_id?: string | null;
+  assessment_type?: string;
+  target_competency?: string;
+  recommendation_reason?: string;
+}): Promise<CandidateAssessmentRecord> {
+  return request("/api/readiness/trigger", {
+    method: "POST",
+    body: JSON.stringify(input),
+  });
+}
+
+export async function submitAssessmentResults(
+  assessmentId: string,
+  score: number,
+  resultSummary: string,
+): Promise<CandidateAssessmentRecord> {
+  return request(`/api/readiness/${encodeURIComponent(assessmentId)}/results`, {
+    method: "POST",
+    body: JSON.stringify({ score, result_summary: resultSummary }),
+  });
+}
+
+export async function listCandidateAssessments(candidateId: string): Promise<CandidateAssessmentRecord[]> {
+  return request(`/api/readiness/candidate/${encodeURIComponent(candidateId)}`);
+}
+
 export { API_BASE };
+
 
 
 

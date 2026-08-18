@@ -37,6 +37,7 @@ COPILOT_TOOLS = (
     "must_have_report",
     "schedule_interview",
     "get_enriched_profile",
+    "check_readiness",
 )
 
 CITES_PER_ROW = 3
@@ -52,7 +53,9 @@ Tools:
 - must_have_report: args {} — which candidates satisfy each must-have requirement.
 - schedule_interview: args {candidateId, durationMinutes?, interviewers?: []} — schedule an interview with candidate and required interviewers.
 - get_enriched_profile: args {candidateId} — view external GitHub repositories, LinkedIn, HackerRank, portfolio signals for a candidate.
+- check_readiness: args {candidateId} — evaluate candidate readiness/aptitude assessment eligibility and generate transparent recommendations.
 When the question is generic (pool health, wide shortlists), prefer gap_summary or must_have_report over search_candidates."""
+
 
 
 
@@ -378,9 +381,27 @@ def run_copilot_tool(
                 "inferred_skills": enriched.get("inferred_skills") or [],
                 "summary": enriched.get("summary"),
             }),
+    if tool == "check_readiness":
+        cid = str(args.get("candidateId") or "")
+        member = resolve_pool_member(pool, cid)
+        if not member:
+            return {"text": json.dumps({"error": f"Candidate '{cid}' not found"}), "evidence": []}
+        score = float(member.get("score") or 70.0)
+        gaps = member.get("gaps") or []
+        target = gaps[0] if gaps else "Technical & Domain Competency"
+        reason = f"Candidate {member['label']} matches with score {score:.0f}/100. Assessment recommended for {target}."
+        return {
+            "text": json.dumps({
+                "candidate": member["label"],
+                "assessment_type": "technical_depth",
+                "target_competency": target,
+                "reason": reason,
+                "recommendation": "Recommended for recruiter approval and notification.",
+            }),
             "evidence": member.get("evidence") or [],
         }
     raise CopilotToolError(f"Unknown copilot tool: {tool}")
+
 
 
 
