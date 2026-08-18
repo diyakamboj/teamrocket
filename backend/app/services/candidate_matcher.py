@@ -118,6 +118,12 @@ class CandidateMatcher:
         if not text:
             return self._heuristic_communication("")
 
+        # Same convention as JobAnalyzer.analyze: skip the round-trip in mock
+        # mode rather than calling a stub that cannot answer this prompt and
+        # then discarding the unparseable result.
+        if openai_service.mock:
+            return self._heuristic_communication(text)
+
         prompt = f"""
 Score the candidate's communication quality from 0 to 100 based on resume/profile text only.
 

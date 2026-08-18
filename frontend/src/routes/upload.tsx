@@ -11,11 +11,9 @@ import {
   X,
 } from "lucide-react";
 import { useAppState, type UploadStage } from "@/lib/app-state";
-import { getJob } from "@/lib/jobs-data";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
-import { uploadResumesToBackend } from "@/lib/api";
-import { toast } from "sonner";
+import { listJobs, type JobResponse } from "@/lib/api";
 
 
 export const Route = createFileRoute("/upload")({
@@ -76,15 +74,31 @@ export function UploadPage() {
     clearAll,
     counts,
     overallProgress,
-    setSelectedJobId,
+    setActiveJobId,
   } = useAppState();
   const { job: jobParam } = Route.useSearch();
   const navigate = Route.useNavigate();
-  const job = getJob(jobParam);
+  const [job, setJob] = useState<JobResponse | null>(null);
 
   useEffect(() => {
-    if (jobParam) setSelectedJobId(jobParam);
-  }, [jobParam, setSelectedJobId]);
+    if (!jobParam) {
+      setJob(null);
+      return;
+    }
+    setActiveJobId(jobParam);
+
+    let cancelled = false;
+    listJobs()
+      .then((jobs) => {
+        if (!cancelled) setJob(jobs.find((j) => j.id === jobParam) ?? null);
+      })
+      .catch(() => {
+        if (!cancelled) setJob(null);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [jobParam, setActiveJobId]);
 
   const [filter, setFilter] = useState<(typeof FILTERS)[number]>("all");
   const [page, setPage] = useState(1);
@@ -92,17 +106,12 @@ export function UploadPage() {
   const fileRef = useRef<HTMLInputElement>(null);
   const folderRef = useRef<HTMLInputElement>(null);
 
-  async function ingest(list: FileList | null) {
+  // addFiles owns the whole round-trip: it POSTs the real bytes to the backend
+  // (which stores them in blob storage) and then polls each upload's status as
+  // the OCR + AI parsing pipeline advances it.
+  function ingest(list: FileList | null) {
     if (!list || list.length === 0) return;
-    const fileArray = Array.from(list);
-    addFiles(fileArray.map((f) => ({ name: f.name, size: f.size })));
-
-    try {
-      const res = await uploadResumesToBackend(fileArray);
-      toast.success(`Uploaded ${res.files.length} resume(s) to candidate store!`);
-    } catch (err: any) {
-      toast.error(`Upload error: ${err.message || "Failed to parse files"}`);
-    }
+    void addFiles(Array.from(list));
   }
 
 

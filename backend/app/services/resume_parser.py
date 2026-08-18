@@ -41,31 +41,157 @@ class ResumeParser:
         heuristic["parse_engine"] = "heuristic"
         return heuristic
 
+    # Section headings as they appear on real resumes: with or without a
+    # colon, on their own line, in any case.
+    _SECTION_ALIASES: dict[str, tuple[str, ...]] = {
+        "skills": ("skills", "technical skills", "core competencies", "technologies"),
+        "experience": ("experience", "work experience", "employment", "professional experience"),
+        "education": ("education", "academic background"),
+        "certifications": ("certifications", "certificates", "licenses"),
+        "projects": ("projects", "selected projects", "personal projects"),
+        "summary": ("summary", "profile", "objective", "about"),
+    }
+
+    # Words that show up inside a skills block as connective tissue, never as
+    # a skill in their own right.
+    _SKILL_STOPWORDS = frozenset(
+        {
+            "and", "or", "with", "using", "the", "a", "an", "of", "in", "on",
+            "for", "to", "etc", "including", "such", "as", "other", "various",
+            "skills", "technical", "core", "competencies", "technologies",
+        }
+    )
+
+    def _split_sections(self, resume_text: str) -> dict[str, str]:
+        """Splits a resume into named sections keyed by canonical name.
+
+        A heading is a short standalone line matching a known alias — this is
+        what lets the skills block be bounded at the next heading instead of
+        running to an arbitrary character count.
+        """
+        heading_for: dict[str, str] = {}
+        for canonical, aliases in self._SECTION_ALIASES.items():
+            for alias in aliases:
+                heading_for[alias] = canonical
+
+        sections: dict[str, list[str]] = {}
+        current: str | None = None
+        for raw_line in resume_text.splitlines():
+            line = raw_line.strip()
+            if not line:
+                continue
+
+            # Heading alone on its own line: "SKILLS" or "Skills:"
+            key = line.rstrip(":").strip().lower()
+            if len(line) <= 40 and key in heading_for:
+                current = heading_for[key]
+                sections.setdefault(current, [])
+                continue
+
+            # Heading and content on one line: "Skills: Python, FastAPI"
+            head, sep, rest = line.partition(":")
+            head_key = head.strip().lower()
+            if sep and head_key in heading_for:
+                current = heading_for[head_key]
+                sections.setdefault(current, [])
+                if rest.strip():
+                    sections[current].append(rest.strip())
+                continue
+
+            if current:
+                sections[current].append(line)
+
+        return {name: "\n".join(lines) for name, lines in sections.items()}
+
+    def _parse_skills(self, skills_block: str) -> list[str]:
+        """Skills are delimited items (comma/semicolon/pipe/bullet/newline).
+
+        Tokenizing on every word instead turned prose into "skills" like
+        "and", "on" and the candidate's own name.
+        """
+        if not skills_block:
+            return []
+
+        candidates: list[str] = []
+        for part in re.split(r"[,;|\u2022\u00b7\n\t]+", skills_block):
+            item = part.strip(" .-–—\t")
+            if not item:
+                continue
+            # A skill is a short phrase, not a sentence.
+            if len(item) > 40 or len(item.split()) > 4:
+                continue
+            if item.lower() in self._SKILL_STOPWORDS:
+                continue
+            if not re.search(r"[A-Za-z]", item):
+                continue
+            candidates.append(item)
+
+        return unique_normalized(candidates)[:30]
+
     def _heuristic_parse(self, resume_text: str) -> dict[str, Any]:
         lines = [line.strip() for line in resume_text.splitlines() if line.strip()]
         name = lines[0] if lines else "Unknown Candidate"
         email_match = re.search(r"[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}", resume_text, re.I)
         phone_match = re.search(r"\+?\d[\d\s().-]{7,}\d", resume_text)
-        skills_block = ""
-        for label in ("skills:", "technical skills:", "core competencies:"):
-            idx = resume_text.lower().find(label)
-            if idx != -1:
-                skills_block = resume_text[idx : idx + 400]
+
+        # "City, ST" or "City, Country" in the contact block at the top.
+        location = None
+        for line in lines[:6]:
+            if email_match and email_match.group(0) in line:
+                continue
+            match = re.fullmatch(r"([A-Z][A-Za-z.\- ]{1,30}),\s*([A-Z]{2}|[A-Z][A-Za-z ]{1,20})", line)
+            if match:
+                location = line
                 break
-        skills = re.findall(r"[A-Za-z][A-Za-z0-9+#.]{1,30}", skills_block or resume_text[:2000])
-        skills = unique_normalized(skills)[:25]
+
+        sections = self._split_sections(resume_text)
+        skills = self._parse_skills(sections.get("skills", ""))
+
+        experience: list[dict[str, Any]] = []
+        experience_block = sections.get("experience", "")
+        if experience_block:
+            years = None
+            years_match = re.search(r"approximately\s+(\d+)\s*months", experience_block, re.I)
+            if years_match:
+                years = round(int(years_match.group(1)) / 12, 1)
+            else:
+                span = re.search(r"(19|20)\d{2}\s*[-–]\s*((19|20)\d{2}|present)", experience_block, re.I)
+                if span:
+                    start = int(span.group(0)[:4])
+                    end_text = span.group(2)
+                    end = 2026 if end_text.lower() == "present" else int(end_text)
+                    years = max(0.0, float(end - start))
+            first_line = experience_block.splitlines()[0]
+            title = first_line.split("|")[0].strip() or None
+            experience.append(
+                {
+                    "company": None,
+                    "title": title,
+                    "duration": None,
+                    "years": years,
+                    "description": experience_block[:1000],
+                }
+            )
+
+        education = [
+            line for line in sections.get("education", "").splitlines() if line
+        ][:5]
+        certifications = self._parse_skills(sections.get("certifications", ""))
+        projects = [line for line in sections.get("projects", "").splitlines() if line][:5]
+
         return self._normalize_parsed(
             {
                 "contact_info": {
                     "name": name,
                     "email": email_match.group(0) if email_match else None,
                     "phone": phone_match.group(0) if phone_match else None,
+                    "location": location,
                 },
                 "skills": skills,
-                "work_experience": [],
-                "education": [],
-                "certifications": [],
-                "projects": [],
+                "work_experience": experience,
+                "education": education,
+                "certifications": certifications,
+                "projects": projects,
             },
             resume_text,
         )
@@ -105,6 +231,7 @@ class ResumeParser:
             "name": name,
             "email": normalize_email(str(email)),
             "phone": contact.get("phone"),
+            "location": contact.get("location"),
             "skills": unique_normalized(skills),
             "skill_evidence": skill_evidence,
             "experience": experience if isinstance(experience, list) else [],

@@ -12,6 +12,7 @@ import { toast } from "sonner";
 import {
   askAgent,
   getAgentModels,
+  getCandidate,
   getChatAttachment,
   listAgentSessions,
   uploadChatAttachment,
@@ -22,16 +23,13 @@ import {
   type CopilotModelInfo,
 } from "./api";
 import { useAppState } from "./app-state";
-import { CANDIDATES } from "./mock-data";
 import { isBackendUuid } from "./utils";
 
 /**
- * /candidates and /handoff still source rows from the pre-existing mock
- * dataset (lib/mock-data.ts — out of scope for this plan), whose ids aren't
- * real backend UUIDs. Only a real UUID can be sent as AgentAskRequest.candidate_id
- * (the backend 422s otherwise) — /ats-benchmark's ids come from the live API and
- * do qualify. Non-UUID ids still drive the context strip's display name locally.
- * See isBackendUuid in lib/utils.ts for the shared guard.
+ * Candidate ids across the app now come from the backend store, so they are
+ * real UUIDs and can be sent as AgentAskRequest.candidate_id. isBackendUuid
+ * is kept as a guard against ids arriving from anywhere else — the backend
+ * 422s on a non-UUID. See lib/utils.ts.
  */
 
 export type ChatMessage = {
@@ -208,15 +206,24 @@ export function CopilotProvider({ children }: { children: ReactNode }) {
   }, []);
 
   // Keep the context strip's display name in sync with whatever candidate is
-  // in view, independent of session history (mock-data pages resolve locally
-  // since their ids aren't real backend ids — see isBackendUuid above).
+  // in view, independent of session history. Resolved from the backend store
+  // so the strip shows the same name the rest of the app ranked.
   useEffect(() => {
     if (!viewingCandidateId) {
       setViewingCandidateName(null);
       return;
     }
-    const mockMatch = CANDIDATES.find((c) => c.id === viewingCandidateId);
-    if (mockMatch) setViewingCandidateName(mockMatch.name);
+    let cancelled = false;
+    getCandidate(viewingCandidateId)
+      .then((candidate) => {
+        if (!cancelled) setViewingCandidateName(candidate.name);
+      })
+      .catch(() => {
+        if (!cancelled) setViewingCandidateName(null);
+      });
+    return () => {
+      cancelled = true;
+    };
   }, [viewingCandidateId]);
 
   // When the recruiter navigates to a different candidate, offer to resume a

@@ -35,11 +35,12 @@ export function CandidateScreeningSection({ candidateId, candidateName, jobId }:
       setLoading(true);
       const res = await listCandidateScreeningSessions(candidateId);
       setSessions(res);
-      if (res.length > 0) {
-        setActiveSession(res[0]);
+      const latest = res[0];
+      if (latest) {
+        setActiveSession(latest);
         // Pre-fill existing answers
         const initialAnswers: Record<string, string> = {};
-        res[0].answers.forEach((a) => {
+        latest.answers.forEach((a) => {
           initialAnswers[a.question_id] = a.answer_text;
         });
         setAnswersText(initialAnswers);

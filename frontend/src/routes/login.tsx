@@ -23,7 +23,7 @@ function LoginPage() {
     setTimeout(() => {
       setSession({
         email,
-        name: email.split("@")[0].replace(".", " ").toUpperCase(),
+        name: (email.split("@")[0] ?? email).replace(".", " ").toUpperCase(),
         role: "Senior Technical Recruiter",
         department: "Talent Acquisition",
         isAuthenticated: true,

@@ -1,5 +1,15 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
-import { useState, useRef } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import {
+  getAtsBenchmark,
+  getJobPipeline,
+  listJobs,
+  uploadResumesToBackend,
+  type AtsBenchmark,
+  type JobResponse,
+} from "@/lib/api";
+import { rankCandidates, type Candidate } from "@/lib/candidates";
+import { useCandidatePool } from "@/lib/use-candidate-pool";
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -36,69 +46,44 @@ type CandidateRow = {
   id: string;
   name: string;
   score: number;
-  atsScore: number;
-  delta: string;
+  atsScore: number | null;
+  semanticScore: number | null;
+  delta: string | null;
   skillsScore: number;
   expScore: number;
   statusBadge: "Top Match" | "Review Required" | "Low Match";
   isBench?: boolean;
-  fraudWarning?: boolean;
   skills: string[];
   stage: string;
 };
 
-const INITIAL_CANDIDATES: CandidateRow[] = [
-  {
-    id: "cand_1",
-    name: "Alex Johnson",
-    score: 94,
-    atsScore: 79,
-    delta: "+15%",
-    skillsScore: 96,
-    expScore: 91,
-    statusBadge: "Top Match",
-    skills: ["Python", "Azure", "Kubernetes", "FastAPI"],
-    stage: "Interview Round 1",
-  },
-  {
-    id: "cand_2",
-    name: "Employee A (David Chen)",
-    score: 91,
-    atsScore: 82,
-    delta: "+9%",
-    skillsScore: 94,
-    expScore: 88,
-    statusBadge: "Top Match",
-    isBench: true,
-    skills: ["Azure", "Python", "Docker", "Terraform"],
-    stage: "Screening",
-  },
-  {
-    id: "cand_3",
-    name: "Marcus Vance",
-    score: 76,
-    atsScore: 68,
-    delta: "+8%",
-    skillsScore: 72,
-    expScore: 80,
-    statusBadge: "Review Required",
-    fraudWarning: true,
-    skills: ["Python", "AWS", "Docker"],
-    stage: "Screening",
-  },
-  {
-    id: "cand_4",
-    name: "Elena Rostova",
-    score: 63,
-    atsScore: 60,
-    delta: "+3%",
-    skillsScore: 61,
-    expScore: 65,
-    statusBadge: "Low Match",
-    skills: ["Java", "Docker"],
-    stage: "Applied",
-  },
-];
+/** Rows are derived from the backend-scored pool joined with the job's
+ * pipeline stages; nothing here is hand-authored. */
+function toRow(
+  candidate: Candidate,
+  stage: string | undefined,
+  benchmark: AtsBenchmark | null,
+): CandidateRow {
+  const semantic = benchmark ? Number(benchmark.semantic_score) : null;
+  const keyword = benchmark ? Number(benchmark.keyword_score) : null;
+  const delta = benchmark ? Number(benchmark.score_delta) : null;
+
+  return {
+    id: candidate.id,
+    name: candidate.name,
+    score: candidate.score,
+    atsScore: keyword,
+    semanticScore: semantic,
+    delta: delta === null ? null : `${delta >= 0 ? "+" : ""}${delta.toFixed(1)}%`,
+    skillsScore: candidate.categories.skills,
+    expScore: candidate.categories.experience,
+    statusBadge:
+      candidate.score >= 85 ? "Top Match" : candidate.score >= 65 ? "Review Required" : "Low Match",
+    isBench: candidate.employmentStatus === "bench",
+    skills: candidate.skills,
+    stage: stage ?? "Applied",
+  };
+}
 
 function JobWorkspacePage() {
   const { jobId } = Route.useParams();
@@ -106,8 +91,10 @@ function JobWorkspacePage() {
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const [activeTab, setActiveTab] = useState<"overview" | "candidates" | "upload" | "pipeline" | "insights">("candidates");
-  const [candidates, setCandidates] = useState<CandidateRow[]>(INITIAL_CANDIDATES);
   const [searchQuery, setSearchQuery] = useState("");
+  const [job, setJob] = useState<JobResponse | null>(null);
+  const [stages, setStages] = useState<Record<string, string>>({});
+  const [benchmarks, setBenchmarks] = useState<Record<string, AtsBenchmark | null>>({});
   const [selectedCandidateId, setSelectedCandidateId] = useState<string | null>(null);
   const [selectedForCompare, setSelectedForCompare] = useState<string[]>([]);
   const [showWeightSliders, setShowWeightSliders] = useState(false);
@@ -148,6 +135,56 @@ function JobWorkspacePage() {
 
 
 
+  const { candidates: pool, loading: poolLoading, error: poolError } = useCandidatePool();
+
+  useEffect(() => {
+    let cancelled = false;
+    listJobs()
+      .then((jobs) => {
+        if (!cancelled) setJob(jobs.find((j) => j.id === jobId) ?? null);
+      })
+      .catch(() => {
+        if (!cancelled) setJob(null);
+      });
+
+    getJobPipeline(jobId, "all")
+      .then((rows) => {
+        if (cancelled) return;
+        setStages(Object.fromEntries(rows.map((r) => [r.candidate_id, r.stage])));
+      })
+      .catch(() => {
+        if (!cancelled) setStages({});
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [jobId]);
+
+  const ranked = useMemo(() => rankCandidates(pool, weights), [pool, weights]);
+
+  // ATS benchmarks are per (candidate, job) and only exist once one has been
+  // run, so this reads what is already stored for the visible page rather
+  // than triggering scoring for the whole pool.
+  useEffect(() => {
+    const visible = ranked.slice(0, 25);
+    if (visible.length === 0) return;
+    let cancelled = false;
+    void Promise.all(
+      visible.map(async (c) => [c.id, await getAtsBenchmark(c.id, jobId)] as const),
+    ).then((entries) => {
+      if (!cancelled) setBenchmarks(Object.fromEntries(entries));
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [ranked, jobId]);
+
+  const candidates = useMemo(
+    () => ranked.map((c) => toRow(c, stages[c.id], benchmarks[c.id] ?? null)),
+    [ranked, stages, benchmarks],
+  );
+
   // Filter candidates
   const filteredCandidates = candidates.filter((c) => {
     const matchesSearch =
@@ -176,7 +213,7 @@ function JobWorkspacePage() {
   };
 
   return (
-    <div className="p-8 max-w-7xl mx-auto space-y-8 bg-slate-50/50 text-slate-900 min-h-screen">
+    <div className="mx-auto max-w-7xl space-y-8">
       {/* JD Header */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-slate-200 pb-6">
         <div>
@@ -223,7 +260,7 @@ function JobWorkspacePage() {
       <div className="flex items-center justify-between border-b border-slate-200 pb-3">
         <div className="flex items-center gap-2">
           {[
-            { id: "candidates", label: "Candidates (124)" },
+            { id: "candidates", label: `Candidates (${candidates.length})` },
             { id: "overview", label: "Pipeline Overview" },
             { id: "upload", label: "Bulk Resume Upload" },
             { id: "pipeline", label: "Stage Kanban Board" },
@@ -335,7 +372,7 @@ function JobWorkspacePage() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
-                {filteredCandidates.map((c) => (
+                {filteredCandidates.map((c, i) => (
                   <tr key={c.id} className="hover:bg-slate-50/80 transition-all">
                     <td className="p-3.5 text-center">
                       <input
@@ -351,16 +388,16 @@ function JobWorkspacePage() {
                           onClick={() => setSelectedCandidateId(c.id)}
                           className="font-bold text-slate-900 text-sm hover:text-blue-600 cursor-pointer"
                         >
-                          {blindMode ? `Candidate #${c.id.replace("cand_", "900")}` : c.name}
+                          {blindMode ? `Candidate #${i + 1}` : c.name}
                         </span>
                         {c.isBench && (
                           <Badge className="bg-blue-50 text-blue-700 border-blue-200 text-[10px] font-bold">
                             👥 Bench
                           </Badge>
                         )}
-                        {c.fraudWarning && (
+                        {c.statusBadge === "Review Required" && (
                           <Badge className="bg-rose-50 text-rose-700 border-rose-200 text-[10px] flex items-center gap-1 font-bold">
-                            <ShieldAlert className="w-3 h-3 text-rose-600" /> ⚠️ Review
+                            <ShieldAlert className="w-3 h-3 text-rose-600" /> Review
                           </Badge>
                         )}
                       </div>
@@ -375,8 +412,8 @@ function JobWorkspacePage() {
                     <td className="p-3.5">
                       <span className="font-extrabold text-sm text-blue-600 bg-blue-50 px-2 py-0.5 rounded border border-blue-200">{c.score}%</span>
                     </td>
-                    <td className="p-3.5 text-slate-500">{c.atsScore}%</td>
-                    <td className="p-3.5 font-semibold text-emerald-600">{c.delta}</td>
+                    <td className="p-3.5 text-slate-500">{c.atsScore === null ? "—" : `${Math.round(c.atsScore)}%`}</td>
+                    <td className="p-3.5 font-semibold text-emerald-600">{c.delta ?? "—"}</td>
                     <td className="p-3.5 text-slate-700 font-mono">{c.skillsScore}%</td>
                     <td className="p-3.5">
                       <Badge variant="outline" className="text-slate-700 bg-slate-50 border-slate-200 text-xs">
@@ -459,7 +496,8 @@ function JobWorkspacePage() {
       {selectedCandidateId && (
         <CandidateDetailModal
           candidateId={selectedCandidateId}
-          isOpen={!!selectedCandidateId}
+          jobId={jobId}
+          isOpen={selectedCandidateId !== null}
           onClose={() => setSelectedCandidateId(null)}
         />
       )}

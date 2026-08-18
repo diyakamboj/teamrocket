@@ -1,6 +1,7 @@
 import hashlib
 import json
 import math
+import re
 import uuid
 from pathlib import Path
 from typing import Any, Optional
@@ -294,6 +295,68 @@ class AzureOpenAIService:
             logger.warning("Failed to parse JSON from model response")
             return {"raw": content}
 
+    @staticmethod
+    def _mock_evaluation_narrative(prompt: str) -> dict[str, Any]:
+        """Offline stand-in for the evaluation-narrative LLM call.
+
+        Deliberately omits `matched_skills`/`missing_skills` so
+        CandidateMatcher's deterministic fallback derives them from this
+        candidate's actual skills against this job's actual requirements —
+        a fixed skill list here would be wrong for every candidate. The
+        narrative is phrased off the real per-dimension scores parsed back
+        out of the prompt, so it tracks the candidate being scored.
+        """
+        scores: dict[str, float] = {}
+        for line in prompt.splitlines():
+            line = line.strip()
+            if not line.startswith("- ") or ":" not in line or "/100" not in line:
+                continue
+            label, _, value = line[2:].partition(":")
+            try:
+                scores[label.strip()] = float(value.strip().split("/")[0])
+            except ValueError:
+                continue
+
+        def band(name: str) -> str:
+            value = scores.get(name)
+            if value is None:
+                return "not evaluated"
+            if value >= 80:
+                return "strong"
+            if value >= 60:
+                return "solid"
+            if value >= 40:
+                return "partial"
+            return "limited"
+
+        strong = [name for name, value in scores.items() if value >= 70]
+        weak = [name for name, value in scores.items() if value < 50]
+
+        return {
+            "strengths": (
+                "Strongest evidence in " + ", ".join(strong).lower() + "."
+                if strong
+                else "No dimension scored above the strong-evidence threshold."
+            ),
+            # Empty rather than a "nothing found" sentence: callers render this
+            # as a gap list, where a reassuring sentence would read as a gap.
+            "weaknesses": ("Thin evidence for " + ", ".join(weak).lower() + "." if weak else ""),
+            "transferable_skills": (
+                f"Skill match is {band('Skill Match')} and role alignment is "
+                f"{band('Role Alignment')}; adjacent experience should be probed in interview."
+            ),
+            "technical_skills_explanation": f"Technical skill evidence is {band('Technical Skills')}.",
+            "communication_explanation": f"Communication evidence is {band('Communication')}.",
+            "role_alignment_explanation": f"Role alignment is {band('Role Alignment')}.",
+            "overall_fit_explanation": f"Overall fit is {band('Overall Fit')} against this job's requirements.",
+            "dimensions": {
+                "technical_skills_explanation": f"Technical skill evidence is {band('Technical Skills')}.",
+                "communication_explanation": f"Communication evidence is {band('Communication')}.",
+                "role_alignment_explanation": f"Role alignment is {band('Role Alignment')}.",
+                "overall_fit_explanation": f"Overall fit is {band('Overall Fit')}.",
+            },
+        }
+
     def _mock_response(self, prompt: str) -> str:
         lower = prompt.lower()
         if "parse this resume" in lower:
@@ -342,27 +405,10 @@ class AzureOpenAIService:
                     "summary": "Backend-focused role requiring cloud and API experience.",
                 }
             )
-        if "generate" in lower and ("matched skills" in lower or "format as json" in lower):
-            return json.dumps(
-                {
-                    "matched_skills": [
-                        {"skill": "Python", "source": "Experience"},
-                        {"skill": "Azure", "source": "Skills"},
-                    ],
-                    "missing_skills": ["Kubernetes"],
-                    "strengths": "Strong Python/API background with cloud exposure.",
-                    "weaknesses": "Limited Kubernetes evidence.",
-                    "transferable_skills": "Docker experience transfers well to container orchestration.",
-                    "evidence": [
-                        {
-                            "skill_name": "Python",
-                            "resume_text_snippet": "Built APIs using Python",
-                            "source_section": "Experience",
-                            "confidence_score": 0.9,
-                        }
-                    ],
-                }
-            )
+        if "generate" in lower and (
+            "matched skills" in lower or "matched_skills" in lower or "format as json" in lower
+        ):
+            return json.dumps(self._mock_evaluation_narrative(prompt))
         if "semantic fit review" in lower:
             return json.dumps(
                 {

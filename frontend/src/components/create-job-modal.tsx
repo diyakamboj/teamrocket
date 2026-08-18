@@ -18,6 +18,7 @@ import {
   ListChecks,
 } from "lucide-react";
 import { toast } from "sonner";
+import { analyzeJob, createJob } from "@/lib/api";
 
 export type CreateJobModalProps = {
   isOpen: boolean;
@@ -28,31 +29,21 @@ export function CreateJobModal({ isOpen, onClose }: CreateJobModalProps) {
   const navigate = useNavigate();
   const [step, setStep] = useState(1);
   const [hiringType, setHiringType] = useState<"internal" | "external">("external");
-  const [jobTitle, setJobTitle] = useState("Senior Software Engineer");
-  const [department, setDepartment] = useState("Engineering");
-  const [location, setLocation] = useState("Seattle, WA (Hybrid)");
+  const [jobTitle, setJobTitle] = useState("");
+  const [department, setDepartment] = useState("");
+  const [location, setLocation] = useState("");
   const [employmentType, setEmploymentType] = useState("Full-time");
-  const [hiringManager, setHiringManager] = useState("Sarah Connor");
-  const [openings, setOpenings] = useState(2);
+  const [hiringManager, setHiringManager] = useState("");
+  const [openings, setOpenings] = useState(1);
   const [newSkillInput, setNewSkillInput] = useState("");
-  const [descriptionText, setDescriptionText] = useState(
-    `We are seeking a Senior Software Engineer to lead our cloud infrastructure microservices.
-
-Responsibilities:
-• Architect, deploy, and manage scalable cloud microservices and Kubernetes infrastructure.
-• Build automated CI/CD deployment pipelines.
-• Implement security and observability standards.
-
-Requirements:
-• 5+ years of experience with Python, React, or Go.
-• Proven expertise in Kubernetes, Docker, and Azure/AWS cloud services.`
-  );
+  const [descriptionText, setDescriptionText] = useState("");
   const [copilotFeedback, setCopilotFeedback] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   // Extracted skills
-  const [requiredSkills, setRequiredSkills] = useState(["Python", "Azure", "Kubernetes", "FastAPI"]);
-  const [preferredSkills, setPreferredSkills] = useState(["Docker", "Terraform", "Go"]);
+  const [requiredSkills, setRequiredSkills] = useState<string[]>([]);
+  const [preferredSkills, setPreferredSkills] = useState<string[]>([]);
+  const [analyzing, setAnalyzing] = useState(false);
   const [postToLinkedIn, setPostToLinkedIn] = useState(true);
 
   const handleAddSkill = (type: "required" | "preferred") => {
@@ -73,27 +64,55 @@ Requirements:
     }
   };
 
-  const handleAskCopilot = (promptType: string) => {
-    if (promptType === "restrictive") {
+  /**
+   * Runs the backend's real JD requirement extraction over the drafted text
+   * and fills in the skill chips from what it found.
+   */
+  const handleAskCopilot = async () => {
+    if (!jobTitle.trim() || !descriptionText.trim()) {
+      toast.error("Add a job title and description first.");
+      return;
+    }
+    setAnalyzing(true);
+    setCopilotFeedback(null);
+    try {
+      const analysis = await analyzeJob({ title: jobTitle, description: descriptionText });
+      setRequiredSkills(analysis.required_skills ?? []);
+      setPreferredSkills(analysis.nice_to_have_skills ?? []);
       setCopilotFeedback(
-        "🤖 Copilot Analysis: Requiring both 5+ years Azure AND Terraform creates a bottleneck. Recommendation: Mark Terraform as preferred skill."
+        analysis.summary ||
+          `Extracted ${analysis.required_skills?.length ?? 0} required and ${analysis.nice_to_have_skills?.length ?? 0} nice-to-have skills.`,
       );
-    } else if (promptType === "wording") {
-      setCopilotFeedback(
-        "🤖 Copilot Optimization: Wording is clear and concise. Added technical clarity around AKS multi-tenant clusters and Zero-Trust security standards."
-      );
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Copilot analysis failed");
+    } finally {
+      setAnalyzing(false);
     }
   };
 
-  const handleCreateJob = () => {
+  const handleCreateJob = async () => {
+    if (!jobTitle.trim()) {
+      toast.error("A job title is required.");
+      return;
+    }
     setIsSubmitting(true);
-    setTimeout(() => {
-      setIsSubmitting(false);
+    try {
+      // Real create: persists the job to the backend store and returns its id.
+      const job = await createJob({
+        title: jobTitle,
+        description: descriptionText,
+        required_skills: requiredSkills,
+        nice_to_have_skills: preferredSkills,
+      });
       onClose();
       setStep(1);
-      toast.success(`Job "${jobTitle}" successfully created and analyzed!`);
-      navigate({ to: "/jobs/$jobId", params: { jobId: "job_1" } });
-    }, 800);
+      toast.success(`Job "${job.title}" created.`);
+      await navigate({ to: "/jobs/$jobId", params: { jobId: job.id } });
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Could not create the job");
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   return (
@@ -269,19 +288,11 @@ Requirements:
                       type="button"
                       variant="outline"
                       size="sm"
-                      onClick={() => handleAskCopilot("restrictive")}
-                      className="w-full text-[11px] border-slate-200 bg-white text-slate-700 hover:bg-blue-50 justify-start"
+                      disabled={analyzing}
+                      onClick={() => void handleAskCopilot()}
+                      className="w-full justify-start text-[11px]"
                     >
-                      "Is this JD too restrictive?"
-                    </Button>
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="sm"
-                      onClick={() => handleAskCopilot("wording")}
-                      className="w-full text-[11px] border-slate-200 bg-white text-slate-700 hover:bg-blue-50 justify-start"
-                    >
-                      "Improve wording & clarity"
+                      {analyzing ? "Analyzing description…" : "Extract requirements from this JD"}
                     </Button>
                   </div>
 

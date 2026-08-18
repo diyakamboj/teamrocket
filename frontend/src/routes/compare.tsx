@@ -5,7 +5,8 @@ import { MiniBar, ScoreRing } from "@/components/score-ring";
 import { Button } from "@/components/ui/button";
 import { useAppState } from "@/lib/app-state";
 import { useCopilot } from "@/lib/copilot-state";
-import { CANDIDATES, rankCandidates } from "@/lib/mock-data";
+import { rankCandidates } from "@/lib/candidates";
+import { useCandidatePool } from "@/lib/use-candidate-pool";
 
 export const Route = createFileRoute("/compare")({
   head: () => ({
@@ -47,7 +48,8 @@ function AskCopilotAboutComparison({ count }: { count: number }) {
 
 function Compare() {
   const { compareIds, toggleCompare, clearCompare, weights, blindMode } = useAppState();
-  const ranked = useMemo(() => rankCandidates(CANDIDATES, weights), [weights]);
+  const { candidates: pool } = useCandidatePool();
+  const ranked = useMemo(() => rankCandidates(pool, weights), [pool, weights]);
   const selected = ranked.filter((c) => compareIds.includes(c.id));
 
   if (selected.length === 0) {

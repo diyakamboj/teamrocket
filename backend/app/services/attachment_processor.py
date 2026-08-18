@@ -47,6 +47,14 @@ def classify_and_summarize(text: str) -> dict[str, Any]:
     return {"kind": kind, "summary": summary}
 
 
+def _title_from_parsed(parsed: dict[str, Any]) -> Optional[str]:
+    """Current role title, taken from the most recent parsed experience entry."""
+    for entry in parsed.get("experience") or []:
+        if isinstance(entry, dict) and entry.get("title"):
+            return str(entry["title"])
+    return None
+
+
 def upsert_candidate_from_parsed(
     active_store: Store,
     parsed: dict[str, Any],
@@ -68,6 +76,8 @@ def upsert_candidate_from_parsed(
         candidate = existing
         candidate.name = parsed.get("name") or candidate.name
         candidate.phone = parsed.get("phone") or candidate.phone
+        candidate.location = parsed.get("location") or candidate.location
+        candidate.title = _title_from_parsed(parsed) or candidate.title
         candidate.resume_file_id = blob_path or candidate.resume_file_id
         candidate.resume_text = text
         candidate.skills = parsed.get("skills") or candidate.skills
@@ -83,6 +93,8 @@ def upsert_candidate_from_parsed(
             name=parsed.get("name") or "Unknown",
             email=email,
             phone=parsed.get("phone"),
+            location=parsed.get("location"),
+            title=_title_from_parsed(parsed),
             resume_file_id=blob_path,
             resume_text=text,
             skills=parsed.get("skills") or [],

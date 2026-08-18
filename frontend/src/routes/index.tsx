@@ -1,5 +1,5 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -9,323 +9,409 @@ import {
   PlusCircle,
   Zap,
   Users,
-  AlertTriangle,
-  Bot,
-  ArrowRight,
-  TrendingUp,
+  Loader2,
   CheckCircle2,
   Sparkles,
-  Search,
-  Sliders,
 } from "lucide-react";
 import { getSession } from "@/lib/auth";
 import { CreateJobModal } from "@/components/create-job-modal";
+import {
+  getJobPipeline,
+  listJobPipelines,
+  type JobPipelineSummary,
+  type PipelineCandidate,
+} from "@/lib/api";
 
 export const Route = createFileRoute("/")({
+  head: () => ({
+    meta: [
+      { title: "Dashboard — ResumeIQ" },
+      {
+        name: "description",
+        content:
+          "Live view of every internal and external hiring pipeline: open roles, candidate volume, and top matches.",
+      },
+    ],
+  }),
   component: DashboardPage,
 });
+
+/** A job plus the candidate rows backing its counters. */
+type JobWithPipeline = JobPipelineSummary & { pipeline: PipelineCandidate[] };
+
+const TOP_MATCH_SCORE = 85;
+
+function greeting(): string {
+  const hour = new Date().getHours();
+  if (hour < 12) return "Good morning";
+  if (hour < 18) return "Good afternoon";
+  return "Good evening";
+}
 
 function DashboardPage() {
   const session = getSession();
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
+  const [jobs, setJobs] = useState<JobWithPipeline[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    setLoading(true);
+
+    listJobPipelines()
+      .then(async (summaries) =>
+        Promise.all(
+          summaries.map(async (job) => ({
+            ...job,
+            pipeline: await getJobPipeline(job.job_id, "all").catch(() => []),
+          })),
+        ),
+      )
+      .then((rows) => {
+        if (cancelled) return;
+        setJobs(rows);
+        setLoading(false);
+      })
+      .catch((err: unknown) => {
+        if (cancelled) return;
+        setError(err instanceof Error ? err.message : "Could not reach the screening API");
+        setLoading(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const stats = useMemo(() => {
+    const all = jobs.flatMap((j) => j.pipeline);
+    const internal = jobs.filter((j) => j.internal_candidates > 0);
+    const external = jobs.filter((j) => j.external_candidates > 0);
+    const topMatches = all.filter((c) => (c.overall_score ?? 0) >= TOP_MATCH_SCORE);
+    const readyForInterview = all.filter(
+      (c) => c.stage === "interviewing" || c.stage === "interviewed",
+    );
+
+    return {
+      openRoles: jobs.filter((j) => j.status === "open").length,
+      totalJobs: jobs.length,
+      internalRoles: internal.length,
+      externalRoles: external.length,
+      totalCandidates: all.length,
+      internalCandidates: jobs.reduce((s, j) => s + j.internal_candidates, 0),
+      externalCandidates: jobs.reduce((s, j) => s + j.external_candidates, 0),
+      topMatches: topMatches.length,
+      readyForInterview: readyForInterview.length,
+      benchPool: all.filter((c) => c.employment_status === "bench").length,
+    };
+  }, [jobs]);
+
+  const internalJobs = jobs.filter((j) => j.internal_candidates > 0).slice(0, 3);
+  const externalJobs = jobs.filter((j) => j.external_candidates > 0).slice(0, 3);
+
+  function topMatchesFor(job: JobWithPipeline): number {
+    return job.pipeline.filter((c) => (c.overall_score ?? 0) >= TOP_MATCH_SCORE).length;
+  }
+
+  function benchFor(job: JobWithPipeline): number {
+    return job.pipeline.filter((c) => c.employment_status === "bench").length;
+  }
+
+  const metrics = [
+    {
+      label: "Active Job Openings",
+      val: `${stats.openRoles} Role${stats.openRoles === 1 ? "" : "s"}`,
+      sub: `${stats.internalRoles} with internal • ${stats.externalRoles} with external`,
+      icon: Briefcase,
+      color: "text-primary",
+    },
+    {
+      label: "Total Candidates",
+      val: `${stats.totalCandidates}`,
+      sub: `${stats.internalCandidates} internal • ${stats.externalCandidates} external`,
+      icon: Users,
+      color: "text-muted-foreground",
+    },
+    {
+      label: "Top Quality Matches",
+      val: `${stats.topMatches}`,
+      sub: `Score ≥ ${TOP_MATCH_SCORE}% fit`,
+      icon: Sparkles,
+      color: "text-success",
+    },
+    {
+      label: "In Interview Stage",
+      val: `${stats.readyForInterview}`,
+      sub: "Interviewing or interviewed",
+      icon: CheckCircle2,
+      color: "text-warning",
+    },
+  ];
 
   return (
-    <div className="p-8 max-w-7xl mx-auto space-y-8 bg-slate-50/50 text-slate-900 min-h-screen">
-      {/* Executive Header */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-slate-200 pb-6">
+    <div className="mx-auto max-w-7xl space-y-8">
+      <header className="flex flex-col justify-between gap-4 border-b border-border pb-6 md:flex-row md:items-center">
         <div>
-          <div className="flex items-center gap-2 text-blue-600 text-xs font-semibold uppercase tracking-wider mb-1">
-            <Sparkles className="w-4 h-4" /> ResumeIQ Executive Control Center
+          <div className="mb-1 flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-primary">
+            <Sparkles className="h-4 w-4" /> ResumeIQ Executive Control Center
           </div>
-          <h1 className="text-2xl font-bold tracking-tight text-slate-900">
-            Good morning, {session.name.split(" ")[0]} 👋
+          <h1 className="text-2xl font-extrabold tracking-tight sm:text-3xl">
+            {greeting()}, {session.name.split(" ")[0]} 👋
           </h1>
-          <p className="text-slate-500 text-xs mt-1">
-            Here's what is happening across your internal and external hiring pipelines right now.
+          <p className="mt-1 text-sm text-muted-foreground">
+            {loading
+              ? "Loading your live hiring pipelines…"
+              : error
+                ? `Could not load pipelines: ${error}`
+                : "Here's what is happening across your internal and external hiring pipelines right now."}
           </p>
         </div>
 
-        <div className="flex items-center gap-3">
-          <Button
-            onClick={() => setIsCreateModalOpen(true)}
-            className="bg-blue-600 hover:bg-blue-700 text-white font-medium text-xs flex items-center gap-2 shadow-sm py-2 px-4 rounded-lg"
-          >
-            <PlusCircle className="w-4 h-4" />
-            + Create New Job
-          </Button>
-        </div>
-      </div>
+        <Button onClick={() => setIsCreateModalOpen(true)} className="rounded-xl">
+          <PlusCircle className="mr-2 h-4 w-4" />
+          Create new job
+        </Button>
+      </header>
 
-      {/* Global Hiring Metrics Grid */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        {[
-          { label: "Active Job Openings", val: "12 Roles", sub: "4 Internal • 8 External", icon: Briefcase, color: "text-blue-600" },
-          { label: "Total Candidates", val: "308", sub: "47 Internal • 261 External", icon: Users, color: "text-slate-600" },
-          { label: "Top Quality Matches", val: "52", sub: "Score > 85% Fit", icon: Sparkles, color: "text-emerald-600" },
-          { label: "Ready for Interview", val: "24", sub: "8 Internal • 16 External", icon: CheckCircle2, color: "text-amber-600" },
-        ].map((m, idx) => (
-          <Card key={idx} className="bg-white border-slate-200/80 shadow-xs rounded-xl">
+      <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
+        {metrics.map((m) => (
+          <Card key={m.label} className="card-surface">
             <CardContent className="p-4">
               <div className="flex items-center justify-between">
-                <span className="text-xs font-medium text-slate-500">{m.label}</span>
-                <m.icon className={`w-4 h-4 ${m.color}`} />
+                <span className="text-xs font-medium text-muted-foreground">{m.label}</span>
+                <m.icon className={`h-4 w-4 ${m.color}`} />
               </div>
-              <div className="text-xl font-bold text-slate-900 mt-2">{m.val}</div>
-              <div className="text-[11px] text-slate-400 mt-0.5">{m.sub}</div>
+              <div className="mt-2 text-xl font-extrabold">
+                {loading ? <Loader2 className="h-5 w-5 animate-spin" /> : m.val}
+              </div>
+              <div className="mt-0.5 text-[11px] text-muted-foreground">{m.sub}</div>
             </CardContent>
           </Card>
         ))}
       </div>
 
-      {/* Main 2 Column Overview Layout: Internal Hiring & External Hiring */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* INTERNAL HIRING OVERVIEW BOX */}
-        <Card className="bg-white border-slate-200/80 shadow-xs rounded-xl flex flex-col justify-between">
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
+        {/* Internal hiring */}
+        <Card className="card-surface flex flex-col justify-between">
           <div>
-            <CardHeader className="border-b border-slate-100 pb-4">
+            <CardHeader className="border-b border-border pb-4">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
-                  <div className="p-2 rounded-lg bg-blue-50 text-blue-600 border border-blue-100">
-                    <Briefcase className="w-4 h-4" />
+                  <div className="rounded-lg border border-primary/20 bg-primary-soft p-2 text-primary-soft-foreground">
+                    <Briefcase className="h-4 w-4" />
                   </div>
                   <div>
-                    <CardTitle className="text-base text-slate-900 font-bold">INTERNAL HIRING</CardTitle>
-                    <CardDescription className="text-slate-500 text-xs">
+                    <CardTitle className="text-base font-bold">INTERNAL HIRING</CardTitle>
+                    <CardDescription className="text-xs">
                       Active internal roles, bench candidate auto-matching, and internal mobility.
                     </CardDescription>
                   </div>
                 </div>
-                <Link to="/internal-hiring" className="text-xs font-semibold text-blue-600 hover:underline flex items-center gap-1">
+                <Link
+                  to="/internal-hiring"
+                  className="text-xs font-semibold text-primary hover:underline"
+                >
                   View All →
                 </Link>
               </div>
             </CardHeader>
 
-            <CardContent className="p-5 space-y-4">
-              {/* Internal Metrics bar */}
-              <div className="p-3 rounded-lg bg-slate-50 border border-slate-200/80 grid grid-cols-3 gap-2 text-center text-xs">
+            <CardContent className="space-y-4 p-5">
+              <div className="grid grid-cols-3 gap-2 rounded-lg border border-border bg-secondary/40 p-3 text-center text-xs">
                 <div>
-                  <span className="text-slate-500 block text-[10px] uppercase font-semibold">Active Roles</span>
-                  <span className="font-bold text-slate-900 text-sm">4 Roles</span>
+                  <span className="block text-[10px] font-semibold uppercase text-muted-foreground">
+                    Roles
+                  </span>
+                  <span className="text-sm font-bold">{internalJobs.length}</span>
                 </div>
                 <div>
-                  <span className="text-slate-500 block text-[10px] uppercase font-semibold">Bench Pool</span>
-                  <span className="font-bold text-blue-600 text-sm">8 Candidates</span>
+                  <span className="block text-[10px] font-semibold uppercase text-muted-foreground">
+                    Bench Pool
+                  </span>
+                  <span className="text-sm font-bold text-primary">{stats.benchPool}</span>
                 </div>
                 <div>
-                  <span className="text-slate-500 block text-[10px] uppercase font-semibold">Interview Ready</span>
-                  <span className="font-bold text-emerald-600 text-sm">5 Ready</span>
+                  <span className="block text-[10px] font-semibold uppercase text-muted-foreground">
+                    Internal Candidates
+                  </span>
+                  <span className="text-sm font-bold text-success">
+                    {stats.internalCandidates}
+                  </span>
                 </div>
               </div>
 
-              {/* Active Jobs List */}
               <div className="space-y-2">
-                {[
-                  { id: "job_1", title: "Senior Software Engineer", candidates: 12, bench: 4, status: "Hiring" },
-                  { id: "job_2", title: "Cloud Engineer", candidates: 8, bench: 2, status: "Hiring" },
-                  { id: "job_3", title: "Data Engineer", candidates: 5, bench: 1, status: "Screening" },
-                ].map((job) => (
-                  <Link key={job.id} to="/jobs/$jobId" params={{ jobId: job.id }}>
-                    <div className="p-3 rounded-lg bg-white border border-slate-200/80 hover:border-blue-400 hover:shadow-xs transition-all flex items-center justify-between group">
-                      <div>
-                        <div className="font-semibold text-slate-900 text-xs group-hover:text-blue-600">
-                          {job.title}
+                {loading ? (
+                  <p className="flex items-center gap-2 py-4 text-xs text-muted-foreground">
+                    <Loader2 className="h-3.5 w-3.5 animate-spin" /> Loading roles…
+                  </p>
+                ) : internalJobs.length === 0 ? (
+                  <p className="py-4 text-center text-xs text-muted-foreground">
+                    No roles with internal candidates yet.
+                  </p>
+                ) : (
+                  internalJobs.map((job) => (
+                    <Link key={job.job_id} to="/jobs/$jobId" params={{ jobId: job.job_id }}>
+                      <div className="group flex items-center justify-between rounded-lg border border-border p-3 transition-all hover:border-primary hover:shadow-xs">
+                        <div>
+                          <div className="text-xs font-semibold group-hover:text-primary">
+                            {job.title}
+                          </div>
+                          <div className="mt-0.5 flex items-center gap-3 text-xs text-muted-foreground">
+                            <span>{job.internal_candidates} internal</span>
+                            <span className="font-medium text-primary">
+                              👥 {benchFor(job)} bench
+                            </span>
+                          </div>
                         </div>
-                        <div className="flex items-center gap-3 text-xs text-slate-500 mt-0.5">
-                          <span>{job.candidates} candidates</span>
-                          <span className="text-blue-600 font-medium">👥 {job.bench} bench matches</span>
-                        </div>
+                        <Badge variant="outline" className="text-[11px] font-medium">
+                          Open Job →
+                        </Badge>
                       </div>
-                      <Badge className="bg-blue-50 text-blue-700 border-blue-200 text-[11px] font-medium">
-                        Open Job →
-                      </Badge>
-                    </div>
-                  </Link>
-                ))}
+                    </Link>
+                  ))
+                )}
               </div>
             </CardContent>
           </div>
 
-          <div className="p-4 border-t border-slate-100 bg-slate-50/50">
+          <div className="border-t border-border p-4">
             <Link to="/internal-hiring">
-              <Button
-                variant="outline"
-                className="w-full border-slate-200 bg-white text-slate-700 hover:bg-slate-50 text-xs font-semibold flex items-center justify-center gap-2"
-              >
+              <Button variant="outline" className="w-full rounded-xl text-xs font-semibold">
                 Go to Internal Mobility Workspace →
               </Button>
             </Link>
           </div>
         </Card>
 
-        {/* EXTERNAL HIRING OVERVIEW BOX */}
-        <Card className="bg-white border-slate-200/80 shadow-xs rounded-xl flex flex-col justify-between">
+        {/* External hiring */}
+        <Card className="card-surface flex flex-col justify-between">
           <div>
-            <CardHeader className="border-b border-slate-100 pb-4">
+            <CardHeader className="border-b border-border pb-4">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
-                  <div className="p-2 rounded-lg bg-indigo-50 text-indigo-600 border border-indigo-100">
-                    <Globe className="w-4 h-4" />
+                  <div className="rounded-lg border border-primary/20 bg-primary-soft p-2 text-primary-soft-foreground">
+                    <Globe className="h-4 w-4" />
                   </div>
                   <div>
-                    <CardTitle className="text-base text-slate-900 font-bold">EXTERNAL HIRING</CardTitle>
-                    <CardDescription className="text-slate-500 text-xs">
+                    <CardTitle className="text-base font-bold">EXTERNAL HIRING</CardTitle>
+                    <CardDescription className="text-xs">
                       Public applicant funnel, candidate matching, and external sourcing.
                     </CardDescription>
                   </div>
                 </div>
-                <Link to="/external-hiring" className="text-xs font-semibold text-indigo-600 hover:underline flex items-center gap-1">
+                <Link
+                  to="/external-hiring"
+                  className="text-xs font-semibold text-primary hover:underline"
+                >
                   View All →
                 </Link>
               </div>
             </CardHeader>
 
-            <CardContent className="p-5 space-y-4">
-              {/* External Metrics bar */}
-              <div className="p-3 rounded-lg bg-slate-50 border border-slate-200/80 grid grid-cols-3 gap-2 text-center text-xs">
+            <CardContent className="space-y-4 p-5">
+              <div className="grid grid-cols-3 gap-2 rounded-lg border border-border bg-secondary/40 p-3 text-center text-xs">
                 <div>
-                  <span className="text-slate-500 block text-[10px] uppercase font-semibold">Active Roles</span>
-                  <span className="font-bold text-slate-900 text-sm">8 Roles</span>
+                  <span className="block text-[10px] font-semibold uppercase text-muted-foreground">
+                    Roles
+                  </span>
+                  <span className="text-sm font-bold">{externalJobs.length}</span>
                 </div>
                 <div>
-                  <span className="text-slate-500 block text-[10px] uppercase font-semibold">Applicants</span>
-                  <span className="font-bold text-indigo-600 text-sm">261 Applicants</span>
+                  <span className="block text-[10px] font-semibold uppercase text-muted-foreground">
+                    Applicants
+                  </span>
+                  <span className="text-sm font-bold text-primary">
+                    {stats.externalCandidates}
+                  </span>
                 </div>
                 <div>
-                  <span className="text-slate-500 block text-[10px] uppercase font-semibold">Top Matches</span>
-                  <span className="font-bold text-emerald-600 text-sm">34 Top Matches</span>
+                  <span className="block text-[10px] font-semibold uppercase text-muted-foreground">
+                    Top Matches
+                  </span>
+                  <span className="text-sm font-bold text-success">{stats.topMatches}</span>
                 </div>
               </div>
 
-              {/* Active Jobs List */}
               <div className="space-y-2">
-                {[
-                  { id: "job_1", title: "Software Engineer", applicants: 124, matches: 18, ready: 7 },
-                  { id: "job_2", title: "Data Scientist", applicants: 86, matches: 11, ready: 4 },
-                  { id: "job_3", title: "Cloud Engineer", applicants: 51, matches: 5, ready: 3 },
-                ].map((job) => (
-                  <Link key={job.id} to="/jobs/$jobId" params={{ jobId: job.id }}>
-                    <div className="p-3 rounded-lg bg-white border border-slate-200/80 hover:border-indigo-400 hover:shadow-xs transition-all flex items-center justify-between group">
-                      <div>
-                        <div className="font-semibold text-slate-900 text-xs group-hover:text-indigo-600">
-                          {job.title}
+                {loading ? (
+                  <p className="flex items-center gap-2 py-4 text-xs text-muted-foreground">
+                    <Loader2 className="h-3.5 w-3.5 animate-spin" /> Loading roles…
+                  </p>
+                ) : externalJobs.length === 0 ? (
+                  <p className="py-4 text-center text-xs text-muted-foreground">
+                    No roles with external applicants yet.
+                  </p>
+                ) : (
+                  externalJobs.map((job) => (
+                    <Link key={job.job_id} to="/jobs/$jobId" params={{ jobId: job.job_id }}>
+                      <div className="group flex items-center justify-between rounded-lg border border-border p-3 transition-all hover:border-primary hover:shadow-xs">
+                        <div>
+                          <div className="text-xs font-semibold group-hover:text-primary">
+                            {job.title}
+                          </div>
+                          <div className="mt-0.5 flex items-center gap-3 text-xs text-muted-foreground">
+                            <span>{job.external_candidates} applicants</span>
+                            <span className="font-medium text-success">
+                              🟢 {topMatchesFor(job)} top matches
+                            </span>
+                          </div>
                         </div>
-                        <div className="flex items-center gap-3 text-xs text-slate-500 mt-0.5">
-                          <span>{job.applicants} applicants</span>
-                          <span className="text-indigo-600 font-medium">🟢 {job.matches} top matches</span>
-                        </div>
+                        <Badge variant="outline" className="text-[11px] font-medium">
+                          Open Job →
+                        </Badge>
                       </div>
-                      <Badge className="bg-indigo-50 text-indigo-700 border-indigo-200 text-[11px] font-medium">
-                        Open Job →
-                      </Badge>
-                    </div>
-                  </Link>
-                ))}
+                    </Link>
+                  ))
+                )}
               </div>
             </CardContent>
           </div>
 
-          <div className="p-4 border-t border-slate-100 bg-slate-50/50">
+          <div className="border-t border-border p-4">
             <Link to="/external-hiring">
-              <Button
-                variant="outline"
-                className="w-full border-slate-200 bg-white text-slate-700 hover:bg-slate-50 text-xs font-semibold flex items-center justify-center gap-2"
-              >
+              <Button variant="outline" className="w-full rounded-xl text-xs font-semibold">
                 Go to External Sourcing Workspace →
               </Button>
             </Link>
           </div>
         </Card>
-
       </div>
 
-      {/* RECRUITER AGENT ACTION FEED */}
-      <Card className="bg-white border-slate-200/80 shadow-xs rounded-xl">
-        <CardHeader className="border-b border-slate-100 pb-4">
+      <Card className="card-surface">
+        <CardHeader className="border-b border-border pb-4">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
-              <Zap className="w-4 h-4 text-amber-500" />
+              <Zap className="h-4 w-4 text-warning" />
               <div>
-                <CardTitle className="text-base text-slate-900 font-bold">Recruiter Copilot Action Feed</CardTitle>
-                <CardDescription className="text-slate-500 text-xs">
-                  Background intelligence notifications & actionable recommendations requiring recruiter decision.
+                <CardTitle className="text-base font-bold">Recruiter Copilot Action Feed</CardTitle>
+                <CardDescription className="text-xs">
+                  Background intelligence and recommendations that need a recruiter decision.
                 </CardDescription>
               </div>
             </div>
             <Link to="/actions">
-              <Button size="sm" variant="ghost" className="text-xs text-amber-600 hover:bg-amber-50 font-semibold">
-                View All Actions ({3}) →
+              <Button size="sm" variant="ghost" className="text-xs font-semibold text-primary">
+                View all actions →
               </Button>
             </Link>
           </div>
         </CardHeader>
-        <CardContent className="p-5 space-y-4">
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            {/* Card 1: Bench match */}
-            <div className="p-4 rounded-xl bg-slate-50/50 border border-slate-200/80 space-y-3 hover:border-emerald-300 transition-all">
-              <div className="flex items-center justify-between">
-                <Badge className="bg-emerald-50 text-emerald-700 border-emerald-200 text-[10px] uppercase font-bold">
-                  Bench Candidate Match
-                </Badge>
-                <span className="text-[10px] text-slate-400">5 min ago</span>
-              </div>
-              <h4 className="font-semibold text-slate-900 text-xs">Cloud Engineer</h4>
-              <p className="text-xs text-slate-600 leading-relaxed">
-                Copilot identified bench employee <strong>Employee A</strong> (94% match) with Azure & Python skills.
-              </p>
-              <Link to="/internal-hiring">
-                <Button size="sm" className="w-full bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-200 text-xs font-semibold">
-                  Review & Place Employee →
-                </Button>
-              </Link>
-            </div>
-
-            {/* Card 2: JD Skew */}
-            <div className="p-4 rounded-xl bg-slate-50/50 border border-slate-200/80 space-y-3 hover:border-amber-300 transition-all">
-              <div className="flex items-center justify-between">
-                <Badge className="bg-amber-50 text-amber-700 border-amber-200 text-[10px] uppercase font-bold">
-                  JD Skew Warning
-                </Badge>
-                <span className="text-[10px] text-slate-400">42 min ago</span>
-              </div>
-              <h4 className="font-semibold text-slate-900 text-xs">Kubernetes Engineer</h4>
-              <p className="text-xs text-slate-600 leading-relaxed">
-                47 applicants received, but only 10% possess Kubernetes. Recommend marking as preferred.
-              </p>
-              <Link to="/jobs/$jobId" params={{ jobId: "job_1" }}>
-                <Button size="sm" className="w-full bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-200 text-xs font-semibold">
-                  Review JD Requirement →
-                </Button>
-              </Link>
-            </div>
-
-            {/* Card 3: Readiness assessment */}
-            <div className="p-4 rounded-xl bg-slate-50/50 border border-slate-200/80 space-y-3 hover:border-blue-300 transition-all">
-              <div className="flex items-center justify-between">
-                <Badge className="bg-blue-50 text-blue-700 border-blue-200 text-[10px] uppercase font-bold">
-                  Readiness Validation
-                </Badge>
-                <span className="text-[10px] text-slate-400">2 hours ago</span>
-              </div>
-              <h4 className="font-semibold text-slate-900 text-xs">Senior Software Engineer</h4>
-              <p className="text-xs text-slate-600 leading-relaxed">
-                3 candidates meet initial fit criteria but require technical assessment prior to Interview Round 1.
-              </p>
-              <Link to="/jobs/$jobId" params={{ jobId: "job_1" }}>
-                <Button size="sm" className="w-full bg-blue-50 hover:bg-blue-100 text-blue-800 border border-blue-200 text-xs font-semibold">
-                  Send Readiness Assessment →
-                </Button>
-              </Link>
-            </div>
-          </div>
+        <CardContent className="p-5">
+          <p className="text-sm text-muted-foreground">
+            The Actions Center analyses every open job for JD calibration warnings, internal bench
+            matches, and candidates awaiting readiness assessment.
+          </p>
+          <Link to="/actions">
+            <Button className="mt-4 rounded-xl text-xs font-semibold">
+              Open Actions Center →
+            </Button>
+          </Link>
         </CardContent>
       </Card>
 
-
-      <CreateJobModal
-        isOpen={isCreateModalOpen}
-        onClose={() => setIsCreateModalOpen(false)}
-      />
+      <CreateJobModal isOpen={isCreateModalOpen} onClose={() => setIsCreateModalOpen(false)} />
     </div>
   );
 }

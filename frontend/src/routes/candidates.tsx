@@ -1,7 +1,5 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { useMemo, useState, useEffect } from "react";
-import { fetchCandidatesFromBackend } from "@/lib/api";
-
+import { useMemo, useState } from "react";
 import {
   Calendar,
   Check,
@@ -14,13 +12,8 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { useAppState } from "@/lib/app-state";
-import {
-  ALL_SKILLS,
-  CANDIDATES,
-  DEFAULT_WEIGHTS,
-  rankCandidates,
-  type Candidate,
-} from "@/lib/mock-data";
+import { allSkills, DEFAULT_WEIGHTS, rankCandidates, type Candidate } from "@/lib/candidates";
+import { useCandidatePool } from "@/lib/use-candidate-pool";
 import { submitCandidateDecision, type InterviewSlot } from "@/lib/api";
 import { MiniBar, ScoreRing } from "@/components/score-ring";
 import { CandidateInterviewSection } from "@/components/interview-card";
@@ -204,6 +197,7 @@ export function Candidates() {
     compareIds,
     toggleCompare,
     setViewingCandidateId,
+    activeJobId,
   } = useAppState();
   const [query, setQuery] = useState("");
   const [level, setLevel] = useState<(typeof LEVELS)[number]>("All");
@@ -213,56 +207,13 @@ export function Candidates() {
   const [expanded, setExpanded] = useState<string | null>(null);
   const [panelOpen, setPanelOpen] = useState(true);
   const [decisions, setDecisions] = useState<Record<string, DecisionState>>({});
-  const [backendCandidates, setBackendCandidates] = useState<Candidate[]>([]);
 
-  useEffect(() => {
-    fetchCandidatesFromBackend()
-      .then((apiCandidates) => {
-        if (apiCandidates && apiCandidates.length > 0) {
-          const converted: Candidate[] = apiCandidates.map((c, idx) => ({
-            id: c.id,
-            rank: idx + 1,
-            name: c.name,
-            email: c.email,
-            phone: c.phone || "",
-            location: "Seattle, WA",
-            title: c.skills.length > 0 ? `${c.skills[0]} Specialist` : "Software Engineer",
-            company: "Applicant Candidate",
-            score: 88,
-            level: "Senior",
-            summary: `Parsed from resume upload`,
-            skills: c.skills.length > 0 ? c.skills : ["Python", "FastAPI", "Azure"],
-            categories: {
-              skills: 90,
-              experience: 85,
-              education: 80,
-              certifications: 75,
-              projects: 85,
-            },
-            mustHaves: {},
-            strengths: ["Direct skill match from uploaded resume"],
-            gaps: [],
-            highlights: [],
-            availability: "Immediate",
-            timeline: [],
-            rawResumeText: c.resume_text || "",
-          }));
-          setBackendCandidates(converted);
-        }
-      })
-      .catch((err) => console.error("Could not load candidates from backend:", err));
-  }, []);
-
-  const combinedCandidates = useMemo(() => {
-    const map = new Map<string, Candidate>();
-    for (const c of backendCandidates) map.set(c.id, c);
-    for (const c of CANDIDATES) {
-      if (!map.has(c.id)) map.set(c.id, c);
-    }
-    return Array.from(map.values());
-  }, [backendCandidates]);
-
-  const ranked = useMemo(() => rankCandidates(combinedCandidates, weights), [combinedCandidates, weights]);
+  // Candidates and their per-category scores both come from the backend
+  // scoring pipeline; only the weighting of those categories is re-applied
+  // locally so the sliders stay responsive.
+  const { candidates: pool, loading: poolLoading, error: poolError } = useCandidatePool();
+  const ranked = useMemo(() => rankCandidates(pool, weights), [pool, weights]);
+  const skillOptions = useMemo(() => allSkills(pool), [pool]);
 
 
   async function handleDecision(candidate: Candidate, decision: "approved" | "rejected") {
@@ -330,7 +281,11 @@ export function Candidates() {
         <div className="min-w-0">
           <h1 className="truncate text-2xl font-extrabold sm:text-3xl">Candidate Ranking</h1>
           <p className="mt-1 text-sm text-muted-foreground">
-            {filtered.length} candidates match your filters
+            {poolLoading
+              ? "Scoring candidates against the active job…"
+              : poolError
+                ? `Could not load candidates: ${poolError}`
+                : `${filtered.length} candidates match your filters`}
           </p>
         </div>
         <div className="flex shrink-0 items-center gap-2">
@@ -386,7 +341,7 @@ export function Candidates() {
               className="h-9 min-w-0 rounded-xl border bg-background px-3 text-sm"
             >
               <option value="All">All skills</option>
-              {ALL_SKILLS.map((s) => (
+              {skillOptions.map((s) => (
                 <option key={s} value={s}>
                   {s}
                 </option>
@@ -576,7 +531,7 @@ export function Candidates() {
                       <CandidateReadinessSection
                         candidateId={c.id}
                         candidateName={blindMode ? displayName : c.name}
-                        jobId={selectedJobId}
+                        jobId={activeJobId}
                       />
                     </div>
                   )}
@@ -586,7 +541,15 @@ export function Candidates() {
 
             {rows.length === 0 && (
               <p className="px-5 py-12 text-center text-sm text-muted-foreground">
-                No candidates match these filters.
+                {poolLoading ? (
+                  <span className="inline-flex items-center gap-2">
+                    <Loader2 className="h-4 w-4 animate-spin" /> Loading ranked candidates…
+                  </span>
+                ) : poolError ? (
+                  `Could not reach the screening API — ${poolError}`
+                ) : (
+                  "No candidates match these filters."
+                )}
               </p>
             )}
           </div>
