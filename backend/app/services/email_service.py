@@ -69,5 +69,23 @@ class EmailService:
             logger.exception("Failed to send email to %s", to_email)
             return EmailResult(sent=False, source="live", error=str(exc))
 
+    def send(
+        self,
+        *,
+        to_email: str,
+        subject: str,
+        body_text: str,
+        to_name: str = "",
+        html_body: str | None = None,
+    ) -> EmailResult:
+        """Compatibility wrapper used by interview scheduling."""
+        return self.send_email(
+            to_email=to_email,
+            to_name=to_name or to_email,
+            subject=subject,
+            html_body=html_body or body_text.replace("\n", "<br>"),
+            text_body=body_text,
+        )
+
 
 email_service = EmailService()

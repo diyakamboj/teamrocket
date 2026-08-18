@@ -2,31 +2,86 @@ from collections import Counter
 from typing import Any
 from uuid import UUID
 
+from app.services.analytics_scope import job_evaluated_population
 from app.services.azure_services import openai_service
+from app.services.jd_optimizer import LOW_SCORE_CUTOFF, jd_optimizer
+from app.services.job_pipeline_service import job_candidate_sources, job_pipeline_progression
 from app.storage.store import Store
 from app.utils.error_handlers import NotFoundError
+from app.utils.validators import has_normalized_skill, normalized_skill_set, skill_text
 
 
 class HiringInsightsService:
+    def _skill_coverage(self, job, evaluations, candidates_by_id) -> list[dict[str, Any]]:
+        """Drop-off attribution per required/nice-to-have skill.
+
+        Population: job-scoped evaluated candidates. Coverage uses the same
+        normalize_skill membership as CandidateMatcher._jaccard.
+        """
+        total = len(evaluations)
+        if total == 0:
+            return []
+
+        ordered: list[tuple[str, bool]] = []
+        seen: set[str] = set()
+        for raw, is_must in (
+            *[(skill, True) for skill in (job.required_skills or [])],
+            *[(skill, False) for skill in (job.nice_to_have_skills or [])],
+        ):
+            skill = skill_text(raw)
+            key = skill.lower().strip()
+            if not skill or key in seen:
+                continue
+            seen.add(key)
+            ordered.append((skill, is_must))
+
+        coverage: list[dict[str, Any]] = []
+        for skill, is_must in ordered:
+            matching = 0
+            low_without = 0
+            for evaluation in evaluations:
+                candidate = candidates_by_id.get(evaluation.candidate_id)
+                if not candidate:
+                    continue
+                if has_normalized_skill(skill, normalized_skill_set(candidate.skills)):
+                    matching += 1
+                    continue
+                score = float(evaluation.overall_score) if evaluation.overall_score is not None else 0.0
+                if score < LOW_SCORE_CUTOFF:
+                    low_without += 1
+            coverage.append(
+                {
+                    "skill": skill,
+                    "is_must_have": is_must,
+                    "coverage_pct": round((matching / total) * 100, 2) if total else 0.0,
+                    "candidates_matching": matching,
+                    "total_candidates": total,
+                    "low_score_without_skill_pct": round((low_without / total) * 100, 2)
+                    if total
+                    else 0.0,
+                }
+            )
+        return coverage
+
     async def get_insights(self, store: Store, job_id: UUID) -> dict[str, Any]:
         job = store.jobs.get(job_id)
         if not job:
             raise NotFoundError("Job posting not found", {"job_id": str(job_id)})
 
-        evaluations = store.evaluations.list_for_job(job_id)
-        candidates = store.candidates.list_all()
+        evaluations, candidates, candidates_by_id = job_evaluated_population(store, job_id)
 
         skill_counter: Counter[str] = Counter()
         missing_counter: Counter[str] = Counter()
         for candidate in candidates:
             for skill in candidate.skills or []:
-                skill_counter[str(skill)] += 1
+                text = skill_text(skill)
+                if text:
+                    skill_counter[text] += 1
         for evaluation in evaluations:
             for skill in evaluation.missing_skills or []:
-                if isinstance(skill, dict):
-                    missing_counter[str(skill.get("skill") or skill.get("skill_name"))] += 1
-                else:
-                    missing_counter[str(skill)] += 1
+                text = skill_text(skill)
+                if text:
+                    missing_counter[text] += 1
 
         scores = [float(e.overall_score) for e in evaluations if e.overall_score is not None]
         avg_score = round(sum(scores) / len(scores), 2) if scores else 0.0
@@ -38,6 +93,21 @@ class HiringInsightsService:
 
         top_skills = [{"skill": s, "count": c} for s, c in skill_counter.most_common(10)]
         common_missing = [{"skill": s, "count": c} for s, c in missing_counter.most_common(10)]
+        skill_coverage = self._skill_coverage(job, evaluations, candidates_by_id)
+        pipeline_progression = job_pipeline_progression(store, job_id)
+        candidate_sources = job_candidate_sources(candidates)
+
+        jd_optimization = await jd_optimizer.get_optimization(store, job_id, include_summary=False)
+        jd_recommendations = jd_optimization.get("recommendations", [])
+        jd_top_flag = next(
+            (
+                item["classification"]
+                for item in jd_recommendations
+                if item["classification"]
+                in {"too_strict", "under_filtered", "low_signal", "insufficient_data"}
+            ),
+            None,
+        )
 
         prompt = f"""
 Write a short recruiter-facing summary of qualification gaps for role '{job.title}'.
@@ -66,6 +136,11 @@ Keep it under 80 words.
             "average_experience_years": avg_exp,
             "qualification_gaps_summary": gaps_summary,
             "pipeline_status": pipeline,
+            "pipeline_progression": pipeline_progression,
+            "candidate_sources": candidate_sources,
+            "skill_coverage": skill_coverage,
+            "jd_suggestions_count": len(jd_recommendations),
+            "jd_top_flag": jd_top_flag,
         }
 
     async def get_distribution(self, store: Store, job_id: UUID) -> dict[str, Any]:
@@ -73,7 +148,7 @@ Keep it under 80 words.
         if not job:
             raise NotFoundError("Job posting not found", {"job_id": str(job_id)})
 
-        evaluations = store.evaluations.list_for_job(job_id)
+        evaluations, candidates, _candidates_by_id = job_evaluated_population(store, job_id)
         scores = [float(e.overall_score) for e in evaluations if e.overall_score is not None]
 
         buckets = [
@@ -89,7 +164,6 @@ Keep it under 80 words.
         ]
 
         levels = {"Junior": 0, "Mid": 0, "Senior": 0, "Lead": 0}
-        candidates = store.candidates.list_all()
         for candidate in candidates:
             years = candidate.years_of_experience()
             if years < 3:
@@ -105,6 +179,8 @@ Keep it under 80 words.
             "job_id": job_id,
             "score_distribution": distribution,
             "experience_levels": levels,
+            "pipeline_progression": job_pipeline_progression(store, job_id),
+            "candidate_sources": job_candidate_sources(candidates),
         }
 
 

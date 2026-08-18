@@ -71,6 +71,7 @@ class WeightConfig(BaseModel):
     education: float = 0.15
     certifications: float = 0.10
     projects: float = 0.05
+    communication: float = 0.10
 
 
 class RankedCandidate(BaseModel):
@@ -93,6 +94,7 @@ class RankedCandidate(BaseModel):
     source: Optional[str] = None
     employment_status: Optional[str] = None
     current_assignment: Optional[str] = None
+    dimensions: Optional[dict[str, Any]] = None
 
 
 # ---------- Jobs ----------
@@ -156,7 +158,21 @@ class EvidenceResponse(ORMModel):
     resume_text_snippet: Optional[str] = None
     source_section: Optional[str] = None
     confidence_score: Optional[Decimal] = None
+    dimension: Optional[str] = None
     created_at: datetime
+
+
+class DimensionDetail(BaseModel):
+    score: float
+    explanation: str
+    evidence: list[EvidenceResponse] = Field(default_factory=list)
+
+
+class CandidateDimensions(BaseModel):
+    overall_fit: DimensionDetail
+    technical_skills: DimensionDetail
+    communication: DimensionDetail
+    role_alignment: DimensionDetail
 
 
 class EvaluationResponse(ORMModel):
@@ -169,14 +185,19 @@ class EvaluationResponse(ORMModel):
     education_match_score: Optional[Decimal] = None
     certification_match_score: Optional[Decimal] = None
     project_match_score: Optional[Decimal] = None
+    technical_skills_score: Optional[Decimal] = None
+    communication_score: Optional[Decimal] = None
+    role_alignment_score: Optional[Decimal] = None
     matched_skills: Optional[list[Any]] = None
     missing_skills: Optional[list[Any]] = None
     strengths: Optional[str] = None
     weaknesses: Optional[str] = None
     transferable_skills: Optional[str] = None
     blind_review_mode: bool = False
+    pipeline_stage: Optional[str] = "screened"
     created_at: datetime
     evidence: list[EvidenceResponse] = Field(default_factory=list)
+    dimensions: Optional[CandidateDimensions] = None
 
 
 class CompareRequest(BaseModel):
@@ -263,6 +284,15 @@ class ScoreBucket(BaseModel):
     count: int
 
 
+class SkillCoverage(BaseModel):
+    skill: str
+    is_must_have: bool
+    coverage_pct: float
+    candidates_matching: int
+    total_candidates: int
+    low_score_without_skill_pct: float
+
+
 class DashboardInsights(BaseModel):
     job_id: UUID
     total_candidates: int
@@ -273,12 +303,53 @@ class DashboardInsights(BaseModel):
     average_experience_years: float
     qualification_gaps_summary: str
     pipeline_status: dict[str, int]
+    pipeline_progression: dict[str, int] = Field(default_factory=dict)
+    candidate_sources: dict[str, int] = Field(default_factory=dict)
+    skill_coverage: list[SkillCoverage] = Field(default_factory=list)
+    jd_suggestions_count: int = 0
+    jd_top_flag: Optional[str] = None
+
+
+class JDRecommendation(BaseModel):
+    id: UUID
+    skill: str
+    is_must_have: bool
+    coverage_pct: float
+    candidates_matching: int
+    total_candidates: int
+    classification: Literal[
+        "too_strict",
+        "low_signal",
+        "under_filtered",
+        "balanced",
+        "insufficient_data",
+    ]
+    suggested_modification: str
+    supporting_data: dict[str, Any] = Field(default_factory=dict)
+    status: Literal["pending", "accepted", "rejected", "modified"] = "pending"
+    recruiter_note: Optional[str] = None
+
+
+class JDOptimizationResponse(BaseModel):
+    job_id: UUID
+    job_title: str
+    recommendations: list[JDRecommendation]
+    summary: str
+    generated_at: datetime
+    empty_reason: Optional[str] = None
+
+
+class JDRecommendationDecisionRequest(BaseModel):
+    status: Literal["accepted", "rejected", "modified"]
+    note: Optional[str] = None
 
 
 class DashboardDistribution(BaseModel):
     job_id: UUID
     score_distribution: list[ScoreBucket]
     experience_levels: dict[str, int]
+    pipeline_progression: dict[str, int] = Field(default_factory=dict)
+    candidate_sources: dict[str, int] = Field(default_factory=dict)
 
 
 # ---------- Top-level recruiter dashboard: job listings & pipeline ----------

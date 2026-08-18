@@ -1,11 +1,10 @@
 import { useState } from "react";
 import { ChevronDown, RotateCw } from "lucide-react";
-import ReactMarkdown from "react-markdown";
-import remarkGfm from "remark-gfm";
 import { Button } from "@/components/ui/button";
 import type { ChatMessage } from "@/lib/copilot-state";
 import { cn } from "@/lib/utils";
 import { AttachmentChip } from "./attachment-chip";
+import { CopilotMarkdown } from "./markdown";
 import { ResultRenderer } from "./structured/result-renderer";
 import { ToolIndicator } from "./tool-indicator";
 import { SpeakButton } from "./voice/speak-button";
@@ -50,9 +49,7 @@ export function MessageBubble({
         {isUser ? (
           <p className="whitespace-pre-wrap">{message.text}</p>
         ) : (
-          <div className="prose prose-sm max-w-none dark:prose-invert prose-p:my-1.5 prose-ul:my-1.5 prose-headings:my-2 prose-strong:text-foreground">
-            <ReactMarkdown remarkPlugins={[remarkGfm]}>{message.text}</ReactMarkdown>
-          </div>
+          <CopilotMarkdown text={message.text} />
         )}
 
         {message.attachments && message.attachments.length > 0 && (

@@ -11,7 +11,7 @@ import re
 from typing import Any, Mapping, Optional
 from pydantic import BaseModel, Field
 
-from app.services import evidence_tracker
+from app.services.evidence_tracker import evidence_tracker
 
 TOP_MATCH_MIN_SCORE = 80.0
 TOP_MATCH_MIN_SKILL_SCORE = 75.0

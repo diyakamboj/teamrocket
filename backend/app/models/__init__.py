@@ -10,6 +10,7 @@ from app.models.evaluation import (
 )
 from app.models.handoff import CandidateHistoryEvent, InterviewHandoff
 from app.models.interview import InterviewProposal, ScheduledInterview, TimeSlot
+from app.models.jd_recommendation import JDRecommendationRecord
 from app.models.job_posting import JobPosting
 from app.models.readiness import AssessmentRecommendation, CandidateAssessmentRecord
 
@@ -30,6 +31,6 @@ __all__ = [
     "TimeSlot",
     "AssessmentRecommendation",
     "CandidateAssessmentRecord",
+    "JDRecommendationRecord",
 ]
-
 
