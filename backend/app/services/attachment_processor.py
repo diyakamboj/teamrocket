@@ -39,7 +39,7 @@ def extract_attachment_text(file_bytes: bytes, filename: str) -> str:
 def classify_and_summarize(text: str) -> dict[str, Any]:
     if openai_service.mock:
         return {"kind": "unknown", "summary": text[:140]}
-    result = openai_service.chat_json(text[:4000], system=CLASSIFY_SYSTEM, temperature=0)
+    result = openai_service.chat_json_or_empty(text[:4000], system=CLASSIFY_SYSTEM, temperature=0)
     kind = str(result.get("kind") or "unknown")
     if kind not in ATTACHMENT_KINDS:
         kind = "unknown"

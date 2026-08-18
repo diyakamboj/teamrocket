@@ -549,7 +549,9 @@ role_alignment_explanation (string),
 overall_fit_explanation (string),
 dimensions (object with the four keys above containing short explanations).
 """
-        result = openai_service.chat_json(prompt, temperature=0.3)
+        # Falls back to the deterministic matched/missing-skill computation
+        # below when Azure is unreachable.
+        result = openai_service.chat_json_or_empty(prompt, temperature=0.3)
 
         # Deterministic fallbacks when model output is incomplete
         cand_skills = {normalize_skill(str(s)): str(s) for s in (candidate.skills or [])}

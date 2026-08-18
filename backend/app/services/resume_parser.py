@@ -27,7 +27,9 @@ class ResumeParser:
     async def parse_resume(self, resume_text: str) -> dict[str, Any]:
         if not openai_service.mock:
             prompt = f'Resume text:\n"""\n{resume_text[:40000]}\n"""'
-            parsed = openai_service.chat_json(
+            # Empty on failure -> no skills -> falls through to the
+            # heuristic parse below rather than failing the upload.
+            parsed = openai_service.chat_json_or_empty(
                 prompt,
                 system=RESUME_SYSTEM_PROMPT,
                 temperature=0,
@@ -265,7 +267,7 @@ LinkedIn URL: {linkedin_url or "N/A"}
                 "inferred_skills": ["Python", "Cloud"] if github_url or linkedin_url else [],
                 "notes": "Mock enrichment (set USE_MOCK_AZURE=false for live model calls).",
             }
-        return openai_service.chat_json(prompt, temperature=0.2)
+        return openai_service.chat_json_or_empty(prompt, temperature=0.2)
 
 
 resume_parser = ResumeParser()

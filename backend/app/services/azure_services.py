@@ -218,6 +218,34 @@ class AzureOpenAIService:
         content = self.chat_text(prompt, system=system, temperature=temperature, deployment=deployment)
         return self._safe_json(content)
 
+    def chat_json_or_empty(
+        self,
+        prompt: str,
+        *,
+        system: str = "You are a helpful recruiting assistant. Return valid JSON only.",
+        temperature: float = 0.3,
+        deployment: Optional[str] = None,
+    ) -> dict[str, Any]:
+        """`chat_json`, but returns {} instead of raising when Azure is
+        unreachable or errors.
+
+        Every caller of this already treats a missing key as "fall back to the
+        deterministic result" (keyword scoring, heuristic JD parsing, and so
+        on). Letting the exception escape instead turns a transient Azure
+        outage into a 500 on core screening endpoints, which is exactly the
+        graceful-degradation guarantee the AI seams are supposed to keep. The
+        failure is logged rather than swallowed silently.
+        """
+        try:
+            return self.chat_json(
+                prompt, system=system, temperature=temperature, deployment=deployment
+            )
+        except AzureServiceError as exc:
+            logger.warning(
+                "Azure OpenAI unavailable, falling back to deterministic logic: %s", exc
+            )
+            return {}
+
     def chat_text(
         self,
         prompt: str,
