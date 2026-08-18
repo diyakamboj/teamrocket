@@ -46,6 +46,23 @@ def init_db() -> None:
         with engine.begin() as conn:
             conn.execute(text('CREATE EXTENSION IF NOT EXISTS "pgcrypto"'))
     # Import models so metadata is populated
-    from app.models import candidate, evaluation, job_posting  # noqa: F401
+    from app.models import candidate, evaluation, job_posting, jd_recommendation  # noqa: F401
 
     Base.metadata.create_all(bind=engine)
+    _ensure_sqlite_columns()
+
+
+def _ensure_sqlite_columns() -> None:
+    """Add new columns to an existing local SQLite file (create_all will not)."""
+    if engine.dialect.name != "sqlite":
+        return
+    statements = (
+        "ALTER TABLE evaluations ADD COLUMN pipeline_stage VARCHAR(32) DEFAULT 'screened'",
+        "ALTER TABLE candidates ADD COLUMN source VARCHAR(32) DEFAULT 'resume_upload'",
+    )
+    with engine.begin() as conn:
+        for statement in statements:
+            try:
+                conn.execute(text(statement))
+            except Exception:
+                continue

@@ -1,6 +1,6 @@
 import re
 from pathlib import Path
-from typing import Iterable
+from typing import Any, Iterable
 
 ALLOWED_RESUME_EXTENSIONS = {".pdf", ".docx", ".doc", ".txt", ".png", ".jpg", ".jpeg"}
 MAX_RESUME_SIZE_BYTES = 15 * 1024 * 1024  # 15 MB
@@ -30,6 +30,37 @@ def redact_pii(text: str) -> str:
 
 def normalize_skill(skill: str) -> str:
     return re.sub(r"\s+", " ", skill.strip().lower())
+
+
+def skill_text(value: Any) -> str:
+    """Extract a skill name from a string or {skill/skill_name/...} dict."""
+    if isinstance(value, dict):
+        return str(
+            value.get("skill")
+            or value.get("skill_name")
+            or value.get("name")
+            or value.get("label")
+            or ""
+        ).strip()
+    if value is None:
+        return ""
+    return str(value).strip()
+
+
+def normalized_skill_set(skills: Iterable[Any] | None) -> set[str]:
+    """Same membership keys CandidateMatcher._jaccard uses after normalize_skill."""
+    result: set[str] = set()
+    for item in skills or []:
+        text = skill_text(item)
+        if text:
+            result.add(normalize_skill(text))
+    return result
+
+
+def has_normalized_skill(requirement: str, candidate_skills: set[str]) -> bool:
+    """True when the requirement is present under CandidateMatcher skill-normalization."""
+    key = normalize_skill(requirement)
+    return bool(key) and key in candidate_skills
 
 
 def unique_normalized(items: Iterable[str]) -> list[str]:

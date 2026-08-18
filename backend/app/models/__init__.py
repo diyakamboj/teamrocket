@@ -7,6 +7,7 @@ from app.models.evaluation import (
     Evidence,
     ResumeUpload,
 )
+from app.models.jd_recommendation import JDRecommendationRecord
 from app.models.job_posting import JobPosting
 
 __all__ = [
@@ -18,4 +19,5 @@ __all__ = [
     "AgentSession",
     "ResumeUpload",
     "CandidateDecision",
+    "JDRecommendationRecord",
 ]

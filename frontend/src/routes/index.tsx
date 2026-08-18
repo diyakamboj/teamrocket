@@ -1,4 +1,4 @@
-import { createFileRoute, Link } from "@tanstack/react-router";
+import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useEffect, useMemo, useState } from "react";
 import {
   Bar,
@@ -22,15 +22,21 @@ import {
   TrendingUp,
   Users,
 } from "lucide-react";
+import { toast } from "sonner";
 import { useAppState } from "@/lib/app-state";
 import {
+  decideJdRecommendation,
+  getDashboardDistribution,
   getDashboardInsights,
   getJdOptimization,
+  type DashboardDistribution,
   type DashboardInsights,
   type JDOptimizationResponse,
-  type JDSuggestion,
+  type JDRecommendation,
 } from "@/lib/api";
 import { cn } from "@/lib/utils";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import {
   CANDIDATES,
   EXPERIENCE_BREAKDOWN,
@@ -57,6 +63,22 @@ export const Route = createFileRoute("/")({
   }),
   component: Dashboard,
 });
+
+const PIPELINE_STAGES = [
+  "applied",
+  "screened",
+  "interviewing",
+  "offered",
+  "hired",
+  "rejected",
+] as const;
+
+const SOURCE_LABELS: Record<string, string> = {
+  resume_upload: "Resume upload",
+  referral: "Referral",
+  job_board: "Job board",
+  linkedin: "LinkedIn",
+};
 
 function StatCard({
   icon: Icon,
@@ -112,7 +134,7 @@ const tooltipStyle = {
 };
 
 const CLASSIFICATION_META: Record<
-  JDSuggestion["classification"],
+  JDRecommendation["classification"],
   { label: string; icon: typeof CircleAlert; className: string }
 > = {
   too_strict: {
@@ -142,7 +164,7 @@ const CLASSIFICATION_META: Record<
   },
 };
 
-function classificationPriority(value: JDSuggestion["classification"]) {
+function classificationPriority(value: JDRecommendation["classification"]) {
   switch (value) {
     case "too_strict":
       return 0;
@@ -157,13 +179,42 @@ function classificationPriority(value: JDSuggestion["classification"]) {
   }
 }
 
+function dictChart(
+  values: Record<string, number> | undefined,
+  order: readonly string[],
+  labels?: Record<string, string>,
+) {
+  return order.map((key) => ({
+    key,
+    label: labels?.[key] ?? key.replaceAll("_", " "),
+    count: values?.[key] ?? 0,
+  }));
+}
+
 function Dashboard() {
+  const navigate = useNavigate();
   const { weights, activeJobId, backendReady, setActiveJobId } = useAppState();
   const ranked = useMemo(() => rankCandidates(CANDIDATES, weights), [weights]);
   const avg = Math.round(ranked.reduce((s, c) => s + c.score, 0) / ranked.length);
   const buckets = useMemo(() => scoreBuckets(ranked), [ranked]);
   const [insights, setInsights] = useState<DashboardInsights | null>(null);
+  const [distribution, setDistribution] = useState<DashboardDistribution | null>(null);
   const [optimization, setOptimization] = useState<JDOptimizationResponse | null>(null);
+  const [modifyingId, setModifyingId] = useState<string | null>(null);
+  const [modifyNote, setModifyNote] = useState("");
+  const [pendingId, setPendingId] = useState<string | null>(null);
+
+  async function reloadAnalytics() {
+    if (!backendReady || !activeJobId) return;
+    const [nextInsights, nextOptimization, nextDistribution] = await Promise.all([
+      getDashboardInsights(activeJobId),
+      getJdOptimization(activeJobId),
+      getDashboardDistribution(activeJobId),
+    ]);
+    setInsights(nextInsights);
+    setOptimization(nextOptimization);
+    setDistribution(nextDistribution);
+  }
 
   useEffect(() => {
     let cancelled = false;
@@ -172,21 +223,25 @@ function Dashboard() {
       if (!backendReady || !activeJobId) {
         setInsights(null);
         setOptimization(null);
+        setDistribution(null);
         return;
       }
 
       try {
-        const [nextInsights, nextOptimization] = await Promise.all([
+        const [nextInsights, nextOptimization, nextDistribution] = await Promise.all([
           getDashboardInsights(activeJobId),
           getJdOptimization(activeJobId),
+          getDashboardDistribution(activeJobId),
         ]);
         if (cancelled) return;
         setInsights(nextInsights);
         setOptimization(nextOptimization);
+        setDistribution(nextDistribution);
       } catch {
         if (!cancelled) {
           setInsights(null);
           setOptimization(null);
+          setDistribution(null);
         }
       }
     }
@@ -197,23 +252,65 @@ function Dashboard() {
     };
   }, [activeJobId, backendReady]);
 
-  const suggestions = useMemo(
+  const recommendations = useMemo(
     () =>
-      [...(optimization?.suggestions ?? [])].sort(
+      [...(optimization?.recommendations ?? [])].sort(
         (a, b) =>
           classificationPriority(a.classification) - classificationPriority(b.classification) ||
           a.coverage_pct - b.coverage_pct,
       ),
     [optimization],
   );
+  const feed = useMemo(
+    () => recommendations.filter((item) => item.status === "pending"),
+    [recommendations],
+  );
   const coverageData = useMemo(
-    () => [...suggestions].sort((a, b) => a.coverage_pct - b.coverage_pct),
-    [suggestions],
+    () => [...recommendations].sort((a, b) => a.coverage_pct - b.coverage_pct),
+    [recommendations],
+  );
+  const pipelineData = useMemo(
+    () => dictChart(distribution?.pipeline_progression ?? insights?.pipeline_progression, PIPELINE_STAGES),
+    [distribution, insights],
+  );
+  const sourceData = useMemo(
+    () =>
+      dictChart(
+        distribution?.candidate_sources ?? insights?.candidate_sources,
+        ["resume_upload", "referral", "job_board", "linkedin"],
+        SOURCE_LABELS,
+      ),
+    [distribution, insights],
   );
   const summary = optimization?.summary?.trim() ?? "";
-  const needsJobAnalysis = summary.toLowerCase().startsWith("analyze the job description first");
-  const emptySuggestions = suggestions.length === 0;
-  const topFlag = insights?.jd_top_flag as JDSuggestion["classification"] | null | undefined;
+  const emptyReason = optimization?.empty_reason;
+  const emptyFeed = feed.length === 0;
+  const topFlag = insights?.jd_top_flag as JDRecommendation["classification"] | null | undefined;
+
+  async function decide(
+    item: JDRecommendation,
+    status: "accepted" | "rejected" | "modified",
+    note?: string,
+  ) {
+    if (!activeJobId) return;
+    setPendingId(item.id);
+    try {
+      await decideJdRecommendation(activeJobId, item.id, { status, note });
+      await reloadAnalytics();
+      if (status === "rejected") {
+        toast.success(`Dismissed ${item.skill}`);
+      } else {
+        setActiveJobId(activeJobId);
+        await navigate({ to: "/job-analysis", search: { highlight: item.skill } });
+      }
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Could not save that decision");
+    } finally {
+      setPendingId(null);
+      setModifyingId(null);
+      setModifyNote("");
+    }
+  }
 
   return (
     <div className="mx-auto max-w-7xl space-y-6">
@@ -221,7 +318,7 @@ function Dashboard() {
         <div className="min-w-0">
           <h1 className="truncate text-2xl font-extrabold sm:text-3xl">Hiring Insights</h1>
           <p className="mt-1 text-sm text-muted-foreground">
-            Senior Backend Engineer · pipeline snapshot
+            {optimization?.job_title || "Senior Backend Engineer"} · pipeline snapshot
           </p>
         </div>
         <Link
@@ -233,21 +330,31 @@ function Dashboard() {
       </header>
 
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        <StatCard icon={Users} label="Total candidates" value={String(ranked.length)} delta="12%" />
-        <StatCard icon={Gauge} label="Average match score" value={`${avg}`} delta="4 pts" />
+        <StatCard
+          icon={Users}
+          label="Evaluated candidates"
+          value={String(insights?.evaluated_candidates ?? ranked.length)}
+          delta="job-scoped"
+        />
+        <StatCard
+          icon={Gauge}
+          label="Average match score"
+          value={`${insights?.average_score ?? avg}`}
+          delta="4 pts"
+        />
         <StatCard
           icon={Brain}
-          label={`Top skill · ${SKILL_DISTRIBUTION[0]!.skill}`}
-          value={`${SKILL_DISTRIBUTION[0]!.count}`}
+          label={`Top skill · ${insights?.top_skills?.[0]?.skill ?? SKILL_DISTRIBUTION[0]!.skill}`}
+          value={`${insights?.top_skills?.[0]?.count ?? SKILL_DISTRIBUTION[0]!.count}`}
           delta="8%"
         />
         <StatCard icon={FileCheck2} label="Resumes processed" value="1,486" delta="230 today" />
       </div>
 
       <div className="grid gap-4 lg:grid-cols-2">
-        <ChartCard title="Skill distribution" subtitle="Candidates per detected skill">
+        <ChartCard title="Skill distribution" subtitle="Candidates per detected skill (this job)">
           <ResponsiveContainer width="100%" height="100%">
-            <BarChart data={SKILL_DISTRIBUTION.slice(0, 10)}>
+            <BarChart data={(insights?.top_skills?.length ? insights.top_skills : SKILL_DISTRIBUTION).slice(0, 10)}>
               <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="var(--border)" />
               <XAxis dataKey="skill" tick={{ fontSize: 11 }} stroke="var(--muted-foreground)" />
               <YAxis tick={{ fontSize: 11 }} stroke="var(--muted-foreground)" />
@@ -259,13 +366,13 @@ function Dashboard() {
 
         <ChartCard title="Score distribution" subtitle="Candidates per match-score band">
           <ResponsiveContainer width="100%" height="100%">
-            <BarChart data={buckets}>
+            <BarChart data={distribution?.score_distribution?.length ? distribution.score_distribution : buckets}>
               <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="var(--border)" />
               <XAxis dataKey="bucket" tick={{ fontSize: 11 }} stroke="var(--muted-foreground)" />
               <YAxis tick={{ fontSize: 11 }} stroke="var(--muted-foreground)" />
               <Tooltip contentStyle={tooltipStyle} cursor={{ fill: "var(--muted)" }} />
               <Bar dataKey="count" radius={[8, 8, 0, 0]}>
-                {buckets.map((_, i) => (
+                {(distribution?.score_distribution ?? buckets).map((_, i) => (
                   <Cell key={i} fill={i >= 3 ? "var(--chart-1)" : "var(--chart-2)"} />
                 ))}
               </Bar>
@@ -275,9 +382,16 @@ function Dashboard() {
       </div>
 
       <div className="grid gap-4 lg:grid-cols-2">
-        <ChartCard title="Experience levels" subtitle="Seniority breakdown of the pool">
+        <ChartCard title="Experience levels" subtitle="Seniority breakdown of evaluated candidates">
           <ResponsiveContainer width="100%" height="100%">
-            <BarChart data={EXPERIENCE_BREAKDOWN} layout="vertical">
+            <BarChart
+              data={
+                distribution?.experience_levels
+                  ? Object.entries(distribution.experience_levels).map(([level, count]) => ({ level, count }))
+                  : EXPERIENCE_BREAKDOWN
+              }
+              layout="vertical"
+            >
               <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="var(--border)" />
               <XAxis type="number" tick={{ fontSize: 11 }} stroke="var(--muted-foreground)" />
               <YAxis
@@ -343,6 +457,38 @@ function Dashboard() {
         </ChartCard>
       </div>
 
+      <div className="grid gap-4 lg:grid-cols-2">
+        <ChartCard title="Pipeline progression" subtitle="Hiring-process stage, not score buckets">
+          <ResponsiveContainer width="100%" height="100%">
+            <BarChart data={pipelineData} layout="vertical">
+              <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="var(--border)" />
+              <XAxis type="number" allowDecimals={false} tick={{ fontSize: 11 }} stroke="var(--muted-foreground)" />
+              <YAxis
+                type="category"
+                dataKey="label"
+                width={90}
+                tick={{ fontSize: 11 }}
+                stroke="var(--muted-foreground)"
+              />
+              <Tooltip contentStyle={tooltipStyle} cursor={{ fill: "var(--muted)" }} />
+              <Bar dataKey="count" radius={[0, 8, 8, 0]} fill="var(--chart-1)" />
+            </BarChart>
+          </ResponsiveContainer>
+        </ChartCard>
+
+        <ChartCard title="Candidate sources" subtitle="Where evaluated candidates entered the pipeline">
+          <ResponsiveContainer width="100%" height="100%">
+            <BarChart data={sourceData}>
+              <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="var(--border)" />
+              <XAxis dataKey="label" tick={{ fontSize: 11 }} stroke="var(--muted-foreground)" />
+              <YAxis allowDecimals={false} tick={{ fontSize: 11 }} stroke="var(--muted-foreground)" />
+              <Tooltip contentStyle={tooltipStyle} cursor={{ fill: "var(--muted)" }} />
+              <Bar dataKey="count" radius={[8, 8, 0, 0]} fill="var(--chart-2)" />
+            </BarChart>
+          </ResponsiveContainer>
+        </ChartCard>
+      </div>
+
       <div className="card-surface p-6">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div className="flex items-center gap-2 text-primary-soft-foreground">
@@ -361,33 +507,38 @@ function Dashboard() {
               </span>
             ) : null}
             <span className="rounded-full bg-secondary px-2.5 py-0.5 text-[11px] font-semibold text-muted-foreground">
-              {insights?.jd_suggestions_count ?? suggestions.length} suggestions
+              {feed.length} pending
             </span>
           </div>
         </div>
 
-        <h2 className="mt-3 text-lg font-bold">JD Optimization</h2>
+        <h2 className="mt-3 text-lg font-bold">Recommendations</h2>
 
         {summary ? <p className="mt-3 text-sm leading-relaxed text-muted-foreground">{summary}</p> : null}
 
-        {emptySuggestions ? (
+        {emptyFeed ? (
           <div className="mt-4 rounded-xl border border-dashed px-4 py-5 text-center text-sm text-muted-foreground">
-            {needsJobAnalysis
+            {emptyReason === "no_required_skills"
               ? "Visit Job Description Analysis first to extract requirements."
-              : "Run some candidates through screening to see JD suggestions."}
+              : emptyReason === "no_evaluations" || recommendations.length === 0
+                ? "Run some candidates through screening to see recommendations."
+                : "No pending recommendations — prior decisions are saved."}
           </div>
         ) : (
           <div className="mt-4 space-y-3">
-            {suggestions.map((item) => {
+            {feed.map((item) => {
               const meta = CLASSIFICATION_META[item.classification];
               const Icon = meta.icon;
+              const dropOff = Number(item.supporting_data["low_score_without_skill_pct"] ?? 0);
               return (
-                <div key={item.skill} className="rounded-2xl border bg-background/70 p-4 shadow-sm">
+                <div key={item.id} className="rounded-2xl border bg-background/70 p-4 shadow-sm">
                   <div className="flex flex-wrap items-start justify-between gap-3">
                     <div className="min-w-0">
                       <p className="truncate text-sm font-semibold">{item.skill}</p>
                       <p className="mt-1 text-xs tabular-nums text-muted-foreground">
-                        {item.candidates_matching}/{item.total_candidates} candidates ({item.coverage_pct.toFixed(1)}%)
+                        {item.candidates_matching}/{item.total_candidates} candidates (
+                        {item.coverage_pct.toFixed(1)}%)
+                        {item.total_candidates >= 10 ? ` · ${dropOff.toFixed(0)}% low-score without it` : ""}
                       </p>
                     </div>
                     <span
@@ -408,16 +559,76 @@ function Dashboard() {
                     />
                   </div>
 
-                  <p className="mt-3 text-sm leading-relaxed text-muted-foreground">{item.suggestion}</p>
+                  <p className="mt-3 text-sm leading-relaxed text-muted-foreground">
+                    {item.suggested_modification}
+                  </p>
 
-                  <Link
-                    to="/job-analysis"
-                    onClick={() => setActiveJobId(activeJobId)}
-                    className="mt-3 inline-flex items-center gap-1 rounded-full bg-primary-soft px-3 py-1.5 text-xs font-semibold text-primary-soft-foreground transition-opacity hover:opacity-90"
-                  >
-                    Review in Job Description
-                    <ArrowUpRight className="h-3.5 w-3.5" />
-                  </Link>
+                  {modifyingId === item.id ? (
+                    <form
+                      className="mt-3 flex flex-col gap-2 sm:flex-row"
+                      onSubmit={(event) => {
+                        event.preventDefault();
+                        void decide(item, "modified", modifyNote.trim() || undefined);
+                      }}
+                    >
+                      <Input
+                        value={modifyNote}
+                        onChange={(event) => setModifyNote(event.target.value)}
+                        placeholder="Note the intended JD change"
+                        className="rounded-xl text-sm"
+                      />
+                      <div className="flex gap-2">
+                        <Button type="submit" size="sm" className="rounded-xl" disabled={pendingId === item.id}>
+                          Save &amp; edit JD
+                        </Button>
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="outline"
+                          className="rounded-xl"
+                          onClick={() => {
+                            setModifyingId(null);
+                            setModifyNote("");
+                          }}
+                        >
+                          Cancel
+                        </Button>
+                      </div>
+                    </form>
+                  ) : (
+                    <div className="mt-3 flex flex-wrap gap-2">
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="rounded-xl"
+                        disabled={pendingId === item.id}
+                        onClick={() => void decide(item, "accepted")}
+                      >
+                        Accept
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="rounded-xl"
+                        disabled={pendingId === item.id}
+                        onClick={() => void decide(item, "rejected")}
+                      >
+                        Reject
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="rounded-xl"
+                        disabled={pendingId === item.id}
+                        onClick={() => {
+                          setModifyingId(item.id);
+                          setModifyNote("");
+                        }}
+                      >
+                        Modify
+                      </Button>
+                    </div>
+                  )}
                 </div>
               );
             })}

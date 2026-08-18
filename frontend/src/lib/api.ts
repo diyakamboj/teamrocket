@@ -137,11 +137,34 @@ export type DashboardInsights = {
   average_experience_years: number;
   qualification_gaps_summary: string;
   pipeline_status: Record<string, number>;
+  pipeline_progression: Record<string, number>;
+  candidate_sources: Record<string, number>;
+  skill_coverage: SkillCoverage[];
   jd_suggestions_count: number;
   jd_top_flag?: string | null;
 };
 
-export type JDSuggestion = {
+export type SkillCoverage = {
+  skill: string;
+  is_must_have: boolean;
+  coverage_pct: number;
+  candidates_matching: number;
+  total_candidates: number;
+  low_score_without_skill_pct: number;
+};
+
+export type DashboardDistribution = {
+  job_id: string;
+  score_distribution: { bucket: string; count: number }[];
+  experience_levels: Record<string, number>;
+  pipeline_progression: Record<string, number>;
+  candidate_sources: Record<string, number>;
+};
+
+export type JDRecommendationStatus = "pending" | "accepted" | "rejected" | "modified";
+
+export type JDRecommendation = {
+  id: string;
   skill: string;
   is_must_have: boolean;
   coverage_pct: number;
@@ -153,23 +176,45 @@ export type JDSuggestion = {
     | "under_filtered"
     | "balanced"
     | "insufficient_data";
-  suggestion: string;
+  suggested_modification: string;
+  supporting_data: Record<string, unknown>;
+  status: JDRecommendationStatus;
+  recruiter_note?: string | null;
 };
 
 export type JDOptimizationResponse = {
   job_id: string;
   job_title: string;
-  suggestions: JDSuggestion[];
+  recommendations: JDRecommendation[];
   summary: string;
   generated_at: string;
+  empty_reason?: string | null;
 };
 
 export async function getDashboardInsights(jobId: string): Promise<DashboardInsights> {
   return request<DashboardInsights>(`/api/dashboard/job/${jobId}/insights`);
 }
 
+export async function getDashboardDistribution(jobId: string): Promise<DashboardDistribution> {
+  return request<DashboardDistribution>(`/api/dashboard/job/${jobId}/distribution`);
+}
+
 export async function getJdOptimization(jobId: string): Promise<JDOptimizationResponse> {
   return request<JDOptimizationResponse>(`/api/dashboard/job/${jobId}/jd-optimization`);
+}
+
+export async function decideJdRecommendation(
+  jobId: string,
+  recommendationId: string,
+  payload: { status: Exclude<JDRecommendationStatus, "pending">; note?: string },
+): Promise<JDRecommendation> {
+  return request<JDRecommendation>(
+    `/api/dashboard/job/${jobId}/jd-optimization/${recommendationId}/decision`,
+    {
+      method: "POST",
+      body: JSON.stringify(payload),
+    },
+  );
 }
 
 export async function analyzeJobDescriptionApi(input: {
