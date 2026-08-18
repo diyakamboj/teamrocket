@@ -52,6 +52,9 @@ class Evaluation(Base):
     weaknesses: Mapped[Optional[str]] = mapped_column(Text)
     transferable_skills: Mapped[Optional[str]] = mapped_column(Text)
     blind_review_mode: Mapped[bool] = mapped_column(Boolean, default=False)
+    # Hiring-process stage (not a score bucket). ResumeIQ currently only auto-tracks
+    # screening, so new evaluations default to "screened".
+    pipeline_stage: Mapped[Optional[str]] = mapped_column(String(32), default="screened")
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=False), server_default=func.now()
     )

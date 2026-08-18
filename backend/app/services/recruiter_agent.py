@@ -11,6 +11,8 @@ from app.services.azure_services import openai_service
 from app.services.candidate_comparison import candidate_comparison
 from app.services.candidate_matcher import candidate_matcher
 from app.services.chatbot_client import chatbot_client
+from app.services.hiring_insights import hiring_insights
+from app.services.jd_optimizer import jd_optimizer
 from app.utils.error_handlers import NotFoundError
 from app.utils.logger import get_logger
 
@@ -86,7 +88,24 @@ class RecruiterCopilot:
             db.flush()
 
         history = list(session.messages or [])
-        context_block = self._build_context(job, ranked, top, user_query)
+        analytics_intent = self._extract_analytics_query(user_query)
+        insights: dict[str, Any] = {}
+        optimization: dict[str, Any] = {}
+        try:
+            insights = await hiring_insights.get_insights(db, job.id)
+            if analytics_intent:
+                optimization = await self.analyze_jd_requirements(db, job.id)
+        except Exception as exc:
+            logger.warning("Analytics context unavailable: %s", exc)
+        context_block = self._build_context(
+            job,
+            ranked,
+            top,
+            user_query,
+            insights=insights,
+            optimization=optimization,
+            analytics_intent=analytics_intent,
+        )
 
         # Prefer Chat-with-Your-Data accelerator when available
         source = "local"
@@ -159,6 +178,10 @@ class RecruiterCopilot:
             "job_id": job.id,
         }
 
+    async def analyze_jd_requirements(self, db: Session, job_id: UUID) -> dict[str, Any]:
+        """Agent entry point for JD calibration — same payload the dashboard renders."""
+        return await jd_optimizer.get_optimization(db, job_id)
+
     def list_sessions(self, db: Session, recruiter_email: Optional[str] = None) -> list[AgentSession]:
         query = db.query(AgentSession).order_by(AgentSession.updated_at.desc())
         if recruiter_email:
@@ -171,6 +194,10 @@ class RecruiterCopilot:
         ranked: list[dict[str, Any]],
         top: list[dict[str, Any]],
         user_query: str,
+        *,
+        insights: Optional[dict[str, Any]] = None,
+        optimization: Optional[dict[str, Any]] = None,
+        analytics_intent: bool = False,
     ) -> str:
         compact_top = []
         for item in top:
@@ -184,6 +211,30 @@ class RecruiterCopilot:
                     "role_alignment": (dimensions.get("role_alignment") or {}).get("score"),
                 }
             )
+
+        coverage_lines: list[str] = []
+        for item in (optimization or {}).get("recommendations") or (insights or {}).get("skill_coverage") or []:
+            coverage_lines.append(
+                f"- {item.get('skill')}: {item.get('coverage_pct')}% "
+                f"({item.get('candidates_matching')}/{item.get('total_candidates')})"
+                f"{' MUST' if item.get('is_must_have') else ' nice-to-have'}"
+                f" [{item.get('classification', '')}]"
+            )
+        coverage_block = "\n".join(coverage_lines) or "- none yet"
+
+        gaps = (insights or {}).get("qualification_gaps_summary") or "n/a"
+        analytics_block = ""
+        if analytics_intent:
+            analytics_block = f"""
+Full analytics payload (ground every number here; do not estimate):
+Recommendations: {(optimization or {}).get('recommendations')}
+Summary: {(optimization or {}).get('summary')}
+Pipeline progression: {(insights or {}).get('pipeline_progression')}
+Candidate sources: {(insights or {}).get('candidate_sources')}
+Skill coverage / drop-off: {(insights or {}).get('skill_coverage')}
+Common missing skills: {(insights or {}).get('common_missing_skills')}
+"""
+
         return f"""
 You are a recruiter assistant for ResumeIQ. Use the candidate pool and job requirements below.
 Prefer grounded answers. If using retrieved documents, cite them.
@@ -195,14 +246,24 @@ Years required: {job.required_experience_years}
 Education: {job.education_requirements}
 
 Candidate pool size: {len(ranked)}
+Evaluated for this job: {(insights or {}).get('evaluated_candidates', len(ranked))}
+Average match score: {(insights or {}).get('average_score', 'n/a')}
+
+Requirement coverage (job-scoped evaluated candidates):
+{coverage_block}
+
+Qualification-gap summary:
+{gaps}
+
 Top 10 ranked candidates:
 {compact_top}
-
+{analytics_block}
 User question: {user_query}
 
 Respond with specific candidate recommendations, insights, and explanations.
 Mention candidate names and overall scores when relevant.
 When the question mentions technical skills, communication, role alignment, or overall fit, reason over those dimensions directly.
+When the question is about skill gaps, coverage, drop-off, or JD requirements, cite the coverage percentages above.
 """.strip()
 
     def _dimension_key(self, query: str) -> Optional[str]:
@@ -239,6 +300,29 @@ When the question mentions technical skills, communication, role alignment, or o
                 )
             return f"**{header} leaders**\n\n" + "\n".join(lines)
         return None
+
+    def _extract_analytics_query(self, query: str) -> bool:
+        lower = query.lower()
+        phrases = (
+            "most common skill gaps",
+            "which requirements are eliminating",
+            "what percentage have",
+            "what % of",
+            "skill gaps",
+            "drop-off",
+            "drop off",
+            "too strict",
+            "requirement coverage",
+            "jd optimization",
+            "qualification gaps",
+            "pipeline progression",
+            "candidate source",
+            "how many candidates have",
+            "eliminating the most",
+            "nice-to-have",
+            "must-have",
+        )
+        return any(phrase in lower for phrase in phrases)
 
     def _to_cwyd_messages(
         self,

@@ -49,6 +49,7 @@ class CandidateResponse(CandidateBase, ORMModel):
     id: UUID
     resume_file_id: Optional[str] = None
     resume_text: Optional[str] = None
+    source: Optional[str] = "resume_upload"
     enriched_profile: Optional[dict[str, Any]] = None
     created_at: datetime
     updated_at: datetime
@@ -174,6 +175,7 @@ class EvaluationResponse(ORMModel):
     weaknesses: Optional[str] = None
     transferable_skills: Optional[str] = None
     blind_review_mode: bool = False
+    pipeline_stage: Optional[str] = "screened"
     created_at: datetime
     evidence: list[EvidenceResponse] = Field(default_factory=list)
     dimensions: Optional[CandidateDimensions] = None
@@ -237,6 +239,15 @@ class ScoreBucket(BaseModel):
     count: int
 
 
+class SkillCoverage(BaseModel):
+    skill: str
+    is_must_have: bool
+    coverage_pct: float
+    candidates_matching: int
+    total_candidates: int
+    low_score_without_skill_pct: float
+
+
 class DashboardInsights(BaseModel):
     job_id: UUID
     total_candidates: int
@@ -247,11 +258,15 @@ class DashboardInsights(BaseModel):
     average_experience_years: float
     qualification_gaps_summary: str
     pipeline_status: dict[str, int]
+    pipeline_progression: dict[str, int] = Field(default_factory=dict)
+    candidate_sources: dict[str, int] = Field(default_factory=dict)
+    skill_coverage: list[SkillCoverage] = Field(default_factory=list)
     jd_suggestions_count: int = 0
     jd_top_flag: Optional[str] = None
 
 
-class JDSuggestion(BaseModel):
+class JDRecommendation(BaseModel):
+    id: UUID
     skill: str
     is_must_have: bool
     coverage_pct: float
@@ -264,21 +279,32 @@ class JDSuggestion(BaseModel):
         "balanced",
         "insufficient_data",
     ]
-    suggestion: str
+    suggested_modification: str
+    supporting_data: dict[str, Any] = Field(default_factory=dict)
+    status: Literal["pending", "accepted", "rejected", "modified"] = "pending"
+    recruiter_note: Optional[str] = None
 
 
 class JDOptimizationResponse(BaseModel):
     job_id: UUID
     job_title: str
-    suggestions: list[JDSuggestion]
+    recommendations: list[JDRecommendation]
     summary: str
     generated_at: datetime
+    empty_reason: Optional[str] = None
+
+
+class JDRecommendationDecisionRequest(BaseModel):
+    status: Literal["accepted", "rejected", "modified"]
+    note: Optional[str] = None
 
 
 class DashboardDistribution(BaseModel):
     job_id: UUID
     score_distribution: list[ScoreBucket]
     experience_levels: dict[str, int]
+    pipeline_progression: dict[str, int] = Field(default_factory=dict)
+    candidate_sources: dict[str, int] = Field(default_factory=dict)
 
 
 # ---------- Agent ----------

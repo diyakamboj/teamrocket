@@ -30,6 +30,9 @@ class Candidate(Base):
     github_url: Mapped[Optional[str]] = mapped_column(String(255))
     linkedin_url: Mapped[Optional[str]] = mapped_column(String(255))
     portfolio_url: Mapped[Optional[str]] = mapped_column(String(255))
+    # Intake path. Nullable so older rows stay valid; default resume_upload because
+    # that is the only ingestion path ResumeIQ currently has.
+    source: Mapped[Optional[str]] = mapped_column(String(32), default="resume_upload")
     enriched_profile: Mapped[Optional[dict[str, Any]]] = mapped_column(JSONType, default=dict)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=False), server_default=func.now()

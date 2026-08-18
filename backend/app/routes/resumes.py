@@ -66,6 +66,8 @@ def _process_resume(upload_id: uuid.UUID) -> None:
             candidate.github_url = parsed.get("github_url") or candidate.github_url
             candidate.linkedin_url = parsed.get("linkedin_url") or candidate.linkedin_url
             candidate.portfolio_url = parsed.get("portfolio_url") or candidate.portfolio_url
+            if not candidate.source:
+                candidate.source = "resume_upload"
         else:
             candidate = Candidate(
                 name=parsed["name"],
@@ -81,6 +83,7 @@ def _process_resume(upload_id: uuid.UUID) -> None:
                 github_url=parsed.get("github_url"),
                 linkedin_url=parsed.get("linkedin_url"),
                 portfolio_url=parsed.get("portfolio_url"),
+                source="resume_upload",
             )
             db.add(candidate)
 
