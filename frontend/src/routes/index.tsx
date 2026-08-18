@@ -1,484 +1,327 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { useEffect, useMemo, useState } from "react";
-import {
-  Briefcase,
-  Building2,
-  CheckCircle2,
-  Columns3,
-  FileText,
-  LineChart,
-  Loader2,
-  Pause,
-  Plus,
-  Scale,
-  Send,
-  ShieldAlert,
-  Trophy,
-  UploadCloud,
-  Users,
-  Users2,
-  XCircle,
-} from "lucide-react";
-import { toast } from "sonner";
+import { useState } from "react";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { MiniBar } from "@/components/score-ring";
 import {
-  getJobPipeline,
-  listJobPipelines,
-  updateCandidateSource,
-  updateJobStatus,
-  type JobPipelineSummary,
-  type JobStatus,
-  type PipelineCandidate,
-  type PipelineStage,
-} from "@/lib/api";
-import { cn } from "@/lib/utils";
+  Briefcase,
+  Globe,
+  PlusCircle,
+  Zap,
+  Users,
+  AlertTriangle,
+  Bot,
+  ArrowRight,
+  TrendingUp,
+  CheckCircle2,
+  Sparkles,
+  Search,
+  Sliders,
+} from "lucide-react";
+import { getSession } from "@/lib/auth";
+import { CreateJobModal } from "@/components/create-job-modal";
 
 export const Route = createFileRoute("/")({
-  head: () => ({
-    meta: [
-      { title: "Recruiter Dashboard — ResumeIQ" },
-      {
-        name: "description",
-        content:
-          "Active job listings with internal vs. external candidate views and live pipeline status tracking.",
-      },
-      { property: "og:title", content: "Recruiter Dashboard — ResumeIQ" },
-      {
-        property: "og:description",
-        content: "Active job listings, internal/external candidate views, and pipeline status.",
-      },
-    ],
-  }),
-  component: RecruiterDashboard,
+  component: DashboardPage,
 });
 
-const STAGE_META: Record<PipelineStage, { label: string; className: string }> = {
-  screened: { label: "Screened", className: "bg-secondary text-secondary-foreground" },
-  interviewing: {
-    label: "Interviewing",
-    className: "bg-sky-100 text-sky-700 dark:bg-sky-500/15 dark:text-sky-300",
-  },
-  interviewed: {
-    label: "Interviewed",
-    className: "bg-violet-100 text-violet-700 dark:bg-violet-500/15 dark:text-violet-300",
-  },
-  selected: {
-    label: "Selected",
-    className: "bg-emerald-100 text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-300",
-  },
-  rejected: {
-    label: "Rejected",
-    className: "bg-rose-100 text-rose-700 dark:bg-rose-500/15 dark:text-rose-300",
-  },
-};
-
-const FEATURES = [
-  {
-    to: "/insights",
-    label: "Hiring Insights",
-    description: "Skill distribution, score trends, and pipeline health at a glance.",
-    icon: LineChart,
-  },
-  {
-    to: "/upload",
-    label: "Resume Upload",
-    description: "Drop resumes in — parsed, scored, and added to the candidate pool.",
-    icon: UploadCloud,
-  },
-  {
-    to: "/job-analysis",
-    label: "Job Description",
-    description: "Turn a JD into structured requirements the matcher can score against.",
-    icon: FileText,
-  },
-  {
-    to: "/candidates",
-    label: "Candidate Ranking",
-    description: "Weighted, evidence-backed ranking with blind review mode.",
-    icon: Trophy,
-  },
-  {
-    to: "/talent-marketplace",
-    label: "Talent Marketplace",
-    description: "Match bench and internal employees to open roles automatically.",
-    icon: Users2,
-  },
-  {
-    to: "/compare",
-    label: "Comparison",
-    description: "Side-by-side candidate comparison with an AI copilot chat.",
-    icon: Columns3,
-  },
-  {
-    to: "/fraud-detection",
-    label: "Fraud Detection",
-    description: "Identity/sanctions verification plus resume consistency flags.",
-    icon: ShieldAlert,
-  },
-  {
-    to: "/handoff",
-    label: "Interview Handoff",
-    description: "Send scorecards and briefings straight to interviewers.",
-    icon: Send,
-  },
-  {
-    to: "/ats-benchmark",
-    label: "ATS Benchmark",
-    description: "Compare keyword vs. semantic scoring for the same candidate.",
-    icon: Scale,
-  },
-] as const;
-
-const STATUS_META: Record<
-  JobStatus,
-  { label: string; icon: typeof CheckCircle2; className: string }
-> = {
-  open: {
-    label: "Open",
-    icon: CheckCircle2,
-    className: "bg-emerald-100 text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-300",
-  },
-  paused: {
-    label: "Paused",
-    icon: Pause,
-    className: "bg-amber-100 text-amber-700 dark:bg-amber-500/15 dark:text-amber-300",
-  },
-  closed: {
-    label: "Closed",
-    icon: XCircle,
-    className: "bg-secondary text-secondary-foreground",
-  },
-};
-
-function StageBadge({ stage }: { stage: PipelineStage }) {
-  const meta = STAGE_META[stage];
-  return (
-    <Badge className={cn("border-transparent font-medium", meta.className)}>{meta.label}</Badge>
-  );
-}
-
-function timeAgo(iso: string): string {
-  const diffMs = Date.now() - new Date(`${iso}Z`.replace("ZZ", "Z")).getTime();
-  const days = Math.round(diffMs / 86_400_000);
-  if (days < 1) return "today";
-  if (days === 1) return "1 day ago";
-  return `${days} days ago`;
-}
-
-type SourceFilter = "all" | "internal" | "external";
-
-function RecruiterDashboard() {
-  const [jobs, setJobs] = useState<JobPipelineSummary[]>([]);
-  const [loadingJobs, setLoadingJobs] = useState(true);
-  const [selectedJobId, setSelectedJobId] = useState<string | null>(null);
-  const [sourceFilter, setSourceFilter] = useState<SourceFilter>("all");
-  const [candidates, setCandidates] = useState<PipelineCandidate[]>([]);
-  const [loadingCandidates, setLoadingCandidates] = useState(false);
-
-  async function loadJobs() {
-    setLoadingJobs(true);
-    try {
-      const rows = await listJobPipelines();
-      setJobs(rows);
-      setSelectedJobId((current) => current ?? rows[0]?.job_id ?? null);
-    } catch {
-      setJobs([]);
-    } finally {
-      setLoadingJobs(false);
-    }
-  }
-
-  useEffect(() => {
-    void loadJobs();
-  }, []);
-
-  async function loadCandidates(jobId: string, source: SourceFilter) {
-    setLoadingCandidates(true);
-    try {
-      setCandidates(await getJobPipeline(jobId, source));
-    } catch {
-      setCandidates([]);
-    } finally {
-      setLoadingCandidates(false);
-    }
-  }
-
-  useEffect(() => {
-    if (selectedJobId) void loadCandidates(selectedJobId, sourceFilter);
-  }, [selectedJobId, sourceFilter]);
-
-  const selectedJob = jobs.find((j) => j.job_id === selectedJobId);
-
-  const counts = useMemo(
-    () => ({
-      internal: candidates.filter((c) => c.source === "internal").length,
-      external: candidates.filter((c) => c.source === "external").length,
-    }),
-    [candidates],
-  );
-
-  async function handleStatusChange(job: JobPipelineSummary, status: JobStatus) {
-    try {
-      await updateJobStatus(job.job_id, status);
-      setJobs((prev) => prev.map((j) => (j.job_id === job.job_id ? { ...j, status } : j)));
-      toast.success(`${job.title} marked ${STATUS_META[status].label.toLowerCase()}`);
-    } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Could not update job status");
-    }
-  }
-
-  async function handleSourceToggle(candidate: PipelineCandidate) {
-    const next = candidate.source === "internal" ? "external" : "internal";
-    try {
-      await updateCandidateSource(candidate.candidate_id, next);
-      setCandidates((prev) =>
-        prev.map((c) => (c.candidate_id === candidate.candidate_id ? { ...c, source: next } : c)),
-      );
-      if (selectedJobId) void loadJobs();
-      toast.success(`${candidate.candidate_name} marked ${next}`);
-    } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Could not update candidate");
-    }
-  }
+function DashboardPage() {
+  const session = getSession();
+  const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
 
   return (
-    <div className="mx-auto max-w-7xl space-y-6">
-      <header className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-4">
-        <div className="min-w-0">
-          <h1 className="truncate text-2xl font-extrabold sm:text-3xl">Recruiter Dashboard</h1>
-          <p className="mt-1 text-sm text-muted-foreground">
-            Active job listings, internal vs. external candidates, and live pipeline status.
-          </p>
-        </div>
-        <Link
-          to="/job-analysis"
-          className="inline-flex shrink-0 items-center gap-2 rounded-xl bg-primary px-4 py-2.5 text-sm font-semibold text-primary-foreground transition-opacity hover:opacity-90"
-        >
-          <Plus className="h-4 w-4" /> New job
-        </Link>
-      </header>
-
-      <section>
-        <h2 className="mb-3 text-xs font-bold uppercase tracking-wide text-muted-foreground">
-          Quick access
-        </h2>
-        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-          {FEATURES.map((feature) => {
-            const Icon = feature.icon;
-            return (
-              <Link
-                key={feature.to}
-                to={feature.to}
-                className="card-surface group flex items-start gap-3 p-4 transition-shadow hover:shadow-[var(--shadow-lift)]"
-              >
-                <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-primary-soft text-primary-soft-foreground">
-                  <Icon className="h-5 w-5" />
-                </span>
-                <span className="min-w-0">
-                  <span className="block truncate text-sm font-bold group-hover:text-primary">
-                    {feature.label}
-                  </span>
-                  <span className="mt-0.5 block text-xs text-muted-foreground">
-                    {feature.description}
-                  </span>
-                </span>
-              </Link>
-            );
-          })}
-        </div>
-      </section>
-
-      {loadingJobs ? (
-        <div className="flex items-center gap-2 py-16 text-sm text-muted-foreground">
-          <Loader2 className="h-4 w-4 animate-spin" /> Loading job listings…
-        </div>
-      ) : jobs.length === 0 ? (
-        <div className="card-surface p-10 text-center">
-          <Briefcase className="mx-auto h-8 w-8 text-muted-foreground" />
-          <h2 className="mt-3 text-lg font-bold">No job listings yet</h2>
-          <p className="mt-1 text-sm text-muted-foreground">
-            Create a job and rank candidates against it to see the pipeline here.
-          </p>
-          <Link
-            to="/job-analysis"
-            className="mt-6 inline-flex rounded-xl bg-primary px-4 py-2.5 text-sm font-semibold text-primary-foreground"
-          >
-            Create a job
-          </Link>
-        </div>
-      ) : (
-        <>
-          <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-            {jobs.map((job) => {
-              const status = STATUS_META[job.status] ?? STATUS_META.open;
-              const StatusIcon = status.icon;
-              const isSelected = job.job_id === selectedJobId;
-              return (
-                <button
-                  key={job.job_id}
-                  onClick={() => setSelectedJobId(job.job_id)}
-                  className={cn(
-                    "card-surface flex flex-col gap-3 p-5 text-left transition-shadow",
-                    isSelected ? "ring-2 ring-primary" : "hover:shadow-[var(--shadow-lift)]",
-                  )}
-                >
-                  <div className="flex items-start justify-between gap-3">
-                    <div className="min-w-0">
-                      <p className="truncate text-base font-bold">{job.title}</p>
-                      <p className="text-xs text-muted-foreground">
-                        Posted {timeAgo(job.created_at)}
-                      </p>
-                    </div>
-                    <Badge className={cn("shrink-0 gap-1 border-transparent", status.className)}>
-                      <StatusIcon className="h-3 w-3" /> {status.label}
-                    </Badge>
-                  </div>
-
-                  <div className="flex items-center gap-4 text-sm">
-                    <span className="inline-flex items-center gap-1.5 text-muted-foreground">
-                      <Users className="h-3.5 w-3.5" /> {job.total_candidates} candidates
-                    </span>
-                    <span className="inline-flex items-center gap-1.5 text-muted-foreground">
-                      <Building2 className="h-3.5 w-3.5" /> {job.internal_candidates} internal
-                    </span>
-                  </div>
-
-                  <MiniBar label="Average match score" value={Math.round(job.average_score)} />
-
-                  <div className="flex flex-wrap gap-1.5 pt-1">
-                    {(Object.keys(STAGE_META) as PipelineStage[])
-                      .filter((stage) => job.stage_counts[stage] > 0)
-                      .map((stage) => (
-                        <span key={stage} className="inline-flex items-center gap-1">
-                          <StageBadge stage={stage} />
-                          <span className="text-xs text-muted-foreground">
-                            {job.stage_counts[stage]}
-                          </span>
-                        </span>
-                      ))}
-                  </div>
-                </button>
-              );
-            })}
+    <div className="p-8 max-w-7xl mx-auto space-y-8 bg-slate-950 text-slate-100 min-h-screen">
+      {/* Executive Header */}
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-slate-800/80 pb-6">
+        <div>
+          <div className="flex items-center gap-2 text-sky-400 text-xs font-semibold uppercase tracking-wider mb-1">
+            <Sparkles className="w-4 h-4" /> ResumeIQ Executive Control Center
           </div>
+          <h1 className="text-3xl font-extrabold tracking-tight text-white">
+            Good morning, {session.name.split(" ")[0]} 👋
+          </h1>
+          <p className="text-slate-400 text-sm mt-1">
+            Here's what is happening across your internal and external hiring pipelines right now.
+          </p>
+        </div>
 
-          {selectedJob && (
-            <section className="card-surface space-y-4 p-5">
-              <div className="flex flex-wrap items-center justify-between gap-3">
-                <div className="min-w-0">
-                  <h2 className="truncate text-lg font-bold">{selectedJob.title} — pipeline</h2>
-                  <p className="text-xs text-muted-foreground">
-                    {selectedJob.total_candidates} candidates · avg score{" "}
-                    {Math.round(selectedJob.average_score)}
-                  </p>
-                </div>
+        <div className="flex items-center gap-3">
+          <Button
+            onClick={() => setIsCreateModalOpen(true)}
+            className="bg-gradient-to-r from-sky-500 to-indigo-600 hover:from-sky-400 hover:to-indigo-500 text-white font-semibold text-xs flex items-center gap-2 shadow-lg shadow-sky-500/20 py-2.5 px-4 rounded-xl"
+          >
+            <PlusCircle className="w-4 h-4" />
+            + Create New Job
+          </Button>
+        </div>
+      </div>
+
+      {/* Global Hiring Metrics Grid */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+        {[
+          { label: "Active Job Openings", val: "12 Roles", sub: "4 Internal • 8 External", icon: Briefcase, color: "text-sky-400" },
+          { label: "Total Candidates", val: "308", sub: "47 Internal • 261 External", icon: Users, color: "text-indigo-400" },
+          { label: "Top Quality Matches", val: "52", sub: "Score > 85% Fit", icon: Sparkles, color: "text-emerald-400" },
+          { label: "Ready for Interview", val: "24", sub: "8 Internal • 16 External", icon: CheckCircle2, color: "text-amber-400" },
+        ].map((m, idx) => (
+          <Card key={idx} className="bg-slate-900/80 border-slate-800/90 shadow-xl">
+            <CardContent className="p-5">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-medium text-slate-400">{m.label}</span>
+                <m.icon className={`w-4 h-4 ${m.color}`} />
+              </div>
+              <div className="text-2xl font-extrabold text-white mt-2">{m.val}</div>
+              <div className="text-[11px] text-slate-500 mt-1">{m.sub}</div>
+            </CardContent>
+          </Card>
+        ))}
+      </div>
+
+      {/* Main 2 Column Overview Layout: Internal Hiring & External Hiring */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+        {/* INTERNAL HIRING OVERVIEW BOX */}
+        <Card className="bg-slate-900/80 border-slate-800/90 shadow-xl flex flex-col justify-between">
+          <div>
+            <CardHeader className="border-b border-slate-800/60 pb-4">
+              <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
-                  {(["all", "internal", "external"] as const).map((tab) => (
-                    <Button
-                      key={tab}
-                      size="sm"
-                      variant={sourceFilter === tab ? "default" : "outline"}
-                      className="rounded-xl capitalize"
-                      onClick={() => setSourceFilter(tab)}
-                    >
-                      {tab === "all" ? "All" : tab}
-                      {tab !== "all" && (
-                        <span className="ml-1.5 text-xs opacity-70">
-                          ({tab === "internal" ? counts.internal : counts.external})
-                        </span>
-                      )}
-                    </Button>
-                  ))}
-                  <select
-                    value={selectedJob.status}
-                    onChange={(e) =>
-                      void handleStatusChange(selectedJob, e.target.value as JobStatus)
-                    }
-                    className="h-9 rounded-xl border bg-background px-2 text-xs font-medium"
-                  >
-                    <option value="open">Open</option>
-                    <option value="paused">Paused</option>
-                    <option value="closed">Closed</option>
-                  </select>
+                  <div className="p-2 rounded-lg bg-sky-500/10 text-sky-400 border border-sky-500/20">
+                    <Briefcase className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <CardTitle className="text-lg text-white font-bold">INTERNAL HIRING</CardTitle>
+                    <CardDescription className="text-slate-400 text-xs">
+                      Active internal roles, bench candidate auto-matching, and internal mobility.
+                    </CardDescription>
+                  </div>
+                </div>
+                <Link to="/internal-hiring" className="text-xs font-semibold text-sky-400 hover:underline flex items-center gap-1">
+                  View All →
+                </Link>
+              </div>
+            </CardHeader>
+
+            <CardContent className="p-6 space-y-4">
+              {/* Internal Metrics bar */}
+              <div className="p-3.5 rounded-xl bg-slate-950/70 border border-slate-800/80 grid grid-cols-3 gap-2 text-center text-xs">
+                <div>
+                  <span className="text-slate-400 block text-[10px] uppercase">Active Roles</span>
+                  <span className="font-extrabold text-white text-base">4 Roles</span>
+                </div>
+                <div>
+                  <span className="text-slate-400 block text-[10px] uppercase">Bench Pool</span>
+                  <span className="font-extrabold text-sky-400 text-base">8 Candidates</span>
+                </div>
+                <div>
+                  <span className="text-slate-400 block text-[10px] uppercase">Interview Ready</span>
+                  <span className="font-extrabold text-emerald-400 text-base">5 Ready</span>
                 </div>
               </div>
 
-              {loadingCandidates ? (
-                <div className="flex items-center gap-2 py-10 text-sm text-muted-foreground">
-                  <Loader2 className="h-4 w-4 animate-spin" /> Loading pipeline…
+              {/* Active Jobs List */}
+              <div className="space-y-2.5">
+                {[
+                  { id: "job_1", title: "Senior Software Engineer", candidates: 12, bench: 4, status: "Hiring" },
+                  { id: "job_2", title: "Cloud Engineer", candidates: 8, bench: 2, status: "Hiring" },
+                  { id: "job_3", title: "Data Engineer", candidates: 5, bench: 1, status: "Screening" },
+                ].map((job) => (
+                  <Link key={job.id} to="/jobs/$jobId" params={{ jobId: job.id }}>
+                    <div className="p-3.5 rounded-xl bg-slate-950/50 border border-slate-800/80 hover:border-sky-500/50 transition-all flex items-center justify-between group">
+                      <div>
+                        <div className="font-semibold text-slate-200 text-sm group-hover:text-sky-400">
+                          {job.title}
+                        </div>
+                        <div className="flex items-center gap-3 text-xs text-slate-400 mt-0.5">
+                          <span>{job.candidates} candidates</span>
+                          <span className="text-sky-400 font-medium">👥 {job.bench} bench matches</span>
+                        </div>
+                      </div>
+                      <Badge className="bg-sky-500/20 text-sky-300 border-sky-500/30 text-xs">
+                        Open Job →
+                      </Badge>
+                    </div>
+                  </Link>
+                ))}
+              </div>
+            </CardContent>
+          </div>
+
+          <div className="p-6 border-t border-slate-800/60 bg-slate-950/40">
+            <Button
+              onClick={() => setIsCreateModalOpen(true)}
+              variant="outline"
+              className="w-full border-sky-500/30 text-sky-300 hover:bg-sky-500/10 text-xs font-semibold flex items-center justify-center gap-2"
+            >
+              <PlusCircle className="w-4 h-4" /> + Create Internal Job
+            </Button>
+          </div>
+        </Card>
+
+        {/* EXTERNAL HIRING OVERVIEW BOX */}
+        <Card className="bg-slate-900/80 border-slate-800/90 shadow-xl flex flex-col justify-between">
+          <div>
+            <CardHeader className="border-b border-slate-800/60 pb-4">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <div className="p-2 rounded-lg bg-indigo-500/10 text-indigo-400 border border-indigo-500/20">
+                    <Globe className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <CardTitle className="text-lg text-white font-bold">EXTERNAL HIRING</CardTitle>
+                    <CardDescription className="text-slate-400 text-xs">
+                      Public applicant funnel, candidate matching, and external sourcing.
+                    </CardDescription>
+                  </div>
                 </div>
-              ) : candidates.length === 0 ? (
-                <p className="py-10 text-center text-sm text-muted-foreground">
-                  No {sourceFilter !== "all" ? sourceFilter : ""} candidates in this pipeline yet.
-                </p>
-              ) : (
-                <div className="overflow-x-auto">
-                  <table className="w-full min-w-[640px] text-sm">
-                    <thead>
-                      <tr className="text-left text-[11px] font-bold uppercase tracking-wide text-muted-foreground">
-                        <th className="pb-2">Candidate</th>
-                        <th className="pb-2">Source</th>
-                        <th className="pb-2">Score</th>
-                        <th className="pb-2">Stage</th>
-                        <th className="pb-2">Updated</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y">
-                      {candidates.map((c) => (
-                        <tr key={c.candidate_id}>
-                          <td className="py-2.5 pr-3">
-                            <p className="font-semibold">{c.candidate_name}</p>
-                            {c.candidate_email && (
-                              <p className="text-xs text-muted-foreground">{c.candidate_email}</p>
-                            )}
-                          </td>
-                          <td className="py-2.5 pr-3">
-                            <button
-                              onClick={() => void handleSourceToggle(c)}
-                              className={cn(
-                                "rounded-full px-2.5 py-0.5 text-[11px] font-semibold capitalize transition-colors",
-                                c.source === "internal"
-                                  ? "bg-primary-soft text-primary-soft-foreground"
-                                  : "bg-secondary text-secondary-foreground",
-                              )}
-                              title="Click to toggle internal / external"
-                            >
-                              {c.source}
-                            </button>
-                            {c.source === "internal" && c.employment_status && (
-                              <Badge
-                                className={cn(
-                                  "ml-1.5 border-transparent align-middle text-[10px] capitalize",
-                                  c.employment_status === "bench"
-                                    ? "bg-amber-100 text-amber-700 dark:bg-amber-500/15 dark:text-amber-300"
-                                    : "bg-secondary text-secondary-foreground",
-                                )}
-                              >
-                                {c.employment_status === "bench" ? "On bench" : c.employment_status}
-                              </Badge>
-                            )}
-                          </td>
-                          <td className="py-2.5 pr-3 tabular-nums">
-                            {c.overall_score != null ? Math.round(c.overall_score) : "—"}
-                          </td>
-                          <td className="py-2.5 pr-3">
-                            <StageBadge stage={c.stage} />
-                          </td>
-                          <td className="py-2.5 pr-3 text-xs text-muted-foreground">
-                            {timeAgo(c.updated_at)}
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
+                <Link to="/external-hiring" className="text-xs font-semibold text-indigo-400 hover:underline flex items-center gap-1">
+                  View All →
+                </Link>
+              </div>
+            </CardHeader>
+
+            <CardContent className="p-6 space-y-4">
+              {/* External Metrics bar */}
+              <div className="p-3.5 rounded-xl bg-slate-950/70 border border-slate-800/80 grid grid-cols-3 gap-2 text-center text-xs">
+                <div>
+                  <span className="text-slate-400 block text-[10px] uppercase">Active Roles</span>
+                  <span className="font-extrabold text-white text-base">8 Roles</span>
                 </div>
-              )}
-            </section>
-          )}
-        </>
-      )}
+                <div>
+                  <span className="text-slate-400 block text-[10px] uppercase">Applicants</span>
+                  <span className="font-extrabold text-indigo-400 text-base">261 Applicants</span>
+                </div>
+                <div>
+                  <span className="text-slate-400 block text-[10px] uppercase">Top Matches</span>
+                  <span className="font-extrabold text-emerald-400 text-base">34 Top Matches</span>
+                </div>
+              </div>
+
+              {/* Active Jobs List */}
+              <div className="space-y-2.5">
+                {[
+                  { id: "job_1", title: "Software Engineer", applicants: 124, matches: 18, ready: 7 },
+                  { id: "job_2", title: "Data Scientist", applicants: 86, matches: 11, ready: 4 },
+                  { id: "job_3", title: "Cloud Engineer", applicants: 51, matches: 5, ready: 3 },
+                ].map((job) => (
+                  <Link key={job.id} to="/jobs/$jobId" params={{ jobId: job.id }}>
+                    <div className="p-3.5 rounded-xl bg-slate-950/50 border border-slate-800/80 hover:border-indigo-500/50 transition-all flex items-center justify-between group">
+                      <div>
+                        <div className="font-semibold text-slate-200 text-sm group-hover:text-indigo-400">
+                          {job.title}
+                        </div>
+                        <div className="flex items-center gap-3 text-xs text-slate-400 mt-0.5">
+                          <span>{job.applicants} applicants</span>
+                          <span className="text-indigo-400 font-medium">🟢 {job.matches} top matches</span>
+                        </div>
+                      </div>
+                      <Badge className="bg-indigo-500/20 text-indigo-300 border-indigo-500/30 text-xs">
+                        Open Job →
+                      </Badge>
+                    </div>
+                  </Link>
+                ))}
+              </div>
+            </CardContent>
+          </div>
+
+          <div className="p-6 border-t border-slate-800/60 bg-slate-950/40">
+            <Button
+              onClick={() => setIsCreateModalOpen(true)}
+              variant="outline"
+              className="w-full border-indigo-500/30 text-indigo-300 hover:bg-indigo-500/10 text-xs font-semibold flex items-center justify-center gap-2"
+            >
+              <PlusCircle className="w-4 h-4" /> + Create External Job
+            </Button>
+          </div>
+        </Card>
+      </div>
+
+      {/* JIRA-STYLE RECRUITER AGENT ACTION FEED */}
+      <Card className="bg-slate-900/80 border-slate-800/90 shadow-xl">
+        <CardHeader className="border-b border-slate-800/60">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <Zap className="w-5 h-5 text-amber-400" />
+              <div>
+                <CardTitle className="text-lg text-white font-bold">Recruiter Copilot Action Feed</CardTitle>
+                <CardDescription className="text-slate-400 text-xs">
+                  Background intelligence notifications & actionable recommendations requiring recruiter decision.
+                </CardDescription>
+              </div>
+            </div>
+            <Link to="/actions">
+              <Button size="sm" variant="ghost" className="text-xs text-amber-400 hover:bg-amber-500/10">
+                View All Actions ({3}) →
+              </Button>
+            </Link>
+          </div>
+        </CardHeader>
+        <CardContent className="p-6 space-y-4">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            {/* Card 1: Bench match */}
+            <div className="p-4 rounded-xl bg-slate-950/70 border border-slate-800 space-y-3 hover:border-emerald-500/40 transition-all">
+              <div className="flex items-center justify-between">
+                <Badge className="bg-emerald-500/20 text-emerald-300 border-emerald-500/30 text-[10px] uppercase">
+                  Bench Candidate Match
+                </Badge>
+                <span className="text-[10px] text-slate-500">5 min ago</span>
+              </div>
+              <h4 className="font-semibold text-slate-200 text-sm">Cloud Engineer</h4>
+              <p className="text-xs text-slate-400 leading-relaxed">
+                Copilot identified bench employee <strong>Employee A</strong> (94% match) with Azure & Python skills.
+              </p>
+              <Link to="/internal-hiring">
+                <Button size="sm" className="w-full bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 text-xs font-medium">
+                  Review & Place Employee →
+                </Button>
+              </Link>
+            </div>
+
+            {/* Card 2: JD Skew */}
+            <div className="p-4 rounded-xl bg-slate-950/70 border border-slate-800 space-y-3 hover:border-amber-500/40 transition-all">
+              <div className="flex items-center justify-between">
+                <Badge className="bg-amber-500/20 text-amber-300 border-amber-500/30 text-[10px] uppercase">
+                  JD Skew Warning
+                </Badge>
+                <span className="text-[10px] text-slate-500">42 min ago</span>
+              </div>
+              <h4 className="font-semibold text-slate-200 text-sm">Kubernetes Engineer</h4>
+              <p className="text-xs text-slate-400 leading-relaxed">
+                47 applicants received, but only 10% possess Kubernetes. Recommend marking as preferred.
+              </p>
+              <Link to="/jobs/$jobId" params={{ jobId: "job_1" }}>
+                <Button size="sm" className="w-full bg-amber-500/10 hover:bg-amber-500/20 text-amber-400 border border-amber-500/30 text-xs font-medium">
+                  Review JD Requirement →
+                </Button>
+              </Link>
+            </div>
+
+            {/* Card 3: Readiness assessment */}
+            <div className="p-4 rounded-xl bg-slate-950/70 border border-slate-800 space-y-3 hover:border-sky-500/40 transition-all">
+              <div className="flex items-center justify-between">
+                <Badge className="bg-sky-500/20 text-sky-300 border-sky-500/30 text-[10px] uppercase">
+                  Readiness Validation
+                </Badge>
+                <span className="text-[10px] text-slate-500">2 hours ago</span>
+              </div>
+              <h4 className="font-semibold text-slate-200 text-sm">Senior Software Engineer</h4>
+              <p className="text-xs text-slate-400 leading-relaxed">
+                3 candidates meet initial fit criteria but require technical assessment prior to Interview Round 1.
+              </p>
+              <Link to="/jobs/$jobId" params={{ jobId: "job_1" }}>
+                <Button size="sm" className="w-full bg-sky-500/10 hover:bg-sky-500/20 text-sky-400 border border-sky-500/30 text-xs font-medium">
+                  Send Readiness Assessment →
+                </Button>
+              </Link>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      <CreateJobModal
+        isOpen={isCreateModalOpen}
+        onClose={() => setIsCreateModalOpen(false)}
+      />
     </div>
   );
 }

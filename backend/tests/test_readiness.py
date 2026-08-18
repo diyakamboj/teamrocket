@@ -4,7 +4,9 @@ from app.models.candidate import Candidate
 from app.models.job_posting import JobPosting
 from app.services.readiness_service import readiness_service
 from app.storage.store import Store
-from app.storage.repository import InMemoryJsonBlobStore
+from tests.conftest import InMemoryJsonBlobStore
+
+
 
 
 @pytest.fixture

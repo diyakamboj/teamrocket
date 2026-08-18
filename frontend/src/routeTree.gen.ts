@@ -10,21 +10,32 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as ActionsRouteImport } from './routes/actions'
 import { Route as CandidatesRouteImport } from './routes/candidates'
 import { Route as CompareRouteImport } from './routes/compare'
+import { Route as ExternalHiringRouteImport } from './routes/external-hiring'
 import { Route as FraudDetectionRouteImport } from './routes/fraud-detection'
 import { Route as InsightsRouteImport } from './routes/insights'
+import { Route as InternalHiringRouteImport } from './routes/internal-hiring'
 import { Route as JobAnalysisRouteImport } from './routes/job-analysis'
+import { Route as LoginRouteImport } from './routes/login'
 import { Route as ScreeningRouteImport } from './routes/screening'
+import { Route as SettingsRouteImport } from './routes/settings'
 import { Route as UploadRouteImport } from './routes/upload'
 import { Route as AtsBenchmarkIndexRouteImport } from './routes/ats-benchmark/index'
 import { Route as HandoffIndexRouteImport } from './routes/handoff/index'
 import { Route as HandoffHandoffIdRouteImport } from './routes/handoff/$handoffId'
+import { Route as JobsJobIdRouteImport } from './routes/jobs.$jobId'
 import { Route as TalentMarketplaceIndexRouteImport } from './routes/talent-marketplace/index'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ActionsRoute = ActionsRouteImport.update({
+  id: '/actions',
+  path: '/actions',
   getParentRoute: () => rootRouteImport,
 } as any)
 const CandidatesRoute = CandidatesRouteImport.update({
@@ -37,6 +48,11 @@ const CompareRoute = CompareRouteImport.update({
   path: '/compare',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ExternalHiringRoute = ExternalHiringRouteImport.update({
+  id: '/external-hiring',
+  path: '/external-hiring',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const FraudDetectionRoute = FraudDetectionRouteImport.update({
   id: '/fraud-detection',
   path: '/fraud-detection',
@@ -47,14 +63,29 @@ const InsightsRoute = InsightsRouteImport.update({
   path: '/insights',
   getParentRoute: () => rootRouteImport,
 } as any)
+const InternalHiringRoute = InternalHiringRouteImport.update({
+  id: '/internal-hiring',
+  path: '/internal-hiring',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const JobAnalysisRoute = JobAnalysisRouteImport.update({
   id: '/job-analysis',
   path: '/job-analysis',
   getParentRoute: () => rootRouteImport,
 } as any)
+const LoginRoute = LoginRouteImport.update({
+  id: '/login',
+  path: '/login',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ScreeningRoute = ScreeningRouteImport.update({
   id: '/screening',
   path: '/screening',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const SettingsRoute = SettingsRouteImport.update({
+  id: '/settings',
+  path: '/settings',
   getParentRoute: () => rootRouteImport,
 } as any)
 const UploadRoute = UploadRouteImport.update({
@@ -77,6 +108,11 @@ const HandoffHandoffIdRoute = HandoffHandoffIdRouteImport.update({
   path: '/handoff/$handoffId',
   getParentRoute: () => rootRouteImport,
 } as any)
+const JobsJobIdRoute = JobsJobIdRouteImport.update({
+  id: '/jobs/$jobId',
+  path: '/jobs/$jobId',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const TalentMarketplaceIndexRoute = TalentMarketplaceIndexRouteImport.update({
   id: '/talent-marketplace/',
   path: '/talent-marketplace/',
@@ -85,28 +121,40 @@ const TalentMarketplaceIndexRoute = TalentMarketplaceIndexRouteImport.update({
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/actions': typeof ActionsRoute
   '/candidates': typeof CandidatesRoute
   '/compare': typeof CompareRoute
+  '/external-hiring': typeof ExternalHiringRoute
   '/fraud-detection': typeof FraudDetectionRoute
   '/insights': typeof InsightsRoute
+  '/internal-hiring': typeof InternalHiringRoute
   '/job-analysis': typeof JobAnalysisRoute
+  '/login': typeof LoginRoute
   '/screening': typeof ScreeningRoute
+  '/settings': typeof SettingsRoute
   '/upload': typeof UploadRoute
   '/handoff/$handoffId': typeof HandoffHandoffIdRoute
+  '/jobs/$jobId': typeof JobsJobIdRoute
   '/ats-benchmark/': typeof AtsBenchmarkIndexRoute
   '/handoff/': typeof HandoffIndexRoute
   '/talent-marketplace/': typeof TalentMarketplaceIndexRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/actions': typeof ActionsRoute
   '/candidates': typeof CandidatesRoute
   '/compare': typeof CompareRoute
+  '/external-hiring': typeof ExternalHiringRoute
   '/fraud-detection': typeof FraudDetectionRoute
   '/insights': typeof InsightsRoute
+  '/internal-hiring': typeof InternalHiringRoute
   '/job-analysis': typeof JobAnalysisRoute
+  '/login': typeof LoginRoute
   '/screening': typeof ScreeningRoute
+  '/settings': typeof SettingsRoute
   '/upload': typeof UploadRoute
   '/handoff/$handoffId': typeof HandoffHandoffIdRoute
+  '/jobs/$jobId': typeof JobsJobIdRoute
   '/ats-benchmark': typeof AtsBenchmarkIndexRoute
   '/handoff': typeof HandoffIndexRoute
   '/talent-marketplace': typeof TalentMarketplaceIndexRoute
@@ -114,14 +162,20 @@ export interface FileRoutesByTo {
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/actions': typeof ActionsRoute
   '/candidates': typeof CandidatesRoute
   '/compare': typeof CompareRoute
+  '/external-hiring': typeof ExternalHiringRoute
   '/fraud-detection': typeof FraudDetectionRoute
   '/insights': typeof InsightsRoute
+  '/internal-hiring': typeof InternalHiringRoute
   '/job-analysis': typeof JobAnalysisRoute
+  '/login': typeof LoginRoute
   '/screening': typeof ScreeningRoute
+  '/settings': typeof SettingsRoute
   '/upload': typeof UploadRoute
   '/handoff/$handoffId': typeof HandoffHandoffIdRoute
+  '/jobs/$jobId': typeof JobsJobIdRoute
   '/ats-benchmark/': typeof AtsBenchmarkIndexRoute
   '/handoff/': typeof HandoffIndexRoute
   '/talent-marketplace/': typeof TalentMarketplaceIndexRoute
@@ -130,42 +184,60 @@ export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
     | '/'
+    | '/actions'
     | '/candidates'
     | '/compare'
+    | '/external-hiring'
     | '/fraud-detection'
     | '/insights'
+    | '/internal-hiring'
     | '/job-analysis'
+    | '/login'
     | '/screening'
+    | '/settings'
     | '/upload'
     | '/handoff/$handoffId'
+    | '/jobs/$jobId'
     | '/ats-benchmark/'
     | '/handoff/'
     | '/talent-marketplace/'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
+    | '/actions'
     | '/candidates'
     | '/compare'
+    | '/external-hiring'
     | '/fraud-detection'
     | '/insights'
+    | '/internal-hiring'
     | '/job-analysis'
+    | '/login'
     | '/screening'
+    | '/settings'
     | '/upload'
     | '/handoff/$handoffId'
+    | '/jobs/$jobId'
     | '/ats-benchmark'
     | '/handoff'
     | '/talent-marketplace'
   id:
     | '__root__'
     | '/'
+    | '/actions'
     | '/candidates'
     | '/compare'
+    | '/external-hiring'
     | '/fraud-detection'
     | '/insights'
+    | '/internal-hiring'
     | '/job-analysis'
+    | '/login'
     | '/screening'
+    | '/settings'
     | '/upload'
     | '/handoff/$handoffId'
+    | '/jobs/$jobId'
     | '/ats-benchmark/'
     | '/handoff/'
     | '/talent-marketplace/'
@@ -173,14 +245,20 @@ export interface FileRouteTypes {
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  ActionsRoute: typeof ActionsRoute
   CandidatesRoute: typeof CandidatesRoute
   CompareRoute: typeof CompareRoute
+  ExternalHiringRoute: typeof ExternalHiringRoute
   FraudDetectionRoute: typeof FraudDetectionRoute
   InsightsRoute: typeof InsightsRoute
+  InternalHiringRoute: typeof InternalHiringRoute
   JobAnalysisRoute: typeof JobAnalysisRoute
+  LoginRoute: typeof LoginRoute
   ScreeningRoute: typeof ScreeningRoute
+  SettingsRoute: typeof SettingsRoute
   UploadRoute: typeof UploadRoute
   HandoffHandoffIdRoute: typeof HandoffHandoffIdRoute
+  JobsJobIdRoute: typeof JobsJobIdRoute
   AtsBenchmarkIndexRoute: typeof AtsBenchmarkIndexRoute
   HandoffIndexRoute: typeof HandoffIndexRoute
   TalentMarketplaceIndexRoute: typeof TalentMarketplaceIndexRoute
@@ -193,6 +271,13 @@ declare module '@tanstack/react-router' {
       path: '/'
       fullPath: '/'
       preLoaderRoute: typeof IndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/actions': {
+      id: '/actions'
+      path: '/actions'
+      fullPath: '/actions'
+      preLoaderRoute: typeof ActionsRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/candidates': {
@@ -209,6 +294,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof CompareRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/external-hiring': {
+      id: '/external-hiring'
+      path: '/external-hiring'
+      fullPath: '/external-hiring'
+      preLoaderRoute: typeof ExternalHiringRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/fraud-detection': {
       id: '/fraud-detection'
       path: '/fraud-detection'
@@ -223,6 +315,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof InsightsRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/internal-hiring': {
+      id: '/internal-hiring'
+      path: '/internal-hiring'
+      fullPath: '/internal-hiring'
+      preLoaderRoute: typeof InternalHiringRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/job-analysis': {
       id: '/job-analysis'
       path: '/job-analysis'
@@ -230,11 +329,25 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof JobAnalysisRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/login': {
+      id: '/login'
+      path: '/login'
+      fullPath: '/login'
+      preLoaderRoute: typeof LoginRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/screening': {
       id: '/screening'
       path: '/screening'
       fullPath: '/screening'
       preLoaderRoute: typeof ScreeningRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/settings': {
+      id: '/settings'
+      path: '/settings'
+      fullPath: '/settings'
+      preLoaderRoute: typeof SettingsRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/upload': {
@@ -265,6 +378,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof HandoffHandoffIdRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/jobs/$jobId': {
+      id: '/jobs/$jobId'
+      path: '/jobs/$jobId'
+      fullPath: '/jobs/$jobId'
+      preLoaderRoute: typeof JobsJobIdRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/talent-marketplace/': {
       id: '/talent-marketplace/'
       path: '/talent-marketplace'
@@ -277,14 +397,20 @@ declare module '@tanstack/react-router' {
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  ActionsRoute: ActionsRoute,
   CandidatesRoute: CandidatesRoute,
   CompareRoute: CompareRoute,
+  ExternalHiringRoute: ExternalHiringRoute,
   FraudDetectionRoute: FraudDetectionRoute,
   InsightsRoute: InsightsRoute,
+  InternalHiringRoute: InternalHiringRoute,
   JobAnalysisRoute: JobAnalysisRoute,
+  LoginRoute: LoginRoute,
   ScreeningRoute: ScreeningRoute,
+  SettingsRoute: SettingsRoute,
   UploadRoute: UploadRoute,
   HandoffHandoffIdRoute: HandoffHandoffIdRoute,
+  JobsJobIdRoute: JobsJobIdRoute,
   AtsBenchmarkIndexRoute: AtsBenchmarkIndexRoute,
   HandoffIndexRoute: HandoffIndexRoute,
   TalentMarketplaceIndexRoute: TalentMarketplaceIndexRoute,

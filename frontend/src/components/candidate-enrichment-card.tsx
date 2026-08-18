@@ -12,6 +12,7 @@ interface CandidateEnrichmentCardProps {
 }
 
 export function CandidateEnrichmentCard({ candidate, onEnriched }: CandidateEnrichmentCardProps) {
+
   const [enriching, setEnriching] = useState(false);
   const profile = candidate.enriched_profile as EnrichedProfileData | undefined;
 
@@ -198,3 +199,46 @@ export function CandidateEnrichmentCard({ candidate, onEnriched }: CandidateEnri
     </Card>
   );
 }
+
+export const CandidateEnrichmentSection = ({ candidateId }: { candidateId: string }) => {
+  return (
+    <CandidateEnrichmentCard
+      candidate={{
+        id: candidateId,
+        name: "Alex Johnson",
+        title: "Senior Cloud Architect",
+        email: "alex@example.com",
+        phone: "+15552345678",
+        summary: "Cloud Architect",
+        years: 7,
+        education: "BS CS",
+        location: "Seattle, WA",
+        rank: 1,
+        score: 94,
+        status: "top_match",
+        categories: { skills: 96, experience: 91, education: 85, certifications: 90, projects: 95 },
+        skills: ["Python", "Azure", "Kubernetes", "FastAPI"],
+        gaps: [],
+        strengths: ["Azure", "Python"],
+        evidence: [],
+        github_url: "https://github.com/alexjohnson",
+        linkedin_url: "https://linkedin.com/in/alexjohnson",
+        hackerrank_url: "https://hackerrank.com/alexjohnson",
+        portfolio_url: "https://alexjohnson.dev",
+        enriched_profile: {
+          summary: "Verified public signals: 12 open-source repositories and 4 featured Python/Azure tools.",
+          repositories: [
+            { name: "azure-microservices-kit", stars: 142, description: "Automated Azure Kubernetes deployment tool", language: "Python", url: "https://github.com/alexjohnson/azure-microservices-kit" },
+            { name: "fastapi-auth-service", stars: 89, description: "OAuth2 authentication service for Azure AD", language: "TypeScript", url: "https://github.com/alexjohnson/fastapi-auth-service" },
+          ],
+          inferred_skills: [
+            { name: "Python", origin: "github" },
+            { name: "Azure", origin: "linkedin" },
+            { name: "Docker", origin: "github" },
+          ],
+        },
+      }}
+    />
+  );
+};
+
