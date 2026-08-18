@@ -14,6 +14,8 @@ import {
 import { cn } from "@/lib/utils";
 
 export const Route = createFileRoute("/job-analysis")({
+  validateSearch: (search: Record<string, unknown>): { highlight?: string } =>
+    typeof search["highlight"] === "string" ? { highlight: search["highlight"] } : {},
   head: () => ({
     meta: [
       { title: "Job Description Analysis — ResumeIQ" },
@@ -65,6 +67,7 @@ function requestedCategories(query: string): RequirementCategory[] | "all" {
 
 function JobAnalysis() {
   const { setActiveJobId } = useAppState();
+  const { highlight } = Route.useSearch();
   const sectionsRef = useRef<HTMLDivElement>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -89,6 +92,23 @@ function JobAnalysis() {
   useEffect(() => {
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: "smooth" });
   }, [messages, loading]);
+
+  useEffect(() => {
+    if (!highlight) return;
+    setReqs((prev) => {
+      if (prev.some((r) => r.text.toLowerCase() === highlight.toLowerCase())) return prev;
+      return [
+        {
+          id: `highlight-${highlight}`,
+          category: "Skills",
+          text: highlight,
+          must: true,
+        },
+        ...prev,
+      ];
+    });
+    sectionsRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+  }, [highlight]);
 
   useEffect(() => {
     const el = textareaRef.current;
@@ -338,7 +358,12 @@ function JobAnalysis() {
                     items.map((r) => (
                       <li
                         key={r.id}
-                        className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-2 rounded-xl bg-secondary/60 px-3 py-2"
+                        className={cn(
+                          "grid grid-cols-[minmax(0,1fr)_auto] items-center gap-2 rounded-xl bg-secondary/60 px-3 py-2",
+                          highlight &&
+                            r.text.toLowerCase() === highlight.toLowerCase() &&
+                            "ring-2 ring-primary",
+                        )}
                       >
                         <input
                           value={r.text}

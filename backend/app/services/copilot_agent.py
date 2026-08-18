@@ -18,6 +18,7 @@ from app.services.azure_services import openai_service
 from app.services.copilot_pool import build_pool, job_requirements, resolve_pool_member
 from app.services.candidate_matcher import candidate_matcher
 from app.services import calendar_service
+from app.services.jd_optimizer import jd_optimizer
 from app.models.schemas import (
     AgentCandidateCard,
     AgentComparisonTable,
@@ -37,6 +38,27 @@ COPILOT_TOOLS = (
     "must_have_report",
     "schedule_interview",
     "get_enriched_profile",
+    "jd_calibration",
+)
+
+ANALYTICS_QUERY_PHRASES = (
+    "most common skill gaps",
+    "which requirements are eliminating",
+    "what percentage have",
+    "what % of",
+    "skill gaps",
+    "drop-off",
+    "drop off",
+    "too strict",
+    "requirement coverage",
+    "jd optimization",
+    "qualification gaps",
+    "pipeline progression",
+    "candidate source",
+    "how many candidates have",
+    "eliminating the most",
+    "nice-to-have",
+    "must-have",
 )
 
 CITES_PER_ROW = 3
@@ -52,7 +74,8 @@ Tools:
 - must_have_report: args {} — which candidates satisfy each must-have requirement.
 - schedule_interview: args {candidateId, durationMinutes?, interviewers?: []} — schedule an interview with candidate and required interviewers.
 - get_enriched_profile: args {candidateId} — view external GitHub repositories, LinkedIn, HackerRank, portfolio signals for a candidate.
-When the question is generic (pool health, wide shortlists), prefer gap_summary or must_have_report over search_candidates."""
+- jd_calibration: args {} — JD requirement coverage, too-strict / low-signal flags, and recruiter-reviewable calibration recommendations. Use for skill-gap %, drop-off, or "which requirements eliminate candidates".
+When the question is generic (pool health, wide shortlists), prefer gap_summary or must_have_report over search_candidates. When it is about JD calibration, coverage, or eliminating requirements, pick jd_calibration."""
 
 
 
@@ -63,6 +86,42 @@ Return valid JSON: {"answer": "...", "evidenceIds": [...]}."""
 
 class CopilotToolError(Exception):
     pass
+
+
+def is_analytics_query(query: str) -> bool:
+    """True when the recruiter is asking about JD coverage, drop-off, or calibration."""
+    lower = query.lower()
+    return any(phrase in lower for phrase in ANALYTICS_QUERY_PHRASES)
+
+
+def format_jd_calibration_answer(optimization: dict[str, Any]) -> str:
+    empty = optimization.get("empty_reason")
+    if empty == "no_required_skills":
+        return "Visit Job Description Analysis first to extract requirements."
+    if empty == "no_evaluations":
+        return "Run some candidates through screening to see recommendations."
+
+    lines: list[str] = []
+    summary = (optimization.get("summary") or "").strip()
+    if summary:
+        lines.append(summary)
+    for item in optimization.get("recommendations") or []:
+        lines.append(
+            f"- {item.get('skill')}: {item.get('coverage_pct')}% "
+            f"({item.get('candidates_matching')}/{item.get('total_candidates')}) "
+            f"[{item.get('classification')}] — {item.get('suggested_modification')}"
+        )
+    return "\n".join(lines) or "No JD calibration signals yet."
+
+
+async def jd_calibration_result(store, job_id) -> dict[str, Any]:
+    payload = await jd_optimizer.get_optimization(store, job_id)
+    return {
+        "text": json.dumps(payload, default=str),
+        "evidence": [],
+        "structured": None,
+        "optimization": payload,
+    }
 
 
 def _to_tool_result(rows: list[dict[str, Any]]) -> dict[str, Any]:
@@ -341,6 +400,7 @@ def run_copilot_tool(
     *,
     pool: list[dict[str, Any]],
     requirements: list[dict[str, Any]],
+    jd_optimization: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     if tool == "search_candidates":
         return search_candidates(pool, args)
@@ -379,6 +439,13 @@ def run_copilot_tool(
                 "summary": enriched.get("summary"),
             }),
             "evidence": member.get("evidence") or [],
+        }
+    if tool == "jd_calibration":
+        payload = jd_optimization or {}
+        return {
+            "text": json.dumps(payload, default=str),
+            "evidence": [],
+            "structured": None,
         }
     raise CopilotToolError(f"Unknown copilot tool: {tool}")
 
@@ -677,7 +744,7 @@ def deterministic_answer(
     }
 
 
-def _agent_answer(
+async def _agent_answer(
     question: str,
     pool: list[dict[str, Any]],
     requirements: list[dict[str, Any]],
@@ -685,6 +752,8 @@ def _agent_answer(
     model_id: str,
     deployment: str,
     focus_candidate_id: str | None = None,
+    store=None,
+    job=None,
 ) -> dict[str, Any]:
     tool_select_system = TOOL_SELECT_SYSTEM
     if focus_candidate_id:
@@ -706,7 +775,17 @@ def _agent_answer(
     if tool not in COPILOT_TOOLS:
         raise CopilotToolError("Model chose no usable tool")
     args = selection.get("args") if isinstance(selection.get("args"), dict) else {}
-    result = run_copilot_tool(tool, args, pool=pool, requirements=requirements)
+    jd_optimization = None
+    if tool == "jd_calibration" and store is not None and job is not None:
+        calibration = await jd_calibration_result(store, job.id)
+        jd_optimization = calibration["optimization"]
+    result = run_copilot_tool(
+        tool,
+        args,
+        pool=pool,
+        requirements=requirements,
+        jd_optimization=jd_optimization,
+    )
 
     answer_payload = openai_service.chat_json(
         f"Question: {question}\n\nTool output:\n{result['text']}",
@@ -749,6 +828,18 @@ async def copilot_answer(
     requirements = job_requirements(job)
     pool = build_pool(ranked, weights=weight_config, blind=blind, requirements=requirements)
 
+    if is_analytics_query(question):
+        calibration = await jd_calibration_result(db, job.id)
+        return {
+            "answer": format_jd_calibration_answer(calibration["optimization"]),
+            "citations": [],
+            "tools": ["jd_calibration"],
+            "engine": "deterministic" if openai_service.mock else "agent",
+            "pool": pool,
+            "model_id": model_id,
+            "structured": None,
+        }
+
     if not pool:
         return {
             "answer": "No candidates have been screened yet. Upload resumes and run screening — the copilot answers from stored verdicts only, never guesses.",
@@ -769,13 +860,15 @@ async def copilot_answer(
         return result
 
     try:
-        result = _agent_answer(
+        result = await _agent_answer(
             question,
             pool,
             requirements,
             model_id=model_id,
             deployment=deployment,
             focus_candidate_id=focus_candidate_id,
+            store=db,
+            job=job,
         )
         result["pool"] = pool
         result["model_id"] = model_id

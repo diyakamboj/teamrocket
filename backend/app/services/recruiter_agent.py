@@ -5,9 +5,10 @@ from uuid import UUID
 from app.models.evaluation import AgentSession
 from app.models.job_posting import JobPosting
 from app.models.schemas import WeightConfig
-from app.services.copilot_agent import copilot_answer
+from app.services.copilot_agent import copilot_answer, is_analytics_query
 from app.services.copilot_pool import extract_candidate_ids
 from app.services.chatbot_client import chatbot_client
+from app.services.jd_optimizer import jd_optimizer
 from app.services.model_registry import model_registry
 from app.storage.store import Store
 from app.utils.error_handlers import NotFoundError
@@ -44,6 +45,13 @@ class RecruiterCopilot:
         )
         store.jobs.save(job)
         return job
+
+    async def analyze_jd_requirements(self, store: Store, job_id: UUID) -> dict[str, Any]:
+        """Agent entry point for JD calibration — same payload the dashboard renders."""
+        return await jd_optimizer.get_optimization(store, job_id)
+
+    def _extract_analytics_query(self, query: str) -> bool:
+        return is_analytics_query(query)
 
     async def query_candidates(
         self,

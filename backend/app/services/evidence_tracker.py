@@ -43,6 +43,7 @@ class EvidenceTracker:
         matched_skills: list[Any],
         experience: list[Any] | None = None,
         projects: list[Any] | None = None,
+        dimension: str | None = None,
     ) -> list[dict[str, Any]]:
         evidence: list[dict[str, Any]] = []
         for item in matched_skills:
@@ -79,6 +80,7 @@ class EvidenceTracker:
                     "resume_text_snippet": snippet or f"Mentioned in candidate profile: {skill}",
                     "source_section": section,
                     "confidence_score": confidence,
+                    "dimension": dimension,
                 }
             )
         return evidence
@@ -92,6 +94,7 @@ class EvidenceTracker:
                 resume_text_snippet=item.get("resume_text_snippet"),
                 source_section=item.get("source_section"),
                 confidence_score=item.get("confidence_score"),
+                dimension=item.get("dimension"),
             )
             store.evidence.save(row)
             rows.append(row)

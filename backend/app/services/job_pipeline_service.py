@@ -141,3 +141,40 @@ def get_job_pipeline_candidates(
 
     results.sort(key=lambda r: (r["overall_score"] is None, -(r["overall_score"] or 0)))
     return results
+
+
+def job_pipeline_progression(store: Store, job_id: UUID) -> dict[str, int]:
+    """Hiring-process stages for evaluated candidates on this job.
+
+    Uses the same derivation as the recruiter dashboard (evaluation + handoff
+    + approve/reject), not a separate persisted stage column.
+    """
+    job = store.jobs.get(job_id)
+    counts = {stage: 0 for stage in STAGE_ORDER}
+    if not job:
+        return counts
+    evaluations = store.evaluations.list_for_job(job_id)
+    decisions_by_candidate = _latest_decisions_by_candidate(store, job.title)
+    handoffs_by_candidate = _handoffs_by_candidate(store, job.id)
+    for evaluation in evaluations:
+        candidate = store.candidates.get(evaluation.candidate_id)
+        if candidate is None:
+            continue
+        stage = _stage_for(
+            decisions_by_candidate.get(str(candidate.id)),
+            handoffs_by_candidate.get(str(candidate.id), []),
+        )
+        counts[stage] += 1
+    return counts
+
+
+def job_candidate_sources(candidates: list) -> dict[str, int]:
+    """Internal vs external breakdown. Population: job-scoped evaluated candidates."""
+    counts = {"internal": 0, "external": 0}
+    for candidate in candidates:
+        source = (getattr(candidate, "source", None) or "external").lower()
+        if source not in counts:
+            counts[source] = 0
+        counts[source] += 1
+    return counts
+

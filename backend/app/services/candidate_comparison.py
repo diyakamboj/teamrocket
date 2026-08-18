@@ -43,6 +43,12 @@ Compare these {len(scored)} candidates for job_id={job_id}.
 Candidates and scores:
 {scored}
 
+    For each candidate, also consider the dimension scores and explanations when comparing:
+    - overall_fit
+    - technical_skills
+    - communication
+    - role_alignment
+
 Provide a detailed comparison highlighting:
 1. Relative strengths
 2. Skill gaps for each

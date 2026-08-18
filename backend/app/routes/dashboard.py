@@ -3,15 +3,19 @@ from typing import Optional
 
 from fastapi import APIRouter, Query
 
-from app.dependencies import AppStore
+from app.dependencies import AppStore, RecruiterEmail
 from app.models.schemas import (
     DashboardDistribution,
     DashboardInsights,
+    JDOptimizationResponse,
+    JDRecommendation,
+    JDRecommendationDecisionRequest,
     JobPipelineSummary,
     PipelineCandidate,
 )
 from app.services import job_pipeline_service
 from app.services.hiring_insights import hiring_insights
+from app.services.jd_optimizer import jd_optimizer
 from app.utils.error_handlers import NotFoundError
 
 router = APIRouter()
@@ -20,6 +24,32 @@ router = APIRouter()
 @router.get("/job/{job_id}/insights", response_model=DashboardInsights)
 async def job_insights(job_id: uuid.UUID, store: AppStore):
     return await hiring_insights.get_insights(store, job_id)
+
+
+@router.get("/job/{job_id}/jd-optimization", response_model=JDOptimizationResponse)
+async def job_jd_optimization(job_id: uuid.UUID, store: AppStore):
+    return await jd_optimizer.get_optimization(store, job_id)
+
+
+@router.post(
+    "/job/{job_id}/jd-optimization/{recommendation_id}/decision",
+    response_model=JDRecommendation,
+)
+async def job_jd_optimization_decision(
+    job_id: uuid.UUID,
+    recommendation_id: uuid.UUID,
+    payload: JDRecommendationDecisionRequest,
+    store: AppStore,
+    recruiter_email: RecruiterEmail,
+):
+    return jd_optimizer.record_decision(
+        store,
+        job_id,
+        recommendation_id,
+        status=payload.status,
+        note=payload.note,
+        recruiter_email=recruiter_email,
+    )
 
 
 @router.get("/job/{job_id}/distribution", response_model=DashboardDistribution)
