@@ -178,29 +178,33 @@ class AzureOpenAIService:
     def __init__(self) -> None:
         configured = bool(settings.AZURE_OPENAI_API_KEY and settings.AZURE_OPENAI_ENDPOINT)
         self._client: Optional[AzureOpenAI] = None
+        self._embedding_client: Optional[AzureOpenAI] = None
+
         if configured:
             self._client = AzureOpenAI(
                 api_key=settings.AZURE_OPENAI_API_KEY,
                 api_version=settings.AZURE_OPENAI_API_VERSION,
                 azure_endpoint=settings.AZURE_OPENAI_ENDPOINT,
+                timeout=30.0,
             )
-        # Chat completions stay gated by USE_MOCK_AZURE — the chat deployment
-        # on this resource isn't confirmed working, so it must not go live as
-        # a side effect of enabling something else on the same resource.
+
+        emb_configured = bool(settings.AZURE_OPENAI_EMBEDDING_API_KEY and settings.AZURE_OPENAI_EMBEDDING_ENDPOINT)
+        if emb_configured:
+            self._embedding_client = AzureOpenAI(
+                api_key=settings.AZURE_OPENAI_EMBEDDING_API_KEY,
+                api_version=settings.AZURE_OPENAI_API_VERSION,
+                azure_endpoint=settings.AZURE_OPENAI_EMBEDDING_ENDPOINT,
+                timeout=30.0,
+            )
+        else:
+            self._embedding_client = self._client
+
         self.mock = settings.USE_MOCK_AZURE or not configured
-        # Embeddings are a separately-confirmed, independently-gated
-        # deployment (mirrors AzureSearchService's decoupling from
-        # USE_MOCK_AZURE) — one deployment being unready shouldn't block
-        # the other from being used.
         self.embeddings_mock = (
-            not configured or not settings.AZURE_OPENAI_EMBEDDING_DEPLOYMENT_NAME
+            (not configured and not emb_configured) or not settings.AZURE_OPENAI_EMBEDDING_DEPLOYMENT_NAME
         )
-        # semantic_skill_overlap is called once per candidate scored, and the
-        # job's required/nice-to-have skills are identical on every one of
-        # those calls — cache by exact text so ranking a pool doesn't
-        # re-embed the same job requirements (or repeated common skills like
-        # "Python") on every single candidate.
         self._embedding_cache: dict[str, list[float]] = {}
+
 
     def chat_json(
         self,
@@ -248,17 +252,17 @@ class AzureOpenAIService:
         caller falls back to a keyword heuristic) in mock mode, when no
         embedding deployment is configured, or on any API failure — this is
         a quality upgrade, not something that should ever break scoring."""
-        if self.embeddings_mock or not texts:
+        if self.embeddings_mock or not texts or self._embedding_client is None:
             return None
-        assert self._client is not None
 
         to_fetch = [t for t in dict.fromkeys(texts) if t not in self._embedding_cache]
         if to_fetch:
             try:
-                response = self._client.embeddings.create(
+                response = self._embedding_client.embeddings.create(
                     model=settings.AZURE_OPENAI_EMBEDDING_DEPLOYMENT_NAME,
                     input=to_fetch,
                 )
+
                 for text, item in zip(to_fetch, response.data):
                     self._embedding_cache[text] = item.embedding
             except Exception as exc:

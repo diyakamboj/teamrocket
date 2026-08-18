@@ -27,11 +27,11 @@ class Settings(BaseSettings):
     AZURE_OPENAI_API_KEY: Optional[str] = None
     AZURE_OPENAI_ENDPOINT: Optional[str] = None
     AZURE_OPENAI_DEPLOYMENT_NAME: str = "gpt-4o"
-    # Separate deployment on the same resource, used for real semantic skill
-    # matching. Independently gated from AZURE_OPENAI_DEPLOYMENT_NAME (chat)
-    # since one deployment can be ready before the other.
     AZURE_OPENAI_EMBEDDING_DEPLOYMENT_NAME: Optional[str] = "text-embedding-3-small"
+    AZURE_OPENAI_EMBEDDING_API_KEY: Optional[str] = None
+    AZURE_OPENAI_EMBEDDING_ENDPOINT: Optional[str] = None
     AZURE_OPENAI_API_VERSION: str = "2024-02-15-preview"
+
 
     # Azure AI Search
     AZURE_SEARCH_ENDPOINT: Optional[str] = None
