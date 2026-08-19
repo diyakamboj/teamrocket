@@ -182,7 +182,7 @@ stages:
                     destinationFolder: "$(Pipeline.Workspace)/frontend-dist-extracted"
 
                 - task: AzureCLI@2
-                  displayName: "Upload frontend build to \$web container"
+                  displayName: "Upload frontend build to $web container"
                   inputs:
                     azureSubscription: $(azureServiceConnection)
                     scriptType: "bash"
