@@ -108,10 +108,15 @@ stages:
         pool:
           vmImage: $(vmImageName)
         steps:
-          - task: NodeTool@0
+          # UseNode@1, not NodeTool@0 — that task is deprecated (still works,
+          # but flagged by ADO and won't receive further updates). Note the
+          # input key changes too: `version`, not `versionSpec`.
+          - task: UseNode@1
             inputs:
-              # 22.x: current LTS, matches what's used locally.
-              versionSpec: "22.x"
+              # 22.x, not 20.x — @tanstack/start-storage-context requires
+              # node >=22.12.0 (npm warns EBADENGINE on 20.x; not fatal on
+              # its own, but bumping this removes one variable).
+              version: "22.x"
 
           # npm install, not npm ci — confirmed npm (not bun) is the real
           # tool: root package.json's own build script is
@@ -196,6 +201,7 @@ stages:
                     destinationFolder: "$(Pipeline.Workspace)/frontend-dist-extracted"
 
                 - task: AzureCLI@2
+                  name: uploadFrontend
                   displayName: "Upload frontend build to $web container"
                   inputs:
                     azureSubscription: $(azureServiceConnection)
@@ -219,3 +225,127 @@ stages:
                         --destination '$web' \
                         --source "$(Pipeline.Workspace)/frontend-dist-extracted" \
                         --overwrite
+
+                      # Handed to the SmokeTest stage below (stageDependencies
+                      # output var) so it can look up the real static-website
+                      # URL itself, rather than re-doing this same prefix
+                      # lookup a second time or — worse — guessing the
+                      # unpredictable .zN. endpoint suffix (see
+                      # outputs.tf's frontend_static_website_url comment and
+                      # CHANGELOG.md's z13-vs-z5 history for why that's never
+                      # safe to assume).
+                      echo "##vso[task.setvariable variable=STORAGE_ACCOUNT;isOutput=true]$STORAGE_ACCOUNT"
+
+  # ---------------------------------------------------------------------
+  # SMOKE TEST — only on main, only if Deploy succeeded. Automates the
+  # manual checks that caught real issues after the first live deploy
+  # (2026-08-19): backend /health responding as genuinely healthy — not
+  # mock mode — and the frontend actually serving. Fails loudly instead
+  # of a broken deploy sitting there until someone happens to check by
+  # hand.
+  # ---------------------------------------------------------------------
+  - stage: SmokeTest
+    dependsOn: Deploy
+    condition: and(succeeded(), eq(variables['Build.SourceBranch'], 'refs/heads/main'))
+    jobs:
+      - job: BackendHealthCheck
+        displayName: "Smoke Test: Backend /health"
+        pool:
+          vmImage: $(vmImageName)
+        steps:
+          - script: |
+              set -euo pipefail
+              URL="https://$(backendAppName).azurewebsites.net/health"
+              echo "Checking $URL"
+
+              # Retry loop, not a single shot — the app can still be mid
+              # warm-up right after a fresh deploy restarts it (real,
+              # observed behaviour: a cold first request took over a
+              # minute; Always On avoids future *idle* cold starts, but
+              # not this one-time post-deploy warm-up cost).
+              ATTEMPTS=6
+              SLEEP_SECONDS=20
+              for i in $(seq 1 $ATTEMPTS); do
+                HTTP_CODE=$(curl -sS -o /tmp/health.json -w "%{http_code}" "$URL" || echo "000")
+                if [ "$HTTP_CODE" == "200" ]; then
+                  break
+                fi
+                echo "Attempt $i/$ATTEMPTS: got HTTP $HTTP_CODE, retrying in ${SLEEP_SECONDS}s..."
+                sleep $SLEEP_SECONDS
+              done
+
+              if [ "$HTTP_CODE" != "200" ]; then
+                echo "##vso[task.logissue type=error]Backend /health never returned 200 after $ATTEMPTS attempts (last: $HTTP_CODE)"
+                exit 1
+              fi
+
+              cat /tmp/health.json
+              HEALTH_STATUS=$(jq -r '.status' /tmp/health.json)
+              MOCK_AZURE=$(jq -r '.mock_azure' /tmp/health.json)
+
+              if [ "$HEALTH_STATUS" != "healthy" ]; then
+                echo "##vso[task.logissue type=error]Backend status is '$HEALTH_STATUS', expected 'healthy'"
+                exit 1
+              fi
+
+              if [ "$MOCK_AZURE" != "false" ]; then
+                echo "##vso[task.logissue type=error]Backend is running with mock_azure=true — real Azure services (Key Vault secrets, OpenAI, Search, etc.) did not connect. Deploy succeeded but the app isn't actually configured correctly."
+                exit 1
+              fi
+
+              echo "Backend smoke test passed: status=healthy, mock_azure=false"
+            displayName: "Curl /health, assert healthy + real Azure config"
+
+      - job: FrontendAvailabilityCheck
+        displayName: "Smoke Test: Frontend static site"
+        dependsOn: [] # no dependency on BackendHealthCheck — run in parallel
+        pool:
+          vmImage: $(vmImageName)
+        variables:
+          storageAccount: $[ stageDependencies.Deploy.DeployFrontend.outputs['uploadFrontend.STORAGE_ACCOUNT'] ]
+        steps:
+          - task: AzureCLI@2
+            displayName: "Look up real static website URL, curl it"
+            inputs:
+              azureSubscription: $(azureServiceConnection)
+              scriptType: "bash"
+              scriptLocation: "inlineScript"
+              inlineScript: |
+                set -euo pipefail
+
+                # Read the real endpoint from Azure rather than construct
+                # it — the .zN. subdomain is an Azure-assigned value, not
+                # something derivable from the account name (this exact
+                # mistake — guessing .z13. instead of the real .z5. —
+                # happened early in this project; never repeat it).
+                FRONTEND_URL=$(az storage account show \
+                  --name "$(storageAccount)" \
+                  --resource-group $(resourceGroupName) \
+                  --query "primaryEndpoints.web" -o tsv)
+
+                if [ -z "$FRONTEND_URL" ]; then
+                  echo "##vso[task.logissue type=error]Could not resolve static website URL for storage account $(storageAccount)"
+                  exit 1
+                fi
+
+                echo "Checking $FRONTEND_URL"
+                RESPONSE=$(curl -sS "$FRONTEND_URL")
+                HTTP_CODE=$(curl -sS -o /dev/null -w "%{http_code}" "$FRONTEND_URL")
+
+                if [ "$HTTP_CODE" != "200" ]; then
+                  echo "##vso[task.logissue type=error]Frontend returned HTTP $HTTP_CODE, expected 200"
+                  exit 1
+                fi
+
+                # Only checks the static HTML shell, not rendered content —
+                # this is a client-rendered SPA, so anything beyond the
+                # <title>/root div only exists after JS runs in a real
+                # browser. A curl-based check can't see past that; this
+                # confirms the file is served correctly, not that the app
+                # renders correctly.
+                if ! echo "$RESPONSE" | grep -q "<title>ResumeIQ"; then
+                  echo "##vso[task.logissue type=error]Frontend response missing expected <title>ResumeIQ ...> tag — wrong content or broken build?"
+                  exit 1
+                fi
+
+                echo "Frontend smoke test passed: HTTP 200, expected <title> present"
