@@ -11,6 +11,8 @@ import { Badge } from "@/components/ui/badge";
 import { CandidateEnrichmentSection } from "@/components/candidate-enrichment-card";
 import { CandidateReadinessSection } from "@/components/candidate-readiness-card";
 import { CandidateInterviewSection } from "@/components/interview-card";
+import { CandidateNotes } from "@/components/candidate-notes";
+import { ShareCandidateButton } from "@/components/share-candidate-button";
 import { Sparkles, Eye, EyeOff, Layers, Loader2, AlertTriangle } from "lucide-react";
 import {
   getCandidate,
@@ -149,15 +151,26 @@ export function CandidateDetailModal({
               </DialogDescription>
             </div>
 
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => setBlindReview((v) => !v)}
-              className="shrink-0 gap-1.5 text-xs"
-            >
-              {blindReview ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
-              {blindReview ? "Blind mode on" : "Blind review"}
-            </Button>
+            <div className="flex shrink-0 items-center gap-2">
+              {/* Sharing belongs where the candidate is actually reviewed, not
+                  only on the list page. */}
+              {candidateId && (
+                <ShareCandidateButton
+                  candidateId={candidateId}
+                  candidateName={displayName || "this candidate"}
+                  jobId={jobId ?? null}
+                />
+              )}
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setBlindReview((v) => !v)}
+                className="gap-1.5 text-xs"
+              >
+                {blindReview ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
+                {blindReview ? "Blind mode on" : "Blind review"}
+              </Button>
+            </div>
           </div>
         </DialogHeader>
 
@@ -273,6 +286,8 @@ export function CandidateDetailModal({
                 candidateName={displayName}
                 jobId={jobId ?? null}
               />
+
+              <CandidateNotes candidateId={candidateId} jobId={jobId ?? null} />
             </>
           )}
         </div>

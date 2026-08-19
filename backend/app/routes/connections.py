@@ -22,6 +22,7 @@ from app.models.collaboration import (
     DirectMessage,
     MessageThread,
     SharedCandidateView,
+    SharedRound,
 )
 from app.models.connection import (
     CONNECTION_STATUSES,
@@ -30,6 +31,7 @@ from app.models.connection import (
     RecruiterDirectoryEntry,
 )
 from app.models.evaluation import AuditLog
+from app.services import placement_service
 from app.utils.error_handlers import NotFoundError, ValidationAppError
 from app.utils.logger import get_logger
 from app.utils.validators import normalize_email
@@ -376,6 +378,15 @@ def _share_view(store, share: CandidateShare) -> SharedCandidateView:
         if s.status == "completed"
     ]
     latest = max(sessions, key=lambda s: s.updated_at, default=None)
+
+    # Pipeline context, so a collaborator can act without listing the owner's
+    # jobs — which ownership scoping correctly refuses them.
+    job = store.jobs.get(share.job_id) if share.job_id else None
+    placement = (
+        placement_service.get_placement(store, job.id, str(share.candidate_id)) if job else None
+    )
+    rounds = sorted(job.rounds or [], key=lambda r: r.sequence) if job else []
+
     return SharedCandidateView(
         share_id=share.id,
         candidate_id=share.candidate_id,
@@ -392,6 +403,12 @@ def _share_view(store, share: CandidateShare) -> SharedCandidateView:
         note=share.note,
         job_id=share.job_id,
         job_title=share.job_title,
+        stage=placement.stage if placement else ("screened" if job else None),
+        round_id=placement.round_id if placement else None,
+        round_name=next(
+            (r.name for r in rounds if placement and r.id == placement.round_id), None
+        ),
+        rounds=[SharedRound(id=r.id, name=r.name, sequence=r.sequence) for r in rounds],
         screening_summary=latest.summary_pack if latest else None,
         screening_score=latest.overall_score if latest else None,
         created_at=share.created_at,

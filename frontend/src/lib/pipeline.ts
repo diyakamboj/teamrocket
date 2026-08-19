@@ -8,7 +8,14 @@
  * "Interviewing" bucket: a candidate's column is (stage, round_id).
  */
 
-import type { InterviewRound, PipelineCandidate, PipelineStage } from "@/lib/api";
+import type { PipelineStage } from "@/lib/api";
+
+/**
+ * The minimum a round needs for the board. Both a job's own `InterviewRound`
+ * and the trimmed `SharedRound` a collaborator receives satisfy this, so the
+ * two see identical columns.
+ */
+export type RoundLike = { id: string; name: string; sequence: number };
 
 export type PipelineColumn = {
   /** Unique per column — `interviewing:<round_id>` for round columns. */
@@ -46,7 +53,9 @@ export const STAGES: { id: PipelineStage; label: string; tone: string }[] = [
  * Selected → Hired → Rejected. A job with no rounds falls back to the flat
  * stage list, so the board is never empty while the loop is being set up.
  */
-export function columnsForJob(rounds: InterviewRound[] | undefined | null): PipelineColumn[] {
+export function columnsForJob(
+  rounds: readonly RoundLike[] | undefined | null,
+): PipelineColumn[] {
   const ordered = [...(rounds ?? [])].sort((a, b) => a.sequence - b.sequence);
   if (ordered.length === 0) {
     return STAGES.map((s) => ({
@@ -106,6 +115,25 @@ export function columnsForJob(rounds: InterviewRound[] | undefined | null): Pipe
 }
 
 /**
+ * The next column along, for a one-click advance.
+ *
+ * Terminal columns (hired, rejected) have no next, and neither does the last
+ * non-terminal one — advancing out of "Selected" is a hire, which should be
+ * chosen deliberately rather than reached by repeatedly clicking a button.
+ */
+export function nextColumn(
+  currentKey: string,
+  columns: PipelineColumn[],
+): PipelineColumn | null {
+  const index = columns.findIndex((c) => c.key === currentKey);
+  if (index === -1) return null;
+  const current = columns[index];
+  if (!current || current.terminal) return null;
+  const next = columns[index + 1];
+  return next && !next.terminal ? next : null;
+}
+
+/**
  * Which column a candidate belongs in.
  *
  * A candidate placed in "interviewing" before the loop had rounds — or whose
@@ -113,7 +141,7 @@ export function columnsForJob(rounds: InterviewRound[] | undefined | null): Pipe
  * to the first one rather than vanishing off the board.
  */
 export function columnKeyFor(
-  candidate: Pick<PipelineCandidate, "stage" | "round_id">,
+  candidate: { stage: PipelineStage; round_id?: string | null | undefined },
   columns: PipelineColumn[],
 ): string {
   if (candidate.stage !== "interviewing") return candidate.stage;

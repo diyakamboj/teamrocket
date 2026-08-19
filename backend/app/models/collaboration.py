@@ -66,9 +66,23 @@ class CandidateNote(BaseModel):
     created_at: datetime = Field(default_factory=_utcnow)
 
 
+class SharedRound(BaseModel):
+    """One round of the owner's loop, named so a collaborator can move the
+    candidate into it without access to the job itself."""
+
+    id: str
+    name: str
+    sequence: int
+
+
 class SharedCandidateView(BaseModel):
     """A shared candidate as the recipient sees it: enough to judge fit,
-    without inheriting the record."""
+    without inheriting the record.
+
+    When the share names a job, it also carries where the candidate stands in
+    that job's pipeline and the rounds available. A collaborator cannot list
+    the owner's jobs, so without this there is nowhere for them to act.
+    """
 
     share_id: uuid.UUID
     candidate_id: uuid.UUID
@@ -86,6 +100,12 @@ class SharedCandidateView(BaseModel):
     note: Optional[str] = None
     job_id: Optional[uuid.UUID] = None
     job_title: Optional[str] = None
+    #: Where the candidate stands in that job's pipeline, and the rounds they
+    #: can be moved between. Empty when the share names no job.
+    stage: Optional[str] = None
+    round_id: Optional[str] = None
+    round_name: Optional[str] = None
+    rounds: list[SharedRound] = Field(default_factory=list)
     #: Screening outcome if the owner has screened them, so the recipient sees
     #: the evidence rather than a name.
     screening_summary: Optional[str] = None

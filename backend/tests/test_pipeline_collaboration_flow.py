@@ -148,3 +148,77 @@ def test_revoking_a_share_ends_the_collaboration(client, workspace):
         headers={"X-Recruiter-Email": PEER},
     )
     assert blocked.status_code == 403
+
+
+def test_share_carries_the_pipeline_so_a_collaborator_can_act(client, workspace):
+    """A collaborator cannot list the owner's jobs, so the share itself has to
+    tell them where the candidate stands and what rounds exist."""
+    job, candidate = workspace
+    client.post(
+        "/api/connections/share",
+        json={
+            "candidate_id": str(candidate.id),
+            "email": PEER,
+            "job_id": str(job.id),
+            "permission": "collaborate",
+        },
+        headers={"X-Recruiter-Email": OWNER},
+    )
+    client.put(
+        f"/api/dashboard/jobs/{job.id}/pipeline/{candidate.id}",
+        json={"stage": "interviewing", "round_id": "r2"},
+        headers={"X-Recruiter-Email": OWNER},
+    )
+
+    # The owner's jobs stay invisible to them...
+    assert client.get("/api/jobs", headers={"X-Recruiter-Email": PEER}).json() == []
+
+    # ...but the share tells them where the candidate is and where they can go.
+    shared = client.get(
+        "/api/connections/shared-with-me", headers={"X-Recruiter-Email": PEER}
+    ).json()[0]
+    assert shared["stage"] == "interviewing"
+    assert shared["round_name"] == "Technical interview"
+    assert [r["name"] for r in shared["rounds"]] == [
+        "Recruiter screen",
+        "Technical interview",
+        "Hiring manager",
+    ]
+
+
+def test_a_view_only_share_still_shows_the_stage(client, workspace):
+    job, candidate = workspace
+    client.post(
+        "/api/connections/share",
+        json={
+            "candidate_id": str(candidate.id),
+            "email": PEER,
+            "job_id": str(job.id),
+            "permission": "view",
+        },
+        headers={"X-Recruiter-Email": OWNER},
+    )
+
+    shared = client.get(
+        "/api/connections/shared-with-me", headers={"X-Recruiter-Email": PEER}
+    ).json()[0]
+
+    # Nobody has moved them, so they read as screened rather than blank.
+    assert shared["stage"] == "screened"
+    assert shared["permission"] == "view"
+
+
+def test_a_share_without_a_job_has_no_pipeline(client, workspace):
+    _, candidate = workspace
+    client.post(
+        "/api/connections/share",
+        json={"candidate_id": str(candidate.id), "email": PEER, "permission": "collaborate"},
+        headers={"X-Recruiter-Email": OWNER},
+    )
+
+    shared = client.get(
+        "/api/connections/shared-with-me", headers={"X-Recruiter-Email": PEER}
+    ).json()[0]
+
+    assert shared["stage"] is None
+    assert shared["rounds"] == []

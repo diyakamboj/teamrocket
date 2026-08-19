@@ -28,7 +28,13 @@ import {
 } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { columnKeyFor, columnsForJob, STAGES, type PipelineColumn } from "@/lib/pipeline";
+import {
+  columnKeyFor,
+  columnsForJob,
+  nextColumn,
+  STAGES,
+  type PipelineColumn,
+} from "@/lib/pipeline";
 import { cn } from "@/lib/utils";
 
 /**
@@ -73,6 +79,12 @@ function useCandidateMover({
 
   const move = useCallback(
     async (candidate: BoardCandidate, column: PipelineColumn) => {
+      // The job can still be loading; without an id the move would POST to a
+      // malformed URL and fail in a way that reads like a server problem.
+      if (!jobId) {
+        toast.error("Still loading this role — try again in a moment.");
+        return;
+      }
       setMoving(candidate.id);
       try {
         await moveCandidateInPipeline(jobId, candidate.id, {
@@ -439,6 +451,8 @@ function RoundRoster({
     );
   }
 
+  const advanceTo = nextColumn(currentKey, columns);
+
   return (
     <ul className="mt-3 space-y-1.5">
       {occupants.map((candidate) => (
@@ -451,6 +465,27 @@ function RoundRoster({
             <p className="truncate text-[11px] text-muted-foreground">{candidate.title || "—"}</p>
           </div>
           <span className="metric shrink-0 text-xs font-bold text-primary">{candidate.score}</span>
+
+          {/* Advancing is the common case, so it should not need a menu. */}
+          {advanceTo && (
+            <Button
+              size="sm"
+              variant="outline"
+              disabled={moving === candidate.id}
+              className="h-7 shrink-0 rounded-lg text-[11px]"
+              title={`Advance to ${advanceTo.label}`}
+              onClick={() => onMove(candidate, advanceTo)}
+            >
+              {moving === candidate.id ? (
+                <Loader2 className="h-3 w-3 animate-spin" />
+              ) : (
+                <>
+                  <ArrowRight className="mr-1 h-3 w-3" /> Advance
+                </>
+              )}
+            </Button>
+          )}
+
           <div className="w-32 shrink-0">
             <MoveMenu
               columns={columns}

@@ -36,6 +36,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { CandidateNotes } from "@/components/candidate-notes";
+import { SharedCandidatePipeline } from "@/components/shared-candidate-pipeline";
 import { cn } from "@/lib/utils";
 
 export const Route = createFileRoute("/network")({
@@ -389,6 +390,7 @@ function NetworkPage() {
                 {candidate.note && (
                   <p className="mt-2 text-xs italic text-muted-foreground">“{candidate.note}”</p>
                 )}
+                <SharedCandidatePipeline candidate={candidate} onMoved={() => void refresh()} />
                 {candidate.screening_summary && (
                   <p className="mt-2 line-clamp-3 text-[11px] leading-relaxed text-muted-foreground">
                     {candidate.screening_summary}

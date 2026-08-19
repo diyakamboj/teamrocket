@@ -435,9 +435,21 @@ export type SharedCandidate = {
   note?: string | null;
   job_id?: string | null;
   job_title?: string | null;
+  /** Where they stand in the owner's pipeline, when the share names a job. */
+  stage?: PipelineStage | null;
+  round_id?: string | null;
+  round_name?: string | null;
+  /** The owner's loop, so a collaborator can move them without listing the job. */
+  rounds: SharedRound[];
   screening_summary?: string | null;
   screening_score?: number | null;
   created_at: string;
+};
+
+export type SharedRound = {
+  id: string;
+  name: string;
+  sequence: number;
 };
 
 export type CandidateNote = {
