@@ -106,19 +106,7 @@ function toRow(
   };
 }
 
-function extractLocation(job: JobResponse | null): string {
-  if (!job) return "Flexible / Remote";
-  const desc = job.description || "";
-  const match = desc.match(/(?:location|based in|city|office):\s*([^\n,]+(?:,\s*[^\n]+)?)/i);
-  if (match && match[1]) return match[1].trim();
-  if (desc.toLowerCase().includes("remote")) return "Remote";
-  if (desc.toLowerCase().includes("hybrid")) return "Hybrid / Flexible";
-  if (desc.toLowerCase().includes("seattle")) return "Seattle, WA";
-  if (desc.toLowerCase().includes("san francisco")) return "San Francisco, CA";
-  if (desc.toLowerCase().includes("new york")) return "New York, NY";
-  if (desc.toLowerCase().includes("austin")) return "Austin, TX";
-  return "Flexible / Remote";
-}
+
 
 function JobWorkspacePage() {
   const { jobId } = Route.useParams();
@@ -296,7 +284,7 @@ function JobWorkspacePage() {
               {job?.sourcing_mode === "internal" ? "Internal Hiring" : "External Hiring"}
             </Badge>
             <Badge variant="outline" className="text-slate-600 border-slate-200 bg-white text-xs">
-              📍 {extractLocation(job)}
+              📍 {(job as any)?.location || "Flexible / Remote"}
             </Badge>
             <Badge className="bg-emerald-50 text-emerald-700 border-emerald-200 text-xs font-bold">
               {job?.status ? job.status.toUpperCase() : "ACTIVE HIRING"}
@@ -484,7 +472,7 @@ function JobWorkspacePage() {
                   </div>
                   <div className="flex justify-between">
                     <span className="text-slate-500 font-medium">Target Location:</span>
-                    <span className="font-bold text-slate-900">{extractLocation(job)}</span>
+                    <span className="font-bold text-slate-900">{(job as any)?.location || "Flexible / Remote"}</span>
                   </div>
                 </div>
               </div>

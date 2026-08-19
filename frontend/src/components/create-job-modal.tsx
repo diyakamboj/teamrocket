@@ -18,7 +18,7 @@ import {
   ListChecks,
 } from "lucide-react";
 import { toast } from "sonner";
-import { analyzeJob, createJob } from "@/lib/api";
+import { analyzeJob, createJob, generateJobDescription } from "@/lib/api";
 
 function getDynamicBenchmark(title: string) {
   const t = (title || "").toLowerCase();
@@ -77,6 +77,7 @@ export function CreateJobModal({ isOpen, onClose }: CreateJobModalProps) {
   const [descriptionText, setDescriptionText] = useState("");
   const [copilotFeedback, setCopilotFeedback] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [jdMode, setJdMode] = useState<"paste" | "generate">("paste");
 
   // Extracted skills
   const [requiredSkills, setRequiredSkills] = useState<string[]>([]);
@@ -128,6 +129,29 @@ export function CreateJobModal({ isOpen, onClose }: CreateJobModalProps) {
     }
   };
 
+  const handleGenerateJD = async () => {
+    if (!jobTitle.trim()) {
+      toast.error("Enter a job title first.");
+      return;
+    }
+    setAnalyzing(true);
+    setDescriptionText("");
+    try {
+      const res = await generateJobDescription({
+        title: jobTitle,
+        department: department || undefined,
+        location: location || undefined,
+        employment_type: employmentType || undefined,
+      });
+      setDescriptionText(res.description);
+      toast.success("JD generated! Review and edit below.");
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Generation failed");
+    } finally {
+      setAnalyzing(false);
+    }
+  };
+
   const handleCreateJob = async () => {
     if (!jobTitle.trim()) {
       toast.error("A job title is required.");
@@ -142,6 +166,8 @@ export function CreateJobModal({ isOpen, onClose }: CreateJobModalProps) {
         required_skills: requiredSkills,
         nice_to_have_skills: preferredSkills,
         sourcing_mode: hiringType,
+        location: location || undefined,
+        department: department || undefined,
       });
       window.dispatchEvent(new CustomEvent("job-created", { detail: job }));
       onClose();
@@ -302,91 +328,72 @@ export function CreateJobModal({ isOpen, onClose }: CreateJobModalProps) {
             </div>
           )}
 
-          {/* STEP 3: Job Description Text & Copilot Assistant + Historical Benchmarks */}
+          {/* STEP 3: Job Description */}
           {step === 3 && (
             <div className="space-y-5">
               <div>
-                <h3 className="text-base font-semibold text-slate-900">Step 3 — Job Description & AI Historical Intelligence</h3>
-                <p className="text-xs text-slate-500 mt-1">Paste your job description text below. Copilot will extract requirements and benchmark against historical hiring cycles.</p>
+                <h3 className="text-base font-semibold text-slate-900">Step 3 — Job Description</h3>
+                <p className="text-xs text-slate-500 mt-1">Paste an existing JD or generate one with AI.</p>
               </div>
 
-              <div className="space-y-2">
-                <label className="text-xs font-semibold text-slate-700">Job Description Text</label>
-                <Textarea
-                  value={descriptionText}
-                  onChange={(e) => setDescriptionText(e.target.value)}
-                  rows={8}
-                  placeholder="Paste job description text here (e.g., We are looking for a Senior Software Engineer with Python, SQL, Azure, and Docker experience)..."
-                  className="bg-white border-slate-200 text-slate-900 text-xs font-sans leading-relaxed"
-                />
-              </div>
-
-              {/* Copilot Assistant placed directly below the textarea */}
-              <div className="p-4 rounded-xl bg-blue-50/70 border border-blue-200 space-y-3">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2 text-blue-700 text-xs font-bold">
-                    <Bot className="w-4 h-4" /> Copilot Requirement Extraction & Alignment
-                  </div>
-                  <Button
+              {/* Mode toggle — clicking Generate immediately fires the request */}
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => setJdMode("paste")}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-semibold border transition-all ${
+                    jdMode === "paste"
+                      ? "bg-blue-600 text-white border-blue-600"
+                      : "bg-white text-slate-600 border-slate-200 hover:border-blue-300"
+                  }`}
+                >
+                  📋 Paste JD
+                </button>
+                <button
+                  type="button"
+                  disabled={analyzing}
+                  onClick={() => {
+                    setJdMode("generate");
+                    void handleGenerateJD();
+                  }}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-semibold border transition-all ${
+                    jdMode === "generate"
+                      ? "bg-blue-600 text-white border-blue-600"
+                      : "bg-white text-slate-600 border-slate-200 hover:border-blue-300"
+                  }`}
+                >
+                  {analyzing && jdMode === "generate" ? "⏳ Generating…" : "✨ Generate with AI"}
+                </button>
+                {jdMode === "generate" && !analyzing && descriptionText && (
+                  <button
                     type="button"
-                    variant="outline"
-                    size="sm"
-                    disabled={analyzing}
-                    onClick={() => void handleAskCopilot()}
-                    className="text-xs bg-white border-blue-300 text-blue-800 hover:bg-blue-100 font-semibold"
+                    onClick={() => void handleGenerateJD()}
+                    className="px-3 py-1.5 rounded-lg text-xs font-semibold border border-slate-200 bg-white text-slate-600 hover:border-blue-300 transition-all"
                   >
-                    {analyzing ? "Analyzing description…" : "Extract Requirements & Analyze JD"}
-                  </Button>
-                </div>
-
-                {copilotFeedback ? (
-                  <div className="p-3 rounded-lg bg-white border border-blue-200 text-blue-900 text-xs leading-relaxed animate-in fade-in shadow-xs">
-                    {copilotFeedback}
-                  </div>
-                ) : (
-                  <p className="text-[11px] text-slate-600">
-                    Click <strong>Extract Requirements</strong> to run automated AI requirement detection across skills, experience, and education requirements.
-                  </p>
+                    🔄 Regenerate
+                  </button>
                 )}
               </div>
 
-              {/* Historical Hiring Cycle Intelligence Card */}
-
-              {(() => {
-                const bm = getDynamicBenchmark(jobTitle);
-                return (
-                  <div className="p-4 rounded-xl bg-white border border-slate-200 space-y-3 shadow-xs">
-                    <div className="flex items-center justify-between border-b border-slate-100 pb-2">
-                      <div className="flex items-center gap-2 text-indigo-700 text-xs font-bold">
-                        <History className="w-4 h-4" /> Historical Hiring Benchmark: {bm.roleTitle}
-                      </div>
-                      <Badge className="bg-indigo-50 text-indigo-700 border-indigo-200 text-[10px]">
-                        Benchmarked vs {bm.cycles}
-                      </Badge>
-                    </div>
-
-                    <div className="grid grid-cols-3 gap-3 text-center">
-                      <div className="p-2.5 rounded-lg bg-slate-50 border border-slate-200/80">
-                        <div className="text-base font-bold text-slate-900">{bm.applicants}</div>
-                        <div className="text-[10px] text-slate-500">Avg Applicants</div>
-                      </div>
-                      <div className="p-2.5 rounded-lg bg-slate-50 border border-slate-200/80">
-                        <div className="text-base font-bold text-blue-600">{bm.topMatchScore}</div>
-                        <div className="text-[10px] text-slate-500">Top Match Score</div>
-                      </div>
-                      <div className="p-2.5 rounded-lg bg-slate-50 border border-slate-200/80">
-                        <div className="text-base font-bold text-emerald-600">{bm.timeToHire}</div>
-                        <div className="text-[10px] text-slate-500">Avg Time-to-Hire</div>
-                      </div>
-                    </div>
-
-                    <p className="text-[11px] text-slate-500 leading-relaxed">
-                      {bm.insight}
-                    </p>
+              <div className="space-y-2">
+                <label className="text-xs font-semibold text-slate-700">
+                  {jdMode === "generate" && descriptionText ? "Generated JD (editable)" : "Job Description Text"}
+                </label>
+                {analyzing && jdMode === "generate" ? (
+                  <div className="flex items-center gap-3 p-4 rounded-xl bg-blue-50/70 border border-blue-200 text-blue-700 text-xs">
+                    <span className="animate-spin">&#9654;</span>
+                    Generating job description with AI…
                   </div>
-                );
-              })()}
-
+                ) : (
+                  <Textarea
+                    value={descriptionText}
+                    onChange={(e) => setDescriptionText(e.target.value)}
+                    rows={12}
+                    placeholder={jdMode === "paste" ? "Paste your job description here…" : "Click \u2728 Generate with AI above to generate a JD, or type manually…"}
+                    className="bg-white border-slate-200 text-slate-900 text-xs font-sans leading-relaxed"
+                  />
+                )}
+              </div>
             </div>
           )}
 
@@ -402,14 +409,21 @@ export function CreateJobModal({ isOpen, onClose }: CreateJobModalProps) {
                 <Input
                   value={newSkillInput}
                   onChange={(e) => setNewSkillInput(e.target.value)}
-                  placeholder="Type a skill (e.g. FastAPI, AWS, Docker) and add..."
+                  onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); handleAddSkill("required"); } }}
+                  placeholder="Type a skill and press Enter or Add…"
                   className="bg-white border-slate-200 text-xs"
+                  list="skill-suggestions"
                 />
+                <datalist id="skill-suggestions">
+                  {["Python","JavaScript","TypeScript","React","Node.js","Java","Go","Rust","C++","SQL","PostgreSQL","MongoDB","Redis","AWS","Azure","GCP","Docker","Kubernetes","Terraform","FastAPI","Django","Spring Boot","GraphQL","REST APIs","CI/CD","Git","Machine Learning","TensorFlow","PyTorch","LLMs"].map(s => (
+                    <option key={s} value={s} />
+                  ))}
+                </datalist>
                 <Button size="sm" onClick={() => handleAddSkill("required")} className="bg-blue-600 text-white text-xs whitespace-nowrap">
-                  + Add Required
+                  + Required
                 </Button>
                 <Button size="sm" variant="outline" onClick={() => handleAddSkill("preferred")} className="border-slate-200 text-xs whitespace-nowrap">
-                  + Add Preferred
+                  + Preferred
                 </Button>
               </div>
 

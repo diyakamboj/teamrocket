@@ -1,6 +1,8 @@
 import uuid
+from typing import Optional
 
 from fastapi import APIRouter
+from pydantic import BaseModel
 
 from app.dependencies import AppStore, RecruiterEmail
 from app.models.evaluation import AuditLog
@@ -12,6 +14,7 @@ from app.models.schemas import (
     JobResponse,
     JobUpdate,
 )
+from app.services.azure_services import openai_service
 from app.services.job_analyzer import job_analyzer
 from app.storage.store import Store
 from app.utils.error_handlers import NotFoundError, ValidationAppError
@@ -39,6 +42,8 @@ async def create_job(payload: JobCreate, store: AppStore, recruiter_email: Recru
         nice_to_have_skills=payload.nice_to_have_skills,
         sourcing_mode=payload.sourcing_mode or "both",
         created_by=payload.created_by or recruiter_email,
+        location=payload.location,
+        department=payload.department if hasattr(payload, 'department') else None,
     )
 
     store.jobs.save(job)
@@ -109,6 +114,74 @@ def update_job(
         resource_id=job.id,
     )
     return job
+
+
+class GenerateJDRequest(BaseModel):
+    title: str
+    department: Optional[str] = None
+    location: Optional[str] = None
+    employment_type: Optional[str] = None
+
+
+class GenerateJDResponse(BaseModel):
+    description: str
+
+
+@router.post("/generate-description", response_model=GenerateJDResponse)
+async def generate_job_description(payload: GenerateJDRequest):
+    """Uses Azure OpenAI to generate a full professional job description."""
+    prompt = f"""Write a professional job description for the following role.
+
+Role: {payload.title}
+Department: {payload.department or 'Not specified'}
+Location: {payload.location or 'Flexible / Remote'}
+Employment Type: {payload.employment_type or 'Full-time'}
+
+The job description should include:
+- A compelling 2-3 sentence overview of the role and its impact
+- Key responsibilities (6-8 bullet points)
+- Required qualifications and skills (5-7 bullet points)
+- Nice-to-have / preferred skills (3-4 bullet points)
+- A brief closing statement about the team/company culture
+
+Write in a professional, engaging tone. Do not use placeholders. Output only the job description text, no extra commentary."""
+
+    if openai_service.mock:
+        description = f"""We are looking for a talented {payload.title} to join our {payload.department or 'team'}.
+
+**About the Role**
+As a {payload.title}, you will play a key role in driving technical excellence and delivering high-quality solutions. You will collaborate cross-functionally to build scalable, reliable systems that make a real impact.
+
+**Key Responsibilities**
+- Design, build, and maintain high-quality software systems
+- Collaborate with product, design, and engineering teams
+- Write clean, well-tested, maintainable code
+- Participate in code reviews and technical discussions
+- Identify and resolve performance bottlenecks
+- Contribute to architectural decisions and best practices
+- Mentor junior team members
+
+**Required Qualifications**
+- 3+ years of relevant professional experience
+- Strong problem-solving and communication skills
+- Experience with modern software development practices
+- Proficiency in relevant programming languages and frameworks
+- Familiarity with cloud platforms (AWS, Azure, or GCP)
+
+**Nice to Have**
+- Experience with distributed systems
+- Contributions to open-source projects
+- Experience in a fast-paced startup environment
+
+We value curiosity, collaboration, and a growth mindset. If you're excited about solving complex problems and making a real impact, we'd love to hear from you."""
+    else:
+        description = openai_service.chat_text(
+            prompt,
+            system="You are a professional technical recruiter who writes compelling, accurate job descriptions.",
+            temperature=0.7,
+        )
+
+    return GenerateJDResponse(description=description)
 
 
 @router.post("/analyze-draft", response_model=JobAnalyzeResponse)

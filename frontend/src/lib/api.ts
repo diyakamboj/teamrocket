@@ -173,6 +173,8 @@ export type JobResponse = {
   education_requirements?: string | null;
   status?: JobStatus;
   sourcing_mode?: string;
+  location?: string | null;
+  department?: string | null;
 };
 
 
@@ -285,9 +287,22 @@ export async function createJob(input: {
   nice_to_have_skills?: string[];
   required_experience_years?: number;
   sourcing_mode?: string;
+  location?: string;
+  department?: string;
 }): Promise<JobResponse> {
-
   return request<JobResponse>("/api/jobs", {
+    method: "POST",
+    body: JSON.stringify(input),
+  });
+}
+
+export async function generateJobDescription(input: {
+  title: string;
+  department?: string;
+  location?: string;
+  employment_type?: string;
+}): Promise<{ description: string }> {
+  return request<{ description: string }>("/api/jobs/generate-description", {
     method: "POST",
     body: JSON.stringify(input),
   });

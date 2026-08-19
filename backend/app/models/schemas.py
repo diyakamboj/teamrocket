@@ -113,6 +113,7 @@ class JobCreate(BaseModel):
     nice_to_have_skills: list[str] = Field(default_factory=list)
     sourcing_mode: Optional[str] = "both"
     created_by: Optional[str] = None
+    location: Optional[str] = None
 
 
 
@@ -132,6 +133,7 @@ class JobUpdate(BaseModel):
     nice_to_have_skills: Optional[list[str]] = None
     status: Optional[str] = None  # "open" | "paused" | "closed"
     sourcing_mode: Optional[str] = None  # "internal" | "external" | "both"
+    location: Optional[str] = None
 
 
 class JobResponse(ORMModel):
