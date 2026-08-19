@@ -75,11 +75,11 @@ variable "embedding_api_key" {
   sensitive   = true
 }
 
-# No embedding_endpoint variable — the equivalent data source in the
-# original data.tf was already dead code (defined, never referenced;
-# keyvault.tf only ever stores an embedding *key* secret, reusing
-# openai_endpoint's value for the endpoint side). Caught and dropped here
-# rather than carried forward. See keyvault.tf's embedding_api_key comment.
+variable "embedding_endpoint" {
+  description = "Copied from Group5-6's 'Group5-6-text-embedding-3-small-EndPoint' secret. RE-ADDED 2026-08-19: an earlier version of this comment called this dead code, reasoning the original (pre-refactor) data source was never referenced anywhere. That was true of the data source, but wrong about the underlying need — backend/app/services/azure_services.py's embedding client reads AZURE_OPENAI_EMBEDDING_API_KEY and AZURE_OPENAI_EMBEDDING_ENDPOINT as two distinct settings, with no fallback to the main AZURE_OPENAI_* ones. app_service.tf never wired either into app_settings, so this was a real, live gap, not dead code — confirmed directly against the backend source before re-adding this."
+  type        = string
+  sensitive   = true
+}
 
 variable "search_api_key" {
   description = "Copied from Group5-6's 'AISearch-APIKey' secret."
@@ -179,6 +179,16 @@ variable "github_token" {
   description = "Fine-grained GitHub PAT, public-repo read-only, no extra scopes — raises the anonymous api.github.com rate limit for candidate profile enrichment. See DOCUMENTATION.md #7 for generation steps."
   type        = string
   default     = ""
+  sensitive   = true
+}
+
+# -----------------------------------------------------------------------------
+# Alerting (monitoring.tf)
+# -----------------------------------------------------------------------------
+
+variable "alert_notification_email" {
+  description = "Email address the action group in monitoring.tf notifies when a metric alert fires. Not a secret, but personal/team contact info — kept out of tracked .tfvars the same way smtp_username etc. are; supply via a gitignored *.auto.tfvars file. No default: alerts with nowhere to send are worse than an apply that fails loudly and asks for one."
+  type        = string
   sensitive   = true
 }
 
