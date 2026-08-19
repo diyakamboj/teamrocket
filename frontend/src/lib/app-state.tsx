@@ -11,6 +11,7 @@ import {
 import { toast } from "sonner";
 import {
   ensureActiveJob,
+  getBackendHealth,
   getResumeStatus,
   reparseResume,
   uploadResumesToBackend,
@@ -100,25 +101,73 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
   const [poolVersion, setPoolVersion] = useState(0);
   const wasActive = useRef(false);
   const seq = useRef(0);
+  //: Guards the one-time job seeding, so reconnect retries never create a
+  //: second job for an account that started with none.
+  const seededJob = useRef(false);
 
   const refreshPool = useCallback(() => setPoolVersion((v) => v + 1), []);
 
+  /**
+   * Whether the backend is reachable. The copilot header renders this as
+   * "Connected" / "Offline".
+   *
+   * This used to be a single call on mount with no retry, so one failed
+   * request — a backend still starting, a restart, a network blip — pinned
+   * the app to "Offline" for the rest of the session even after the backend
+   * was fine again, and the only cure was a page reload. It now retries with
+   * a backoff and re-checks when the tab is focused or the network returns.
+   */
   useEffect(() => {
     let cancelled = false;
-    ensureActiveJob()
-      .then((job) => {
-        if (!cancelled) {
-          setActiveJobId(job.id);
+    let timer: number | undefined;
+    let attempt = 0;
+
+    const check = () => {
+      // Health first: it is a plain read, so retrying it is free. Only once
+      // the backend answers do we touch `ensureActiveJob`, which creates a
+      // job when the account has none and must not run on every retry.
+      getBackendHealth()
+        .then(() => (seededJob.current ? null : ensureActiveJob()))
+        .then((job) => {
+          if (cancelled) return;
+          if (job) {
+            seededJob.current = true;
+            // Only seed the active job; never clobber one the user has since
+            // navigated to while this was retrying.
+            setActiveJobId((current) => current ?? job.id);
+          }
           setBackendReady(true);
-        }
-      })
-      .catch(() => {
-        if (!cancelled) {
+          attempt = 0;
+        })
+        .catch(() => {
+          if (cancelled) return;
           setBackendReady(false);
-        }
-      });
+          attempt += 1;
+          // 2s, 4s, 8s… capped at 30s, so a backend that comes back up is
+          // picked up on its own without hammering it while it is down.
+          const delay = Math.min(30_000, 2_000 * 2 ** (attempt - 1));
+          timer = window.setTimeout(check, delay);
+        });
+    };
+
+    check();
+
+    // A tab left open across a backend restart should recover on focus
+    // rather than waiting out the backoff.
+    const recheck = () => {
+      if (cancelled || document.visibilityState !== "visible") return;
+      window.clearTimeout(timer);
+      attempt = 0;
+      check();
+    };
+    window.addEventListener("online", recheck);
+    document.addEventListener("visibilitychange", recheck);
+
     return () => {
       cancelled = true;
+      window.clearTimeout(timer);
+      window.removeEventListener("online", recheck);
+      document.removeEventListener("visibilitychange", recheck);
     };
   }, []);
 

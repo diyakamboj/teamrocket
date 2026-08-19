@@ -665,6 +665,28 @@ export async function createJob(input: {
   });
 }
 
+export type BackendHealth = {
+  status: string;
+  version?: string;
+  mock_azure?: boolean;
+  azure_configured?: boolean;
+};
+
+/**
+ * Liveness check for the "Connected" / "Offline" indicator.
+ *
+ * Deliberately separate from `ensureActiveJob`, which creates a job when the
+ * account has none — a readiness probe that retries must never have a side
+ * effect, or a backend that is slow to come up ends up with a job per retry.
+ */
+export async function getBackendHealth(): Promise<BackendHealth> {
+  const response = await fetch(`${API_BASE}/health`, {
+    headers: { "X-Recruiter-Email": recruiterEmail() },
+  });
+  if (!response.ok) throw new Error(`Backend unhealthy (${response.status})`);
+  return response.json() as Promise<BackendHealth>;
+}
+
 export async function ensureActiveJob(): Promise<JobResponse> {
   const jobs = await listJobs();
   if (jobs.length > 0) return jobs[0]!;
