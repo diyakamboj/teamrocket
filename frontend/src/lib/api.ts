@@ -221,6 +221,80 @@ export async function askAgent(payload: AgentAskPayload): Promise<AgentAskRespon
   });
 }
 
+/** One step the agent reported while working on an answer. */
+export type AgentProgress = {
+  stage: "context" | "plan" | "tool" | "answer" | "fallback" | string;
+  detail: string;
+};
+
+/**
+ * Ask the agent and receive its progress as it works.
+ *
+ * An answer takes several seconds of real work — re-reading the scored pool,
+ * choosing a tool, running it, writing the reply — so this streams what the
+ * agent is doing instead of leaving a spinner. Falls back to the plain
+ * `askAgent` request if the stream cannot be opened, so the chat still works
+ * behind proxies that buffer server-sent events.
+ */
+export async function askAgentStreaming(
+  payload: AgentAskPayload,
+  onProgress: (progress: AgentProgress) => void,
+): Promise<AgentAskResponse> {
+  let response: Response;
+  try {
+    response = await fetch(`${API_BASE}/api/agent/ask/stream`, {
+      method: "POST",
+      headers: recruiterHeaders(),
+      body: JSON.stringify(payload),
+    });
+  } catch {
+    return askAgent(payload);
+  }
+
+  if (!response.ok || !response.body) {
+    return askAgent(payload);
+  }
+
+  const reader = response.body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = "";
+  let result: AgentAskResponse | null = null;
+  let failure: string | null = null;
+
+  // Server-sent events: one JSON object per "data:" line, blank-line separated.
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    buffer += decoder.decode(value, { stream: true });
+
+    let split = buffer.indexOf("\n\n");
+    while (split !== -1) {
+      const chunk = buffer.slice(0, split).trim();
+      buffer = buffer.slice(split + 2);
+      split = buffer.indexOf("\n\n");
+      if (!chunk.startsWith("data:")) continue;
+
+      let event: Record<string, unknown>;
+      try {
+        event = JSON.parse(chunk.slice(5).trim());
+      } catch {
+        continue;
+      }
+
+      if (event["type"] === "progress") {
+        onProgress({ stage: String(event["stage"]), detail: String(event["detail"]) });
+      } else if (event["type"] === "result") {
+        result = event as unknown as AgentAskResponse;
+      } else if (event["type"] === "error") {
+        failure = String(event["detail"] ?? "Copilot failed");
+      }
+    }
+  }
+
+  if (result) return result;
+  throw new Error(failure ?? "Copilot stream ended without an answer");
+}
+
 export async function getAgentModels(): Promise<AgentModelsResponse> {
   return request<AgentModelsResponse>("/api/agent/models");
 }

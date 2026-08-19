@@ -1,5 +1,5 @@
 import hashlib
-from typing import Any, Optional
+from typing import Callable, Any, Optional
 from uuid import UUID
 
 from app.models.evaluation import AgentSession
@@ -67,6 +67,7 @@ class RecruiterCopilot:
         candidate_id: Optional[UUID] = None,
         model_id: Optional[str] = None,
         attachment_ids: Optional[list[UUID]] = None,
+        on_progress: Optional[Callable[[str, str], None]] = None,
     ) -> dict[str, Any]:
         if job_id:
             job = store.jobs.get(job_id)
@@ -117,6 +118,7 @@ class RecruiterCopilot:
             db=store,
             job=job,
             question=question,
+            **({"on_progress": on_progress} if on_progress else {}),
             blind=blind_mode,
             weights=weights,
             model_id=resolved_model_id,

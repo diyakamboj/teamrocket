@@ -7,7 +7,6 @@ import { useCopilot } from "@/lib/copilot-state";
 import { HistoryDrawer } from "./history-drawer";
 import { InputBar } from "./input-bar";
 import { MessageList } from "./message-list";
-import { ModelSelector } from "./model-selector";
 
 const GENERIC_SUGGESTIONS = [
   "Show me the top ranked candidates",
@@ -82,7 +81,6 @@ export function CopilotPanel() {
               {backendReady ? "Connected" : "Offline"}
             </p>
           </div>
-          <ModelSelector />
           <HistoryDrawer />
           <Button
             variant="ghost"

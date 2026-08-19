@@ -6,7 +6,7 @@ import { MessageBubble } from "./message-bubble";
 import { ToolIndicator } from "./tool-indicator";
 
 export function MessageList({ emptyState }: { emptyState?: ReactNode }) {
-  const { messages, loading, toolInFlight, send } = useCopilot();
+  const { messages, loading, toolInFlight, thinking, send } = useCopilot();
   const bottomRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -37,7 +37,25 @@ export function MessageList({ emptyState }: { emptyState?: ReactNode }) {
         {messages.map((message) => (
           <MessageBubble key={message.id} message={message} onRetry={(text) => void send(text)} />
         ))}
-        {loading && <ToolIndicator pending label={toolInFlight ?? undefined} />}
+        {loading && (
+          <div className="space-y-1.5">
+            <ToolIndicator
+              pending
+              label={thinking[thinking.length - 1]?.detail ?? toolInFlight ?? undefined}
+            />
+            {/* Steps the agent already finished, so a slow answer shows its
+                working rather than an unchanging spinner. */}
+            {thinking.length > 1 && (
+              <ul className="ml-5 space-y-0.5 border-l pl-3">
+                {thinking.slice(0, -1).map((step, i) => (
+                  <li key={`${step.stage}-${i}`} className="text-[11px] text-muted-foreground/70">
+                    {step.detail}
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+        )}
         <div ref={bottomRef} />
       </div>
     </ScrollArea>

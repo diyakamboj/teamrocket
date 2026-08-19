@@ -24,9 +24,15 @@ from app.storage.store import Store, get_store
 
 class InMemoryJsonBlobStore:
     """Dict-backed stand-in for `JsonBlobStore`, same interface (put/get/
-    delete/exists/list_prefix). Gives each test a trivially-reset,
-    fully-isolated backing store — no real disk I/O, no shared state between
-    tests, no need for the old drop-all/create-all SQLAlchemy dance.
+    get_many/put_many/delete/delete_many/exists/list_prefix). Gives each test
+    a trivially-reset, fully-isolated backing store — no real disk I/O, no
+    shared state between tests, no need for the old drop-all/create-all
+    SQLAlchemy dance.
+
+    The batch methods exist because the real store batches: they are what
+    the repositories call, so the double has to answer them too. `immutable`
+    and `strict` are accepted and ignored — they only affect how the real
+    store talks to Blob Storage, not what is stored.
     """
 
     def __init__(self) -> None:
@@ -35,17 +41,28 @@ class InMemoryJsonBlobStore:
     def put(self, key: str, doc: dict) -> None:
         self._data[key] = copy.deepcopy(doc)
 
+    def put_many(self, items: list[tuple[str, dict]], *, strict: bool = False) -> None:
+        for key, doc in items:
+            self.put(key, doc)
+
     def get(self, key: str) -> Optional[dict]:
         doc = self._data.get(key)
         return copy.deepcopy(doc) if doc is not None else None
 
+    def get_many(self, keys: list[str]) -> list[Optional[dict]]:
+        return [self.get(key) for key in keys]
+
     def delete(self, key: str) -> None:
         self._data.pop(key, None)
+
+    def delete_many(self, keys: list[str]) -> None:
+        for key in keys:
+            self.delete(key)
 
     def exists(self, key: str) -> bool:
         return key in self._data
 
-    def list_prefix(self, prefix: str) -> list[str]:
+    def list_prefix(self, prefix: str, *, immutable: bool = False) -> list[str]:
         prefix = prefix.strip("/")
         if not prefix:
             return sorted(self._data.keys())

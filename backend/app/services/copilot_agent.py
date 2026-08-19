@@ -11,7 +11,7 @@ from __future__ import annotations
 import json
 import re
 import uuid
-from typing import Any
+from typing import Any, Callable
 
 
 from app.services.azure_services import openai_service
@@ -19,6 +19,7 @@ from app.services.copilot_pool import build_pool, job_requirements, resolve_pool
 from app.services.candidate_matcher import candidate_matcher
 from app.services import calendar_service
 from app.services.jd_optimizer import jd_optimizer
+from app.utils.logger import get_logger
 from app.models.schemas import (
     AgentCandidateCard,
     AgentComparisonTable,
@@ -29,6 +30,8 @@ from app.models.schemas import (
     AgentRequirementVerdict,
     WeightConfig,
 )
+
+logger = get_logger(__name__)
 
 COPILOT_TOOLS = (
     "search_candidates",
@@ -770,6 +773,10 @@ def deterministic_answer(
     }
 
 
+def _noop_progress(stage: str, detail: str) -> None:
+    """Default when nobody is watching the agent work."""
+
+
 async def _agent_answer(
     question: str,
     pool: list[dict[str, Any]],
@@ -780,6 +787,7 @@ async def _agent_answer(
     focus_candidate_id: str | None = None,
     store=None,
     job=None,
+    on_progress: Callable[[str, str], None] = _noop_progress,
 ) -> dict[str, Any]:
     tool_select_system = TOOL_SELECT_SYSTEM
     if focus_candidate_id:
@@ -791,6 +799,7 @@ async def _agent_answer(
                 f'"{focus_member["label"]}".\n\n' + TOOL_SELECT_SYSTEM
             )
 
+    on_progress("plan", "Deciding how to answer")
     selection = openai_service.chat_json(
         f"Pool ({len(pool)} scored candidates):\n{_pool_preview(pool)}\n\nQuestion: {question}",
         system=tool_select_system,
@@ -805,6 +814,7 @@ async def _agent_answer(
     if tool == "jd_calibration" and store is not None and job is not None:
         calibration = await jd_calibration_result(store, job.id)
         jd_optimization = calibration["optimization"]
+    on_progress("tool", f"Running {tool.replace('_', ' ')}")
     result = run_copilot_tool(
         tool,
         args,
@@ -813,6 +823,7 @@ async def _agent_answer(
         jd_optimization=jd_optimization,
     )
 
+    on_progress("answer", "Writing the answer with citations")
     answer_payload = openai_service.chat_json(
         f"Question: {question}\n\nTool output:\n{result['text']}",
         system=SYNTHESIS_SYSTEM,
@@ -844,8 +855,18 @@ async def copilot_answer(
     model_id: str = "gpt-4o",
     deployment: str = "gpt-4o",
     focus_candidate_id: str | None = None,
+    on_progress: Callable[[str, str], None] = _noop_progress,
 ) -> dict[str, Any]:
+    """Answer one copilot question.
+
+    `on_progress(stage, detail)` is called as the agent works — reading the
+    pool, picking a tool, running it, writing the answer — so the UI can show
+    what is actually happening instead of a spinner. It is a plain callback:
+    the streaming route pushes each event onto a queue, and every other
+    caller passes nothing.
+    """
     weight_config = weights or WeightConfig()
+    on_progress("context", f"Reading scored candidates for {job.title}")
     ranked = await candidate_matcher.rank_candidates(
         db, job.id, weight_config=weight_config, persist=False, blind_mode=blind
     )
@@ -853,8 +874,10 @@ async def copilot_answer(
         item["years"] = item.get("years_of_experience")
     requirements = job_requirements(job)
     pool = build_pool(ranked, weights=weight_config, blind=blind, requirements=requirements)
+    on_progress("context", f"Read {len(pool)} scored candidates against {len(requirements)} requirements")
 
     if is_analytics_query(question):
+        on_progress("tool", "Calibrating the job description")
         calibration = await jd_calibration_result(db, job.id)
         return {
             "answer": format_jd_calibration_answer(calibration["optimization"]),
@@ -880,6 +903,7 @@ async def copilot_answer(
     focus_candidate = resolve_pool_member(pool, focus_candidate_id) if focus_candidate_id else None
 
     if openai_service.mock:
+        on_progress("answer", "Composing the answer from stored verdicts")
         result = deterministic_answer(question, pool, requirements, focus_candidate=focus_candidate)
         result["pool"] = pool
         result["model_id"] = model_id
@@ -895,11 +919,14 @@ async def copilot_answer(
             focus_candidate_id=focus_candidate_id,
             store=db,
             job=job,
+            on_progress=on_progress,
         )
         result["pool"] = pool
         result["model_id"] = model_id
         return result
-    except Exception:
+    except Exception as exc:
+        logger.warning("Copilot AI path failed; using deterministic fallback: %s", exc)
+        on_progress("fallback", "The model was unavailable — answering from stored verdicts")
         result = deterministic_answer(question, pool, requirements, focus_candidate=focus_candidate)
         result["pool"] = pool
         result["model_id"] = model_id

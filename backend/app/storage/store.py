@@ -28,6 +28,7 @@ from app.models.screening import ScreeningSession
 from app.services.azure_services import JsonBlobStore, document_store
 from app.storage.repository import (
     AppendOnlyRepository,
+    CandidateHistoryRepository,
     AtsBenchmarkRepository,
     EvaluationRepository,
     EvidenceRepository,
@@ -66,9 +67,7 @@ class Store:
         self.chat_attachments: Repository[ChatAttachment] = Repository(
             backing, ChatAttachment, "chat_attachments"
         )
-        self.candidate_history_events: AppendOnlyRepository[CandidateHistoryEvent] = (
-            AppendOnlyRepository(backing, CandidateHistoryEvent, "candidate_history_events")
-        )
+        self.candidate_history_events = CandidateHistoryRepository(backing)
         self.handoffs: Repository[InterviewHandoff] = Repository(
             backing, InterviewHandoff, "interview_handoffs"
         )
