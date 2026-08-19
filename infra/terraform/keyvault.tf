@@ -110,6 +110,16 @@ resource "azurerm_key_vault_secret" "document_intelligence_endpoint" {
   depends_on   = [azurerm_role_assignment.terraform_secrets_officer]
 }
 
+# Connection string is credential-bearing (it grants ingestion access to the
+# App Insights resource), so it goes through Key Vault like the other
+# connection strings above rather than as a plain app_settings value.
+resource "azurerm_key_vault_secret" "app_insights_connection_string" {
+  name         = "APPLICATIONINSIGHTS-CONNECTION-STRING"
+  value        = azurerm_application_insights.main.connection_string
+  key_vault_id = azurerm_key_vault.main.id
+  depends_on   = [azurerm_role_assignment.terraform_secrets_officer]
+}
+
 # -----------------------------------------------------------------------------
 # Placeholder secrets — not yet available (KNOWN-ISSUES.md #8). Written as
 # empty strings so App Service's Key Vault references resolve to *something*

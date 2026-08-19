@@ -349,12 +349,7 @@ export type JDRecommendation = {
   coverage_pct: number;
   candidates_matching: number;
   total_candidates: number;
-  classification:
-    | "too_strict"
-    | "low_signal"
-    | "under_filtered"
-    | "balanced"
-    | "insufficient_data";
+  classification: "too_strict" | "low_signal" | "under_filtered" | "balanced" | "insufficient_data";
   suggested_modification: string;
   supporting_data: Record<string, unknown>;
   status: JDRecommendationStatus;
@@ -394,6 +389,125 @@ export async function decideJdRecommendation(
       body: JSON.stringify(payload),
     },
   );
+}
+
+// ---------- Ops / SRE dashboard ----------
+
+export type OpsServiceStatus = {
+  service: string;
+  label: string;
+  status: "healthy" | "degraded" | "critical" | "unknown";
+  detail: string;
+};
+
+export type OpsOverviewResponse = {
+  generated_at: string;
+  overall_status: string;
+  services: OpsServiceStatus[];
+};
+
+export type OpsRequestBucket = {
+  bucket_start: string;
+  count: number;
+  error_count: number;
+  avg_latency_ms: number;
+};
+
+export type OpsRequestHealthResponse = {
+  window_hours: number;
+  total_requests: number;
+  error_rate_pct: number;
+  avg_latency_ms: number;
+  p95_latency_ms: number;
+  buckets: OpsRequestBucket[];
+};
+
+export type OpsAiServiceStat = {
+  service: string;
+  label: string;
+  call_count: number;
+  failure_count: number;
+  fallback_count: number;
+  avg_latency_ms: number;
+  p95_latency_ms: number;
+  mock_call_pct: number;
+  breaker_open: boolean | null;
+  consecutive_failures: number | null;
+};
+
+export type OpsAiServiceHealthResponse = {
+  window_hours: number;
+  services: OpsAiServiceStat[];
+};
+
+export type OpsToolUsage = { tool: string; count: number };
+
+export type OpsAgentHealthResponse = {
+  window_hours: number;
+  total_turns: number;
+  deterministic_turns: number;
+  agent_turns: number;
+  fallback_turns: number;
+  fallback_rate_pct: number;
+  tool_usage: OpsToolUsage[];
+};
+
+export type OpsEndpointStat = {
+  method: string;
+  path: string;
+  count: number;
+  error_count: number;
+  error_rate_pct: number;
+  avg_latency_ms: number;
+};
+
+export type OpsEndpointBreakdownResponse = {
+  window_hours: number;
+  endpoints: OpsEndpointStat[];
+};
+
+export type OpsLogEntry = {
+  created_at: string;
+  event_type: string;
+  service: string;
+  status: string;
+  duration_ms: number;
+  error_message?: string | null;
+  details: Record<string, unknown>;
+};
+
+export type OpsLogsResponse = {
+  window_hours: number;
+  total_count: number;
+  entries: OpsLogEntry[];
+};
+
+export async function getOpsOverview(hours = 1): Promise<OpsOverviewResponse> {
+  return request<OpsOverviewResponse>(`/api/ops/overview?hours=${hours}`);
+}
+
+export async function getOpsRequestHealth(hours = 1): Promise<OpsRequestHealthResponse> {
+  return request<OpsRequestHealthResponse>(`/api/ops/requests?hours=${hours}`);
+}
+
+export async function getOpsAiServiceHealth(hours = 1): Promise<OpsAiServiceHealthResponse> {
+  return request<OpsAiServiceHealthResponse>(`/api/ops/ai-services?hours=${hours}`);
+}
+
+export async function getOpsAgentHealth(hours = 1): Promise<OpsAgentHealthResponse> {
+  return request<OpsAgentHealthResponse>(`/api/ops/agent?hours=${hours}`);
+}
+
+export async function getOpsEndpointBreakdown(
+  hours = 1,
+  limit = 20,
+): Promise<OpsEndpointBreakdownResponse> {
+  return request<OpsEndpointBreakdownResponse>(`/api/ops/endpoints?hours=${hours}&limit=${limit}`);
+}
+
+export async function getOpsLogs(hours = 1, status?: string): Promise<OpsLogsResponse> {
+  const statusParam = status ? `&status=${status}` : "";
+  return request<OpsLogsResponse>(`/api/ops/logs?hours=${hours}${statusParam}`);
 }
 
 /**
@@ -830,7 +944,9 @@ export type ScheduledInterview = {
   updated_at: string;
 };
 
-export async function getKnownInterviewers(): Promise<Array<{ name: string; email: string; title: string }>> {
+export async function getKnownInterviewers(): Promise<
+  Array<{ name: string; email: string; title: string }>
+> {
   return request("/api/interviews/interviewers");
 }
 
@@ -884,7 +1000,10 @@ export async function confirmRescheduleInterview(
   });
 }
 
-export async function cancelInterview(interviewId: string, reason?: string): Promise<ScheduledInterview> {
+export async function cancelInterview(
+  interviewId: string,
+  reason?: string,
+): Promise<ScheduledInterview> {
   return request(`/api/interviews/${interviewId}/cancel`, {
     method: "POST",
     body: JSON.stringify({ reason: reason || null }),
@@ -924,7 +1043,10 @@ export type ScreeningSession = {
   updated_at: string;
 };
 
-export async function createScreeningSession(candidateId: string, jobId?: string | null): Promise<ScreeningSession> {
+export async function createScreeningSession(
+  candidateId: string,
+  jobId?: string | null,
+): Promise<ScreeningSession> {
   return request("/api/screening/session", {
     method: "POST",
     body: JSON.stringify({ candidate_id: candidateId, job_id: jobId || null }),
@@ -942,7 +1064,9 @@ export async function submitScreeningAnswer(input: {
   });
 }
 
-export async function listCandidateScreeningSessions(candidateId: string): Promise<ScreeningSession[]> {
+export async function listCandidateScreeningSessions(
+  candidateId: string,
+): Promise<ScreeningSession[]> {
   return request(`/api/screening/candidate/${encodeURIComponent(candidateId)}`);
 }
 
@@ -1056,7 +1180,9 @@ export async function submitAssessmentResults(
   });
 }
 
-export async function listCandidateAssessments(candidateId: string): Promise<CandidateAssessmentRecord[]> {
+export async function listCandidateAssessments(
+  candidateId: string,
+): Promise<CandidateAssessmentRecord[]> {
   return request(`/api/readiness/candidate/${encodeURIComponent(candidateId)}`);
 }
 
@@ -1237,8 +1363,3 @@ export async function rankCandidatesApi(
 }
 
 export { API_BASE };
-
-
-
-
-

@@ -2,6 +2,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.config import settings
+from app.middleware import RequestContextMiddleware
 from app.routes import (
     agent,
     candidates,
@@ -12,6 +13,7 @@ from app.routes import (
     internal_marketplace,
     interviews,
     jobs,
+    ops,
     readiness,
     resumes,
     screening,
@@ -28,6 +30,21 @@ app = FastAPI(
     version=settings.API_VERSION,
 )
 
+# Azure Monitor / Application Insights — a no-op when unset (the default,
+# and the only state reachable in local mock-mode dev). The Ops dashboard's
+# own sre_events telemetry (below) works independently of this.
+if settings.APPLICATIONINSIGHTS_CONNECTION_STRING:
+    from azure.monitor.opentelemetry import configure_azure_monitor
+    from opentelemetry.instrumentation.fastapi import FastAPIInstrumentor
+    from opentelemetry.instrumentation.httpx import HTTPXClientInstrumentor
+
+    configure_azure_monitor(connection_string=settings.APPLICATIONINSIGHTS_CONNECTION_STRING)
+    FastAPIInstrumentor.instrument_app(app)
+    HTTPXClientInstrumentor().instrument()
+    logger.info("Azure Monitor OpenTelemetry configured")
+else:
+    logger.info("APPLICATIONINSIGHTS_CONNECTION_STRING not set — Azure Monitor telemetry disabled")
+
 app.add_middleware(
     CORSMiddleware,
     allow_origins=settings.CORS_ORIGINS,
@@ -35,6 +52,11 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# Added after CORS so it wraps outermost (Starlette's add_middleware inserts
+# at the front of its internal list, so the most recently added middleware
+# ends up outermost) — gives it timing coverage of the full request.
+app.add_middleware(RequestContextMiddleware)
 
 setup_exception_handlers(app)
 
@@ -54,6 +76,7 @@ app.include_router(
     prefix="/api/internal-marketplace",
     tags=["Internal Talent Marketplace"],
 )
+app.include_router(ops.router, prefix="/api/ops", tags=["Ops / SRE Dashboard"])
 
 
 

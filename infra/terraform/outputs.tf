@@ -30,3 +30,15 @@ output "key_vault_uri" {
 output "document_intelligence_endpoint" {
   value = azurerm_cognitive_account.document_intelligence.endpoint
 }
+
+output "log_analytics_workspace_name" {
+  value = azurerm_log_analytics_workspace.main.name
+}
+
+output "application_insights_name" {
+  value = azurerm_application_insights.main.name
+}
+
+output "alert_action_group_name" {
+  value = azurerm_monitor_action_group.main.name
+}

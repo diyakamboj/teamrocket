@@ -79,6 +79,19 @@ def client(store: Store) -> Generator[TestClient, None, None]:
 
 
 @pytest.fixture()
+def isolated_sre_store(monkeypatch) -> InMemoryJsonBlobStore:
+    """`app.services.sre_events` writes to the module-level `document_store`
+    singleton directly (not the per-test `store`/`get_store` override —
+    see that module's docstring for why), so isolate it separately here.
+    """
+    from app.services import sre_events
+
+    fake_store = InMemoryJsonBlobStore()
+    monkeypatch.setattr(sre_events, "document_store", fake_store)
+    return fake_store
+
+
+@pytest.fixture()
 def sample_job(store: Store) -> JobPosting:
     job = JobPosting(
         id=uuid.uuid4(),

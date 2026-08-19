@@ -1,6 +1,7 @@
 import { Link, useRouterState } from "@tanstack/react-router";
 import {
 
+  Activity,
   Bell,
   ChevronsLeft,
   ChevronsRight,
@@ -31,6 +32,7 @@ const PRIMARY_NAV = [
   { to: "/internal-hiring", label: "Internal Hiring", icon: Briefcase },
   { to: "/external-hiring", label: "External Hiring", icon: Globe },
   { to: "/actions", label: "Actions Center", icon: Zap },
+  { to: "/ops", label: "Ops Health", icon: Activity },
   { to: "/settings", label: "Settings & Context", icon: Settings },
 ] as const;
 

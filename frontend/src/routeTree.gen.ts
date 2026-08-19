@@ -19,6 +19,7 @@ import { Route as InsightsRouteImport } from './routes/insights'
 import { Route as InternalHiringRouteImport } from './routes/internal-hiring'
 import { Route as JobAnalysisRouteImport } from './routes/job-analysis'
 import { Route as LoginRouteImport } from './routes/login'
+import { Route as OpsRouteImport } from './routes/ops'
 import { Route as ScreeningRouteImport } from './routes/screening'
 import { Route as SettingsRouteImport } from './routes/settings'
 import { Route as UploadRouteImport } from './routes/upload'
@@ -78,6 +79,11 @@ const LoginRoute = LoginRouteImport.update({
   path: '/login',
   getParentRoute: () => rootRouteImport,
 } as any)
+const OpsRoute = OpsRouteImport.update({
+  id: '/ops',
+  path: '/ops',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ScreeningRoute = ScreeningRouteImport.update({
   id: '/screening',
   path: '/screening',
@@ -130,6 +136,7 @@ export interface FileRoutesByFullPath {
   '/internal-hiring': typeof InternalHiringRoute
   '/job-analysis': typeof JobAnalysisRoute
   '/login': typeof LoginRoute
+  '/ops': typeof OpsRoute
   '/screening': typeof ScreeningRoute
   '/settings': typeof SettingsRoute
   '/upload': typeof UploadRoute
@@ -150,6 +157,7 @@ export interface FileRoutesByTo {
   '/internal-hiring': typeof InternalHiringRoute
   '/job-analysis': typeof JobAnalysisRoute
   '/login': typeof LoginRoute
+  '/ops': typeof OpsRoute
   '/screening': typeof ScreeningRoute
   '/settings': typeof SettingsRoute
   '/upload': typeof UploadRoute
@@ -171,6 +179,7 @@ export interface FileRoutesById {
   '/internal-hiring': typeof InternalHiringRoute
   '/job-analysis': typeof JobAnalysisRoute
   '/login': typeof LoginRoute
+  '/ops': typeof OpsRoute
   '/screening': typeof ScreeningRoute
   '/settings': typeof SettingsRoute
   '/upload': typeof UploadRoute
@@ -193,6 +202,7 @@ export interface FileRouteTypes {
     | '/internal-hiring'
     | '/job-analysis'
     | '/login'
+    | '/ops'
     | '/screening'
     | '/settings'
     | '/upload'
@@ -213,6 +223,7 @@ export interface FileRouteTypes {
     | '/internal-hiring'
     | '/job-analysis'
     | '/login'
+    | '/ops'
     | '/screening'
     | '/settings'
     | '/upload'
@@ -233,6 +244,7 @@ export interface FileRouteTypes {
     | '/internal-hiring'
     | '/job-analysis'
     | '/login'
+    | '/ops'
     | '/screening'
     | '/settings'
     | '/upload'
@@ -254,6 +266,7 @@ export interface RootRouteChildren {
   InternalHiringRoute: typeof InternalHiringRoute
   JobAnalysisRoute: typeof JobAnalysisRoute
   LoginRoute: typeof LoginRoute
+  OpsRoute: typeof OpsRoute
   ScreeningRoute: typeof ScreeningRoute
   SettingsRoute: typeof SettingsRoute
   UploadRoute: typeof UploadRoute
@@ -336,6 +349,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof LoginRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/ops': {
+      id: '/ops'
+      path: '/ops'
+      fullPath: '/ops'
+      preLoaderRoute: typeof OpsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/screening': {
       id: '/screening'
       path: '/screening'
@@ -406,6 +426,7 @@ const rootRouteChildren: RootRouteChildren = {
   InternalHiringRoute: InternalHiringRoute,
   JobAnalysisRoute: JobAnalysisRoute,
   LoginRoute: LoginRoute,
+  OpsRoute: OpsRoute,
   ScreeningRoute: ScreeningRoute,
   SettingsRoute: SettingsRoute,
   UploadRoute: UploadRoute,

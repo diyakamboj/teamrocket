@@ -72,16 +72,17 @@ resource "azurerm_linux_web_app" "backend" {
     SMTP_FROM_NAME                 = "ResumeIQ Recruiting"
 
     # --- Secrets, resolved from the project Key Vault at runtime ---
-    AZURE_STORAGE_CONNECTION_STRING      = "@Microsoft.KeyVault(SecretUri=${azurerm_key_vault_secret.storage_connection_string.versionless_id})"
-    AZURE_DOCUMENT_INTELLIGENCE_KEY      = "@Microsoft.KeyVault(SecretUri=${azurerm_key_vault_secret.document_intelligence_key.versionless_id})"
-    AZURE_DOCUMENT_INTELLIGENCE_ENDPOINT = "@Microsoft.KeyVault(SecretUri=${azurerm_key_vault_secret.document_intelligence_endpoint.versionless_id})"
-    AZURE_OPENAI_API_KEY                 = "@Microsoft.KeyVault(SecretUri=${azurerm_key_vault_secret.openai_api_key.versionless_id})"
-    AZURE_OPENAI_ENDPOINT                = "@Microsoft.KeyVault(SecretUri=${azurerm_key_vault_secret.openai_endpoint.versionless_id})"
-    AZURE_SEARCH_ADMIN_KEY               = "@Microsoft.KeyVault(SecretUri=${azurerm_key_vault_secret.search_api_key.versionless_id})"
-    AZURE_SEARCH_ENDPOINT                = "@Microsoft.KeyVault(SecretUri=${azurerm_key_vault_secret.search_endpoint.versionless_id})"
-    SMTP_USERNAME                        = "@Microsoft.KeyVault(SecretUri=${azurerm_key_vault_secret.smtp_username.versionless_id})"
-    SMTP_PASSWORD                        = "@Microsoft.KeyVault(SecretUri=${azurerm_key_vault_secret.smtp_password.versionless_id})"
-    GITHUB_TOKEN                         = "@Microsoft.KeyVault(SecretUri=${azurerm_key_vault_secret.github_token.versionless_id})"
+    AZURE_STORAGE_CONNECTION_STRING       = "@Microsoft.KeyVault(SecretUri=${azurerm_key_vault_secret.storage_connection_string.versionless_id})"
+    AZURE_DOCUMENT_INTELLIGENCE_KEY       = "@Microsoft.KeyVault(SecretUri=${azurerm_key_vault_secret.document_intelligence_key.versionless_id})"
+    AZURE_DOCUMENT_INTELLIGENCE_ENDPOINT  = "@Microsoft.KeyVault(SecretUri=${azurerm_key_vault_secret.document_intelligence_endpoint.versionless_id})"
+    AZURE_OPENAI_API_KEY                  = "@Microsoft.KeyVault(SecretUri=${azurerm_key_vault_secret.openai_api_key.versionless_id})"
+    AZURE_OPENAI_ENDPOINT                 = "@Microsoft.KeyVault(SecretUri=${azurerm_key_vault_secret.openai_endpoint.versionless_id})"
+    AZURE_SEARCH_ADMIN_KEY                = "@Microsoft.KeyVault(SecretUri=${azurerm_key_vault_secret.search_api_key.versionless_id})"
+    AZURE_SEARCH_ENDPOINT                 = "@Microsoft.KeyVault(SecretUri=${azurerm_key_vault_secret.search_endpoint.versionless_id})"
+    SMTP_USERNAME                         = "@Microsoft.KeyVault(SecretUri=${azurerm_key_vault_secret.smtp_username.versionless_id})"
+    SMTP_PASSWORD                         = "@Microsoft.KeyVault(SecretUri=${azurerm_key_vault_secret.smtp_password.versionless_id})"
+    GITHUB_TOKEN                          = "@Microsoft.KeyVault(SecretUri=${azurerm_key_vault_secret.github_token.versionless_id})"
+    APPLICATIONINSIGHTS_CONNECTION_STRING = "@Microsoft.KeyVault(SecretUri=${azurerm_key_vault_secret.app_insights_connection_string.versionless_id})"
 
     # HACKERRANK_API_KEY intentionally omitted — confirmed dead code, see
     # KNOWN-ISSUES.md #8.

@@ -728,3 +728,98 @@ class CandidateDecisionResponse(BaseModel):
     email_source: str
     email_error: Optional[str] = None
     calendar_slots: list[InterviewSlotOut] = Field(default_factory=list)
+
+
+# ---------- Ops / SRE dashboard ----------
+
+
+class OpsServiceStatus(BaseModel):
+    service: str
+    label: str
+    status: str  # "healthy" | "degraded" | "critical"
+    detail: str
+
+
+class OpsOverviewResponse(BaseModel):
+    generated_at: datetime
+    overall_status: str
+    services: list[OpsServiceStatus]
+
+
+class OpsRequestBucket(BaseModel):
+    bucket_start: datetime
+    count: int
+    error_count: int
+    avg_latency_ms: float
+
+
+class OpsRequestHealthResponse(BaseModel):
+    window_hours: int
+    total_requests: int
+    error_rate_pct: float
+    avg_latency_ms: float
+    p95_latency_ms: float
+    buckets: list[OpsRequestBucket]
+
+
+class OpsAiServiceStat(BaseModel):
+    service: str
+    label: str
+    call_count: int
+    failure_count: int
+    fallback_count: int
+    avg_latency_ms: float
+    p95_latency_ms: float
+    mock_call_pct: float
+    breaker_open: Optional[bool] = None
+    consecutive_failures: Optional[int] = None
+
+
+class OpsAiServiceHealthResponse(BaseModel):
+    window_hours: int
+    services: list[OpsAiServiceStat]
+
+
+class OpsToolUsage(BaseModel):
+    tool: str
+    count: int
+
+
+class OpsAgentHealthResponse(BaseModel):
+    window_hours: int
+    total_turns: int
+    deterministic_turns: int
+    agent_turns: int
+    fallback_turns: int
+    fallback_rate_pct: float
+    tool_usage: list[OpsToolUsage]
+
+
+class OpsLogEntry(BaseModel):
+    created_at: datetime
+    event_type: str
+    service: str
+    status: str
+    duration_ms: float
+    error_message: Optional[str] = None
+    details: dict[str, Any] = Field(default_factory=dict)
+
+
+class OpsLogsResponse(BaseModel):
+    window_hours: int
+    total_count: int
+    entries: list[OpsLogEntry]
+
+
+class OpsEndpointStat(BaseModel):
+    method: str
+    path: str
+    count: int
+    error_count: int
+    error_rate_pct: float
+    avg_latency_ms: float
+
+
+class OpsEndpointBreakdownResponse(BaseModel):
+    window_hours: int
+    endpoints: list[OpsEndpointStat]

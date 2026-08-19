@@ -10,8 +10,9 @@ from __future__ import annotations
 
 import json
 import re
+import time
 import uuid
-from typing import Any
+from typing import Any, Optional
 
 
 from app.services.azure_services import openai_service
@@ -29,6 +30,32 @@ from app.models.schemas import (
     AgentRequirementVerdict,
     WeightConfig,
 )
+from app.utils.logger import get_logger
+
+logger = get_logger(__name__)
+
+
+def _record_agent_turn(
+    status: str,
+    engine: str,
+    start: float,
+    *,
+    tool: Optional[str] = None,
+    error_message: Optional[str] = None,
+) -> None:
+    """Records an `agent_turn` SRE event. Local import — see
+    `app/services/sre_events.py`'s module docstring for why AI-adjacent
+    services import it lazily rather than at module top."""
+    from app.services import sre_events
+
+    sre_events.record_event(
+        event_type="agent_turn",
+        service="copilot_agent",
+        status=status,
+        duration_ms=(time.monotonic() - start) * 1000,
+        error_message=error_message,
+        details={"engine": engine, "tool": tool},
+    )
 
 COPILOT_TOOLS = (
     "search_candidates",
@@ -878,11 +905,15 @@ async def copilot_answer(
         }
 
     focus_candidate = resolve_pool_member(pool, focus_candidate_id) if focus_candidate_id else None
+    start = time.monotonic()
 
     if openai_service.mock:
         result = deterministic_answer(question, pool, requirements, focus_candidate=focus_candidate)
         result["pool"] = pool
         result["model_id"] = model_id
+        _record_agent_turn(
+            "success", "deterministic", start, tool=(result.get("tools") or [None])[0]
+        )
         return result
 
     try:
@@ -898,9 +929,18 @@ async def copilot_answer(
         )
         result["pool"] = pool
         result["model_id"] = model_id
+        _record_agent_turn("success", "agent", start, tool=(result.get("tools") or [None])[0])
         return result
-    except Exception:
+    except Exception as exc:
+        logger.warning("Agent path failed, falling back to deterministic answer: %s", exc)
         result = deterministic_answer(question, pool, requirements, focus_candidate=focus_candidate)
         result["pool"] = pool
         result["model_id"] = model_id
+        _record_agent_turn(
+            "fallback",
+            "agent_failed_deterministic_fallback",
+            start,
+            tool=(result.get("tools") or [None])[0],
+            error_message=str(exc),
+        )
         return result

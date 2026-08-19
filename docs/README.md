@@ -30,6 +30,7 @@ teamrocket/
 | 🐍 **[backend-overview.md](backend-overview.md)** | Backend Engineers, AI/ML Developers | In-depth breakdown of FastAPI routes, `JsonBlobStore` facade repository pattern, 3-signal candidate matcher, resume OCR parser, and test suite. |
 | 🔒 **[security-and-guardrails.md](security-and-guardrails.md)** | Security Engineers, AI Safety Leads, Developers | Comprehensive spec covering AI prompt safety, PII redaction (blind review), model RBAC allowlists, secret management, and input validation. |
 | 🚀 **[deployment.md](deployment.md)** | DevOps & Site Reliability Engineers | Production deployment procedures, Azure infrastructure, environment variable matrix, and monitoring. |
+| 📊 **[observability.md](observability.md)** | DevOps & Site Reliability Engineers, Developers | The `/ops` health dashboard: what's monitored and why, Azure Monitor alert rules, and runbooks for common failures. |
 
 
 

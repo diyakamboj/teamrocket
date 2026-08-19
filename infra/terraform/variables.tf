@@ -185,3 +185,13 @@ variable "github_token" {
 # HACKERRANK_API_KEY intentionally has no variable here — confirmed dead
 # code in backend/app/services/profile_enrichment_service.py (no live API
 # call exists). See KNOWN-ISSUES.md #8. Add one only if that changes.
+
+# -----------------------------------------------------------------------------
+# Alerts / Monitoring (alerts.tf, monitoring.tf)
+# -----------------------------------------------------------------------------
+
+variable "alert_notification_email" {
+  description = "Email address the alerts.tf action group notifies. Empty by default (no team inbox decided yet) — the alert rules and action group are still created and visible/actionable in the Azure Portal either way; set this to wire up actual email notifications without any other Terraform change."
+  type        = string
+  default     = ""
+}
