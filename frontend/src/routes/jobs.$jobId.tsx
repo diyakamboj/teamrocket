@@ -130,7 +130,7 @@ function JobWorkspacePage() {
   const { jobId } = Route.useParams();
   const navigate = useNavigate();
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const { setActiveJobId, addFiles, refreshPool } = useAppState();
+  const { setActiveJobId, addFiles, refreshPool, blindMode, setBlindMode } = useAppState();
 
   const [activeTab, setActiveTab] = useState<"overview" | "candidates" | "jd" | "upload" | "pipeline" | "insights">("candidates");
   const [searchQuery, setSearchQuery] = useState("");
@@ -143,7 +143,6 @@ function JobWorkspacePage() {
   const [selectedForCompare, setSelectedForCompare] = useState<string[]>([]);
   const [showWeightSliders, setShowWeightSliders] = useState(false);
   const [weights, setWeights] = useState({ skills: 35, experience: 25, education: 15, certifications: 10, projects: 15 });
-  const [blindMode, setBlindMode] = useState(true);
   const [uploadedFiles, setUploadedFiles] = useState<
     Array<{ name: string; size: string; status: string; color: string }>
   >([]);
