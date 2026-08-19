@@ -7,8 +7,8 @@ This document provides a comprehensive overview of the **ResumeIQ Frontend** app
 ## 1. Core Technology Stack
 
 - **Framework**: [React 19](https://react.dev/) + [TypeScript](https://www.typescriptlang.org/)
-- **Routing & Framework Engine**: [TanStack Start](https://tanstack.com/start) & [TanStack Router](https://tanstack.com/router) (file-based routing under `src/routes/`)
-- **Build Tool**: [Vite 6](https://vitejs.dev/) + Nitro SSR engine
+- **Routing**: [TanStack Router](https://tanstack.com/router) (file-based routing under `src/routes/`), client-rendered only — no TanStack Start/SSR; every data fetch goes client-side through `src/lib/api.ts` to the FastAPI backend
+- **Build Tool**: [Vite](https://vitejs.dev/), plain static build (`dist/`)
 - **Styling**: [TailwindCSS v4](https://tailwindcss.com/) with a clean, light enterprise SaaS theme (`bg-white`, `border-slate-200`, crisp typography, and high-contrast badges)
 - **UI Components**: [Radix UI](https://www.radix-ui.com/) primitives & [Shadcn UI](https://ui.shadcn.com/) design system
 - **Icons**: [Lucide React](https://lucide.dev/)
