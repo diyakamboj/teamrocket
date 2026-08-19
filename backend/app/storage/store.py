@@ -13,7 +13,8 @@ from app.models.ats_benchmark import AtsBenchmarkScore
 from app.models.candidate import Candidate
 from app.models.user import User
 from app.models.company_document import CompanyDocument
-from app.models.collaboration import CandidateShare, DirectMessage
+from app.models.collaboration import CandidateNote, CandidateShare, DirectMessage
+from app.models.placement import CandidatePlacement
 from app.models.connection import RecruiterConnection
 from app.models.evaluation import (
     AgentSession,
@@ -100,6 +101,12 @@ class Store:
         )
         self.direct_messages: Repository[DirectMessage] = Repository(
             backing, DirectMessage, "direct_messages"
+        )
+        self.candidate_notes: Repository[CandidateNote] = Repository(
+            backing, CandidateNote, "candidate_notes"
+        )
+        self.candidate_placements: Repository[CandidatePlacement] = Repository(
+            backing, CandidatePlacement, "candidate_placements"
         )
 
 

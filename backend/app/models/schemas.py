@@ -402,6 +402,34 @@ class PipelineCandidate(BaseModel):
     employment_status: Optional[str] = None
     overall_score: Optional[float] = None
     stage: str
+    #: Which interview round they are in, set only while stage is
+    #: "interviewing" and only once someone has been placed explicitly.
+    round_id: Optional[str] = None
+    round_name: Optional[str] = None
+    round_sequence: Optional[int] = None
+    #: Who last moved them — blank for a stage that was derived, not chosen.
+    moved_by: Optional[str] = None
+    updated_at: datetime
+
+
+class CandidateMoveRequest(BaseModel):
+    """Move one candidate to a stage, optionally into a specific round."""
+
+    stage: str
+    round_id: Optional[str] = None
+    candidate_name: Optional[str] = None
+    note: Optional[str] = None
+
+
+class CandidatePlacementResponse(BaseModel):
+    job_id: UUID
+    candidate_id: str
+    stage: str
+    round_id: Optional[str] = None
+    round_name: Optional[str] = None
+    round_sequence: Optional[int] = None
+    moved_by: Optional[str] = None
+    note: Optional[str] = None
     updated_at: datetime
 
 

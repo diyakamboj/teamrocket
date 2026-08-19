@@ -1,5 +1,5 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   JdInsightsTab,
   PipelineOverviewTab,
@@ -13,6 +13,7 @@ import {
   uploadResumesToBackend,
   type AtsBenchmark,
   type JobResponse,
+  type PipelineCandidate,
 } from "@/lib/api";
 
 import { rankCandidates, type Candidate } from "@/lib/candidates";
@@ -134,7 +135,9 @@ function JobWorkspacePage() {
   const [activeTab, setActiveTab] = useState<"overview" | "candidates" | "jd" | "upload" | "pipeline" | "insights">("candidates");
   const [searchQuery, setSearchQuery] = useState("");
   const [job, setJob] = useState<JobResponse | null>(null);
-  const [stages, setStages] = useState<Record<string, string>>({});
+  // Full pipeline rows, keyed by candidate — the board needs the round a
+  // candidate sits in, not just their stage.
+  const [placements, setPlacements] = useState<Record<string, PipelineCandidate>>({});
   const [benchmarks, setBenchmarks] = useState<Record<string, AtsBenchmark | null>>({});
   const [selectedCandidateId, setSelectedCandidateId] = useState<string | null>(null);
   const [selectedForCompare, setSelectedForCompare] = useState<string[]>([]);
@@ -208,10 +211,10 @@ function JobWorkspacePage() {
     getJobPipeline(jobId, "all")
       .then((rows) => {
         if (cancelled) return;
-        setStages(Object.fromEntries(rows.map((r) => [r.candidate_id, r.stage])));
+        setPlacements(Object.fromEntries(rows.map((r) => [r.candidate_id, r])));
       })
       .catch(() => {
-        if (!cancelled) setStages({});
+        if (!cancelled) setPlacements({});
       });
 
     return () => {
@@ -219,7 +222,32 @@ function JobWorkspacePage() {
     };
   }, [jobId]);
 
+  /** Re-read what the backend persisted, rather than guessing locally — the
+   * board must show the stored placement, not an optimistic one. */
+  const refreshPipeline = useCallback(() => {
+    void getJobPipeline(jobId, "all")
+      .then((rows) => setPlacements(Object.fromEntries(rows.map((r) => [r.candidate_id, r]))))
+      .catch(() => undefined);
+  }, [jobId]);
+
+  const stages = useMemo(
+    () => Object.fromEntries(Object.entries(placements).map(([id, row]) => [id, row.stage])),
+    [placements],
+  );
+
   const ranked = useMemo(() => rankCandidates(pool || [], weights), [pool, weights]);
+
+  const boardCandidates = useMemo(
+    () =>
+      (ranked ?? []).map((c) => ({
+        id: c.id,
+        name: c.name,
+        email: c.email,
+        title: c.title,
+        score: c.score,
+      })),
+    [ranked],
+  );
 
   useEffect(() => {
     const visible = (ranked || []).slice(0, 25);
@@ -424,7 +452,13 @@ function JobWorkspacePage() {
       {/* TAB: PIPELINE OVERVIEW — the job's interview loop */}
       {activeTab === "overview" && (
         <div className="animate-rise">
-          <PipelineOverviewTab job={job} stages={stages} onJobUpdated={setJob} />
+          <PipelineOverviewTab
+            job={job}
+            placements={placements}
+            candidates={boardCandidates}
+            onJobUpdated={setJob}
+            onMoved={refreshPipeline}
+          />
         </div>
       )}
 
@@ -432,24 +466,11 @@ function JobWorkspacePage() {
       {activeTab === "pipeline" && (
         <div className="animate-rise">
           <StageBoardTab
-            jobTitle={job?.title ?? "this role"}
-            stages={stages}
-            candidates={(ranked ?? []).map((c) => ({
-              id: c.id,
-              name: c.name,
-              email: c.email,
-              title: c.title,
-              score: c.score,
-            }))}
-            onMoved={() => {
-              // Re-read the stages the backend derived, rather than guessing
-              // locally — the board must show persisted state.
-              void getJobPipeline(jobId, "all")
-                .then((rows) =>
-                  setStages(Object.fromEntries(rows.map((r) => [r.candidate_id, r.stage]))),
-                )
-                .catch(() => undefined);
-            }}
+            job={job}
+            jobId={jobId}
+            placements={placements}
+            candidates={boardCandidates}
+            onMoved={refreshPipeline}
           />
         </div>
       )}

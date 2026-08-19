@@ -5,10 +5,12 @@ import {
   listRecruiterDirectory,
   shareCandidate,
   type DirectoryRecruiter,
+  type SharePermission,
 } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { cn } from "@/lib/utils";
 
 /**
  * Share one candidate with a connected recruiter.
@@ -28,6 +30,7 @@ export function ShareCandidateButton({
   const [open, setOpen] = useState(false);
   const [connections, setConnections] = useState<DirectoryRecruiter[]>([]);
   const [note, setNote] = useState("");
+  const [permission, setPermission] = useState<SharePermission>("view");
   const [busy, setBusy] = useState<string | null>(null);
 
   useEffect(() => {
@@ -45,8 +48,13 @@ export function ShareCandidateButton({
         email,
         ...(note.trim() ? { note: note.trim() } : {}),
         job_id: jobId ?? null,
+        permission,
       });
-      toast.success(`Shared ${candidateName}`);
+      toast.success(
+        permission === "collaborate"
+          ? `${candidateName} shared to collaborate on`
+          : `Shared ${candidateName}`,
+      );
       setOpen(false);
       setNote("");
     } catch (err) {
@@ -67,8 +75,35 @@ export function ShareCandidateButton({
         <div>
           <p className="text-sm font-semibold">Share {candidateName}</p>
           <p className="mt-0.5 text-[11px] text-muted-foreground">
-            Read-only. They see the profile and screening result, and it stays in your pool.
+            {permission === "collaborate"
+              ? "They can add notes and move this candidate in your pipeline. The record stays yours and you can revoke it."
+              : "Read-only. They see the profile and screening result, and it stays in your pool."}
           </p>
+        </div>
+
+        {/* Access level. Read-only is the default: the wider grant should be
+            a deliberate choice, not what you get by not reading. */}
+        <div className="grid grid-cols-2 gap-1 rounded-lg bg-secondary p-1">
+          {(
+            [
+              { id: "view", label: "Can view" },
+              { id: "collaborate", label: "Can collaborate" },
+            ] as const
+          ).map((option) => (
+            <button
+              key={option.id}
+              type="button"
+              onClick={() => setPermission(option.id)}
+              className={cn(
+                "rounded-md px-2 py-1 text-[11px] font-medium transition-colors",
+                permission === option.id
+                  ? "bg-background text-foreground shadow-sm"
+                  : "text-muted-foreground hover:text-foreground",
+              )}
+            >
+              {option.label}
+            </button>
+          ))}
         </div>
 
         <Input

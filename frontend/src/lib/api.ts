@@ -417,6 +417,9 @@ export async function removeConnection(id: string): Promise<void> {
 
 // ---------- Collaboration: shared candidates and messages ----------
 
+/** What a recipient may do with a candidate shared with them. */
+export type SharePermission = "view" | "collaborate";
+
 export type SharedCandidate = {
   share_id: string;
   candidate_id: string;
@@ -426,11 +429,26 @@ export type SharedCandidate = {
   skills: string[];
   shared_by_email: string;
   shared_by_name: string;
+  shared_with_email: string;
+  shared_with_name: string;
+  permission: SharePermission;
   note?: string | null;
+  job_id?: string | null;
   job_title?: string | null;
   screening_summary?: string | null;
   screening_score?: number | null;
   created_at: string;
+};
+
+export type CandidateNote = {
+  id: string;
+  candidate_id: string;
+  author_email: string;
+  author_name: string;
+  body: string;
+  job_id?: string | null;
+  created_at: string;
+  mine: boolean;
 };
 
 export type MessageThread = {
@@ -456,11 +474,40 @@ export async function shareCandidate(input: {
   email: string;
   note?: string;
   job_id?: string | null;
+  permission?: SharePermission;
 }): Promise<SharedCandidate> {
   return request<SharedCandidate>("/api/connections/share", {
     method: "POST",
     body: JSON.stringify(input),
   });
+}
+
+/** Promote a share to collaboration, or demote it back to read-only. */
+export async function updateSharePermission(
+  shareId: string,
+  permission: SharePermission,
+): Promise<SharedCandidate> {
+  return request<SharedCandidate>(`/api/connections/share/${encodeURIComponent(shareId)}`, {
+    method: "PATCH",
+    body: JSON.stringify({ permission }),
+  });
+}
+
+export async function listCandidateNotes(candidateId: string): Promise<CandidateNote[]> {
+  return request<CandidateNote[]>(
+    `/api/connections/candidates/${encodeURIComponent(candidateId)}/notes`,
+  );
+}
+
+export async function addCandidateNote(
+  candidateId: string,
+  body: string,
+  jobId?: string | null,
+): Promise<CandidateNote> {
+  return request<CandidateNote>(
+    `/api/connections/candidates/${encodeURIComponent(candidateId)}/notes`,
+    { method: "POST", body: JSON.stringify({ body, job_id: jobId ?? null }) },
+  );
 }
 
 export async function listSharedWithMe(): Promise<SharedCandidate[]> {
@@ -983,7 +1030,13 @@ export async function listHandoffsForCandidate(
 
 // ---------- Top-level recruiter dashboard: job listings & pipeline ----------
 
-export type PipelineStage = "screened" | "interviewing" | "interviewed" | "selected" | "rejected";
+export type PipelineStage =
+  | "screened"
+  | "interviewing"
+  | "interviewed"
+  | "selected"
+  | "hired"
+  | "rejected";
 
 export type JobPipelineSummary = {
   job_id: string;
@@ -1006,9 +1059,43 @@ export type PipelineCandidate = {
   source: "internal" | "external";
   overall_score?: number | null;
   stage: PipelineStage;
+  /** Set only while interviewing, and only once someone has been moved. */
+  round_id?: string | null;
+  round_name?: string | null;
+  round_sequence?: number | null;
+  moved_by?: string | null;
   updated_at: string;
   employment_status?: string | null;
 };
+
+export type CandidatePlacement = {
+  job_id: string;
+  candidate_id: string;
+  stage: PipelineStage;
+  round_id?: string | null;
+  round_name?: string | null;
+  round_sequence?: number | null;
+  moved_by?: string | null;
+  note?: string | null;
+  updated_at: string;
+};
+
+/**
+ * Move a candidate to a stage, and into a round when interviewing.
+ *
+ * The board and the pipeline overview both call this, so a move made in one
+ * shows up in the other.
+ */
+export async function moveCandidateInPipeline(
+  jobId: string,
+  candidateId: string,
+  input: { stage: PipelineStage; round_id?: string | null; candidate_name?: string; note?: string },
+): Promise<CandidatePlacement> {
+  return request<CandidatePlacement>(
+    `/api/dashboard/jobs/${encodeURIComponent(jobId)}/pipeline/${encodeURIComponent(candidateId)}`,
+    { method: "PUT", body: JSON.stringify(input) },
+  );
+}
 
 export async function listJobPipelines(): Promise<JobPipelineSummary[]> {
   return request<JobPipelineSummary[]>("/api/dashboard/jobs");

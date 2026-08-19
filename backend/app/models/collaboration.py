@@ -1,8 +1,13 @@
 """Sharing and messaging between connected recruiters.
 
 Both are gated on an accepted connection: you can only share a candidate with,
-or message, someone who has agreed to connect. A share is read-only and
-revocable — it never moves ownership of the candidate.
+or message, someone who has agreed to connect. A share never moves ownership
+of the candidate and is always revocable.
+
+A share carries a permission. "view" is the original read-only share. With
+"collaborate" the recipient can also add notes and move the candidate through
+the owner's pipeline — enough for two recruiters to work one candidate
+together, while the record, and the right to revoke, stay with the owner.
 """
 
 from __future__ import annotations
@@ -18,6 +23,10 @@ def _utcnow() -> datetime:
     return datetime.now(timezone.utc).replace(tzinfo=None)
 
 
+#: What a recipient may do with a shared candidate.
+SHARE_PERMISSIONS = ("view", "collaborate")
+
+
 class CandidateShare(BaseModel):
     """One candidate, shared by its owner with one connected recruiter."""
 
@@ -25,11 +34,35 @@ class CandidateShare(BaseModel):
     candidate_id: uuid.UUID
     owner_email: str
     shared_with_email: str
+    #: "view" (read-only) or "collaborate" (may add notes and move the
+    #: candidate in the owner's pipeline). Defaults to read-only so shares
+    #: written before permissions existed keep their original meaning.
+    permission: str = "view"
     #: Why it was shared — shown alongside the candidate for the recipient.
     note: Optional[str] = None
     #: Job the sharing recruiter was working the candidate for, if any.
     job_id: Optional[uuid.UUID] = None
     job_title: Optional[str] = None
+    created_at: datetime = Field(default_factory=_utcnow)
+
+    def allows_collaboration(self) -> bool:
+        return self.permission == "collaborate"
+
+
+class CandidateNote(BaseModel):
+    """A note on a candidate, visible to the owner and everyone the candidate
+    is shared with. This is the shared workspace two recruiters use to work
+    one candidate — distinct from a direct message, which is between people
+    rather than about a candidate.
+    """
+
+    id: uuid.UUID = Field(default_factory=uuid.uuid4)
+    candidate_id: uuid.UUID
+    author_email: str
+    author_name: Optional[str] = None
+    body: str
+    #: Job this note was written in the context of, when there is one.
+    job_id: Optional[uuid.UUID] = None
     created_at: datetime = Field(default_factory=_utcnow)
 
 
@@ -45,7 +78,13 @@ class SharedCandidateView(BaseModel):
     skills: list[str] = Field(default_factory=list)
     shared_by_email: str
     shared_by_name: str
+    #: The recipient. Needed by the owner's "shared by you" list, where
+    #: "shared by" is themselves and tells them nothing.
+    shared_with_email: str = ""
+    shared_with_name: str = ""
+    permission: str = "view"
     note: Optional[str] = None
+    job_id: Optional[uuid.UUID] = None
     job_title: Optional[str] = None
     #: Screening outcome if the owner has screened them, so the recipient sees
     #: the evidence rather than a name.

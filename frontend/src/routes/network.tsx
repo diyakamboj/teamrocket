@@ -5,6 +5,7 @@ import {
   Loader2,
   MessageSquare,
   Network,
+  NotebookPen,
   Search,
   Send,
   Share2,
@@ -17,12 +18,15 @@ import {
   listConnections,
   listMessageThreads,
   listRecruiterDirectory,
+  listSharedByMe,
   listSharedWithMe,
   readMessageThread,
   removeConnection,
   requestConnection,
   respondToConnection,
+  revokeShare,
   sendMessage,
+  updateSharePermission,
   type DirectMessage,
   type DirectoryRecruiter,
   type MessageThread,
@@ -31,6 +35,7 @@ import {
 } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { CandidateNotes } from "@/components/candidate-notes";
 import { cn } from "@/lib/utils";
 
 export const Route = createFileRoute("/network")({
@@ -77,6 +82,24 @@ function StateBadge({ state }: { state: DirectoryRecruiter["connection_state"] }
   );
 }
 
+
+/** What a share lets its recipient do — the difference between being shown a
+ * candidate and being able to work them. */
+function PermissionBadge({ permission }: { permission: SharedCandidate["permission"] }) {
+  const collaborate = permission === "collaborate";
+  return (
+    <span
+      className={cn(
+        "mt-2 inline-block rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide",
+        collaborate
+          ? "bg-emerald-500/15 text-emerald-600 dark:text-emerald-400"
+          : "bg-secondary text-secondary-foreground",
+      )}
+    >
+      {collaborate ? "Can collaborate" : "View only"}
+    </span>
+  );
+}
 
 /**
  * A conversation with one connection. Messages are polled while open, so a
@@ -196,20 +219,25 @@ function NetworkPage() {
   const [error, setError] = useState<string | null>(null);
   const [threads, setThreads] = useState<MessageThread[]>([]);
   const [shared, setShared] = useState<SharedCandidate[]>([]);
+  const [sharedByMe, setSharedByMe] = useState<SharedCandidate[]>([]);
   const [openChat, setOpenChat] = useState<{ email: string; name: string } | null>(null);
+  //: Which shared candidate has its note thread expanded.
+  const [openNotes, setOpenNotes] = useState<string | null>(null);
 
   const refresh = useCallback(async () => {
     try {
-      const [people, links, inbox, sharedWithMe] = await Promise.all([
+      const [people, links, inbox, sharedWithMe, mine] = await Promise.all([
         listRecruiterDirectory(),
         listConnections(),
         listMessageThreads(),
         listSharedWithMe(),
+        listSharedByMe(),
       ]);
       setDirectory(people);
       setConnections(links);
       setThreads(inbox);
       setShared(sharedWithMe);
+      setSharedByMe(mine);
       setError(null);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Could not load the recruiter network");
@@ -336,7 +364,8 @@ function NetworkPage() {
               <Share2 className="h-4 w-4" /> Shared with you
             </div>
             <p className="mt-1 text-xs text-muted-foreground">
-              Candidates a connection sent you. Read-only — they stay in that recruiter's pool.
+              Candidates a connection sent you. They stay in that recruiter's pool — where you can
+              collaborate, you can add notes and move them in that recruiter's pipeline.
             </p>
           </header>
           <ul className="stagger grid gap-2.5 p-5 sm:grid-cols-2">
@@ -356,6 +385,7 @@ function NetworkPage() {
                     </span>
                   )}
                 </div>
+                <PermissionBadge permission={candidate.permission} />
                 {candidate.note && (
                   <p className="mt-2 text-xs italic text-muted-foreground">“{candidate.note}”</p>
                 )}
@@ -368,20 +398,120 @@ function NetworkPage() {
                   <span className="text-[11px] text-muted-foreground">
                     from {candidate.shared_by_name}
                   </span>
+                  <div className="flex gap-1">
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      className="h-7 rounded-lg text-xs"
+                      onClick={() =>
+                        setOpenNotes((id) =>
+                          id === candidate.share_id ? null : candidate.share_id,
+                        )
+                      }
+                    >
+                      <NotebookPen className="mr-1.5 h-3 w-3" />
+                      {openNotes === candidate.share_id ? "Hide notes" : "Notes"}
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      className="h-7 rounded-lg text-xs"
+                      onClick={() =>
+                        setOpenChat({
+                          email: candidate.shared_by_email,
+                          name: candidate.shared_by_name,
+                        })
+                      }
+                    >
+                      <MessageSquare className="mr-1.5 h-3 w-3" /> Discuss
+                    </Button>
+                  </div>
+                </div>
+                {openNotes === candidate.share_id && (
+                  <CandidateNotes
+                    className="mt-3"
+                    candidateId={candidate.candidate_id}
+                    jobId={candidate.job_id}
+                    canWrite={candidate.permission === "collaborate"}
+                  />
+                )}
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
+
+      {sharedByMe.length > 0 && (
+        <section className="animate-rise rounded-2xl border bg-card shadow-sm">
+          <header className="border-b px-5 py-4">
+            <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-primary">
+              <Share2 className="h-4 w-4" /> Shared by you
+            </div>
+            <p className="mt-1 text-xs text-muted-foreground">
+              Candidates you sent to a connection. Change what they can do, or revoke access —
+              the candidate stays yours either way.
+            </p>
+          </header>
+          <ul className="stagger grid gap-2.5 p-5 sm:grid-cols-2">
+            {sharedByMe.map((candidate) => (
+              <li key={candidate.share_id} className="lift rounded-xl border p-4">
+                <div className="min-w-0">
+                  <p className="truncate text-sm font-semibold">{candidate.name}</p>
+                  <p className="truncate text-xs text-muted-foreground">
+                    shared with {candidate.shared_with_name}
+                    {candidate.job_title ? ` · for ${candidate.job_title}` : ""}
+                  </p>
+                </div>
+
+                <div className="mt-3 flex flex-wrap items-center gap-1.5">
+                  {(
+                    [
+                      { id: "view", label: "Can view" },
+                      { id: "collaborate", label: "Can collaborate" },
+                    ] as const
+                  ).map((option) => (
+                    <button
+                      key={option.id}
+                      disabled={busy === candidate.share_id}
+                      onClick={() =>
+                        void act(
+                          candidate.share_id,
+                          () => updateSharePermission(candidate.share_id, option.id),
+                          `${candidate.name}: ${option.label.toLowerCase()}`,
+                        )
+                      }
+                      className={cn(
+                        "rounded-lg border px-2 py-1 text-[11px] font-medium transition-colors disabled:opacity-50",
+                        candidate.permission === option.id
+                          ? "border-primary/40 bg-primary/10 text-primary"
+                          : "text-muted-foreground hover:border-primary/40 hover:text-foreground",
+                      )}
+                    >
+                      {option.label}
+                    </button>
+                  ))}
                   <Button
                     size="sm"
                     variant="ghost"
-                    className="h-7 rounded-lg text-xs"
+                    disabled={busy === candidate.share_id}
+                    className="ml-auto h-7 rounded-lg text-xs text-muted-foreground hover:text-destructive"
                     onClick={() =>
-                      setOpenChat({
-                        email: candidate.shared_by_email,
-                        name: candidate.shared_by_name,
-                      })
+                      void act(
+                        candidate.share_id,
+                        () => revokeShare(candidate.share_id),
+                        `Stopped sharing ${candidate.name}`,
+                      )
                     }
                   >
-                    <MessageSquare className="mr-1.5 h-3 w-3" /> Discuss
+                    Revoke
                   </Button>
                 </div>
+
+                <CandidateNotes
+                  className="mt-3"
+                  candidateId={candidate.candidate_id}
+                  jobId={candidate.job_id}
+                />
               </li>
             ))}
           </ul>

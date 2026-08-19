@@ -16,6 +16,8 @@ from pydantic import BaseModel
 
 from app.dependencies import AppStore, RecruiterEmail
 from app.models.collaboration import (
+    SHARE_PERMISSIONS,
+    CandidateNote,
     CandidateShare,
     DirectMessage,
     MessageThread,
@@ -229,6 +231,18 @@ class ShareCandidateRequest(BaseModel):
     email: str
     note: str | None = None
     job_id: uuid.UUID | None = None
+    #: "view" (read-only) or "collaborate" (may add notes and move the
+    #: candidate in the owner's pipeline).
+    permission: str = "view"
+
+
+class SharePermissionUpdate(BaseModel):
+    permission: str
+
+
+class CandidateNoteRequest(BaseModel):
+    body: str
+    job_id: uuid.UUID | None = None
 
 
 class SendMessageRequest(BaseModel):
@@ -257,10 +271,21 @@ def _require_connection(store, me: str, other: str) -> None:
 def share_candidate(
     payload: ShareCandidateRequest, store: AppStore, recruiter_email: RecruiterEmail
 ):
-    """Share one of your candidates with a connected recruiter, read-only."""
+    """Share one of your candidates with a connected recruiter.
+
+    At "view" they can read the profile and screening result. At
+    "collaborate" they can also add notes and move the candidate through
+    your pipeline — the record still belongs to you and you can revoke or
+    downgrade the share at any time.
+    """
     me = normalize_email(recruiter_email)
     target = normalize_email(payload.email)
     _require_connection(store, me, target)
+    if payload.permission not in SHARE_PERMISSIONS:
+        raise ValidationAppError(
+            f"permission must be one of {', '.join(SHARE_PERMISSIONS)}",
+            {"permission": payload.permission},
+        )
 
     candidate = store.candidates.get(payload.candidate_id)
     # You can only share what you own — sharing someone else's candidate would
@@ -279,6 +304,12 @@ def share_candidate(
         None,
     )
     if existing:
+        # Re-sharing is how the owner changes their mind about access, so
+        # take the new permission rather than rejecting the whole request.
+        if existing.permission != payload.permission:
+            existing.permission = payload.permission
+            store.candidate_shares.save(existing)
+            return _share_view(store, existing)
         raise ValidationAppError("That candidate is already shared with them.")
 
     job = store.jobs.get(payload.job_id) if payload.job_id else None
@@ -286,6 +317,7 @@ def share_candidate(
         candidate_id=candidate.id,
         owner_email=me,
         shared_with_email=target,
+        permission=payload.permission,
         note=(payload.note or "").strip() or None,
         job_id=job.id if job else None,
         job_title=job.title if job else None,
@@ -297,7 +329,40 @@ def share_candidate(
         action="candidate_shared",
         resource_type="candidate",
         resource_id=candidate.id,
-        details={"shared_with": target},
+        details={"shared_with": target, "permission": share.permission},
+    )
+    return _share_view(store, share)
+
+
+@router.patch("/share/{share_id}", response_model=SharedCandidateView)
+def update_share_permission(
+    share_id: uuid.UUID,
+    payload: SharePermissionUpdate,
+    store: AppStore,
+    recruiter_email: RecruiterEmail,
+):
+    """Promote a share to collaboration, or demote it back to read-only."""
+    me = normalize_email(recruiter_email)
+    if payload.permission not in SHARE_PERMISSIONS:
+        raise ValidationAppError(
+            f"permission must be one of {', '.join(SHARE_PERMISSIONS)}",
+            {"permission": payload.permission},
+        )
+    share = store.candidate_shares.get(share_id)
+    # Only the owner sets access; the recipient must not be able to grant
+    # themselves more than they were given.
+    if not share or share.owner_email != me:
+        raise NotFoundError("Share not found", {"share_id": str(share_id)})
+
+    share.permission = payload.permission
+    store.candidate_shares.save(share)
+    _audit(
+        store,
+        recruiter_email=me,
+        action="candidate_share_permission_changed",
+        resource_type="candidate",
+        resource_id=share.candidate_id,
+        details={"shared_with": share.shared_with_email, "permission": share.permission},
     )
     return _share_view(store, share)
 
@@ -320,7 +385,12 @@ def _share_view(store, share: CandidateShare) -> SharedCandidateView:
         skills=[str(s) for s in (candidate.skills if candidate else [])][:12],
         shared_by_email=share.owner_email,
         shared_by_name=(profiles.get(share.owner_email) or {}).get("name") or share.owner_email,
+        shared_with_email=share.shared_with_email,
+        shared_with_name=(profiles.get(share.shared_with_email) or {}).get("name")
+        or share.shared_with_email,
+        permission=share.permission,
         note=share.note,
+        job_id=share.job_id,
         job_title=share.job_title,
         screening_summary=latest.summary_pack if latest else None,
         screening_score=latest.overall_score if latest else None,
@@ -418,3 +488,122 @@ def send_message(payload: SendMessageRequest, store: AppStore, recruiter_email: 
     )
     store.direct_messages.save(message)
     return message
+
+
+# ---------------------------------------------------------------------------
+# Shared candidate notes
+#
+# Notes hang off the candidate rather than off a conversation: both recruiters
+# working a candidate see the same thread, and it stays attached to the
+# candidate rather than scattered through direct messages.
+# ---------------------------------------------------------------------------
+
+
+class CandidateNoteView(BaseModel):
+    """A note plus who wrote it, resolved for display."""
+
+    id: uuid.UUID
+    candidate_id: uuid.UUID
+    author_email: str
+    author_name: str
+    body: str
+    job_id: uuid.UUID | None = None
+    created_at: datetime
+    #: True when the signed-in recruiter wrote it.
+    mine: bool = False
+
+
+def _candidate_access(store, candidate_id: uuid.UUID, me: str) -> tuple[bool, bool]:
+    """(can_read, can_collaborate) for one recruiter on one candidate."""
+    candidate = store.candidates.get(candidate_id)
+    if candidate and normalize_email(candidate.owner_email or "") == me:
+        return True, True
+    share = next(
+        (
+            s
+            for s in store.candidate_shares.list_all()
+            if str(s.candidate_id) == str(candidate_id)
+            and normalize_email(s.shared_with_email) == me
+        ),
+        None,
+    )
+    if share is None:
+        return False, False
+    return True, share.allows_collaboration()
+
+
+@router.get("/candidates/{candidate_id}/notes", response_model=list[CandidateNoteView])
+def list_candidate_notes(
+    candidate_id: uuid.UUID, store: AppStore, recruiter_email: RecruiterEmail
+):
+    """Every note on a candidate, oldest first — readable by the owner and
+    anyone the candidate is shared with."""
+    me = normalize_email(recruiter_email)
+    can_read, _ = _candidate_access(store, candidate_id, me)
+    if not can_read:
+        raise NotFoundError("Candidate not found", {"candidate_id": str(candidate_id)})
+
+    profiles = _profiles(store)
+    notes = store.candidate_notes.query(lambda n: str(n.candidate_id) == str(candidate_id))
+    notes.sort(key=lambda n: n.created_at)
+    return [
+        CandidateNoteView(
+            id=note.id,
+            candidate_id=note.candidate_id,
+            author_email=note.author_email,
+            author_name=note.author_name
+            or (profiles.get(note.author_email) or {}).get("name")
+            or note.author_email,
+            body=note.body,
+            job_id=note.job_id,
+            created_at=note.created_at,
+            mine=note.author_email == me,
+        )
+        for note in notes
+    ]
+
+
+@router.post("/candidates/{candidate_id}/notes", response_model=CandidateNoteView, status_code=201)
+def add_candidate_note(
+    candidate_id: uuid.UUID,
+    payload: CandidateNoteRequest,
+    store: AppStore,
+    recruiter_email: RecruiterEmail,
+):
+    """Add a note. Writing needs collaborate access — a read-only share can
+    see the thread but not add to it."""
+    me = normalize_email(recruiter_email)
+    can_read, can_collaborate = _candidate_access(store, candidate_id, me)
+    if not can_read:
+        raise NotFoundError("Candidate not found", {"candidate_id": str(candidate_id)})
+    if not can_collaborate:
+        raise ValidationAppError(
+            "This candidate was shared with you read-only, so you cannot add notes.",
+            {"candidate_id": str(candidate_id)},
+        )
+
+    body = (payload.body or "").strip()
+    if not body:
+        raise ValidationAppError("Write a note first.")
+    if len(body) > 4000:
+        raise ValidationAppError("Notes are limited to 4000 characters.")
+
+    profiles = _profiles(store)
+    note = CandidateNote(
+        candidate_id=candidate_id,
+        author_email=me,
+        author_name=(profiles.get(me) or {}).get("name"),
+        body=body,
+        job_id=payload.job_id,
+    )
+    store.candidate_notes.save(note)
+    return CandidateNoteView(
+        id=note.id,
+        candidate_id=note.candidate_id,
+        author_email=note.author_email,
+        author_name=note.author_name or me,
+        body=note.body,
+        job_id=note.job_id,
+        created_at=note.created_at,
+        mine=True,
+    )

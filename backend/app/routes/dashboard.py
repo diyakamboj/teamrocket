@@ -5,6 +5,8 @@ from fastapi import APIRouter, Query
 
 from app.dependencies import AppStore, RecruiterEmail
 from app.models.schemas import (
+    CandidateMoveRequest,
+    CandidatePlacementResponse,
     DashboardDistribution,
     DashboardInsights,
     JDOptimizationResponse,
@@ -13,7 +15,7 @@ from app.models.schemas import (
     JobPipelineSummary,
     PipelineCandidate,
 )
-from app.services import job_pipeline_service
+from app.services import job_pipeline_service, placement_service
 from app.services.hiring_insights import hiring_insights
 from app.services.jd_optimizer import jd_optimizer
 from app.utils.error_handlers import NotFoundError
@@ -82,4 +84,52 @@ def get_job_pipeline(
     if not job:
         return []
     return job_pipeline_service.get_job_pipeline_candidates(store, job, source)
+
+
+@router.put(
+    "/jobs/{job_id}/pipeline/{candidate_id}",
+    response_model=CandidatePlacementResponse,
+)
+def move_pipeline_candidate(
+    job_id: uuid.UUID,
+    candidate_id: str,
+    payload: CandidateMoveRequest,
+    store: AppStore,
+    recruiter_email: RecruiterEmail,
+):
+    """Move a candidate to a stage, and into a round when interviewing.
+
+    The board and the pipeline overview both call this, so a move made in
+    one is visible in the other without either owning the rule.
+    """
+    job = store.jobs.get(job_id)
+    if not job:
+        raise NotFoundError("Job posting not found", {"job_id": str(job_id)})
+
+    candidate = store.candidates.get(candidate_id)
+    placement = placement_service.move_candidate(
+        store,
+        job=job,
+        candidate_id=candidate_id,
+        candidate_name=payload.candidate_name
+        or (candidate.name if candidate else "Candidate"),
+        stage=payload.stage,
+        round_id=payload.round_id,
+        actor_email=recruiter_email,
+        note=payload.note,
+    )
+    round_name = next(
+        (r.name for r in (job.rounds or []) if r.id == placement.round_id), None
+    )
+    return CandidatePlacementResponse(
+        job_id=placement.job_id,
+        candidate_id=placement.candidate_id,
+        stage=placement.stage,
+        round_id=placement.round_id,
+        round_name=round_name,
+        round_sequence=placement.round_sequence,
+        moved_by=placement.moved_by,
+        note=placement.note,
+        updated_at=placement.updated_at,
+    )
 

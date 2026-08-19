@@ -1,16 +1,19 @@
 """Top-level recruiter dashboard: active job listings + pipeline stage tracking.
 
-There is no dedicated "pipeline stage" or "application" table in this app —
-stage is derived from data that already exists: an Evaluation means the
-candidate has been screened for the job, an InterviewHandoff means an
-interview briefing went out, and a CandidateDecision is the recruiter's
-approve/reject call. This keeps the dashboard consistent with the rest of
-the app (Candidate Ranking, Interview Handoff) instead of introducing a
-second, easily-out-of-sync source of truth.
+A candidate's stage comes from a `CandidatePlacement` when one exists — the
+recruiter moved them, and that explicit position wins over anything inferred.
+
+Absent a placement, stage is derived the original way, from data that already
+exists: an Evaluation means the candidate has been screened for the job, an
+InterviewHandoff means an interview briefing went out, and a CandidateDecision
+is the recruiter's approve/reject call. Derivation is what a candidate nobody
+has moved yet still reads as, so pipelines that predate placements keep
+working without a backfill.
 
 CandidateDecision has no job_id column (it predates jobs having real
-pipelines — see its docstring), so decisions are matched to a job by title.
-This is a best-effort match, not a guarantee, given the existing schema.
+pipelines — see its docstring), so *derived* stages match decisions to a job
+by title. This is best-effort, not a guarantee; a placement is job-scoped and
+has no such ambiguity, which is the other reason moves write one.
 """
 
 from __future__ import annotations
@@ -22,9 +25,16 @@ from uuid import UUID
 from app.models.evaluation import CandidateDecision
 from app.models.handoff import InterviewHandoff
 from app.models.job_posting import JobPosting
+from app.models.placement import STAGE_ORDER, CandidatePlacement
 from app.storage.store import Store
 
-STAGE_ORDER = ["screened", "interviewing", "interviewed", "selected", "rejected"]
+__all__ = [
+    "STAGE_ORDER",
+    "get_job_pipeline_summaries",
+    "get_job_pipeline_candidates",
+    "job_pipeline_progression",
+    "job_candidate_sources",
+]
 
 
 def _latest_decisions_by_candidate(store: Store, job_title: str) -> dict[str, CandidateDecision]:
@@ -46,9 +56,19 @@ def _handoffs_by_candidate(store: Store, job_id: UUID) -> dict[str, list[Intervi
     return grouped
 
 
+def _placements_by_candidate(store: Store, job_id: UUID) -> dict[str, CandidatePlacement]:
+    rows = store.candidate_placements.query(lambda p: str(p.job_id) == str(job_id))
+    return {str(p.candidate_id): p for p in rows}
+
+
 def _stage_for(
-    decision: Optional[CandidateDecision], handoffs: list[InterviewHandoff]
+    decision: Optional[CandidateDecision],
+    handoffs: list[InterviewHandoff],
+    placement: Optional[CandidatePlacement] = None,
 ) -> str:
+    # An explicit move beats anything inferred from decisions or handoffs.
+    if placement and placement.stage in STAGE_ORDER:
+        return placement.stage
     if decision and decision.decision == "rejected":
         return "rejected"
     if decision and decision.decision == "hired":
@@ -86,24 +106,32 @@ def get_job_pipeline_summaries(
         evaluations = store.evaluations.list_for_job(job.id)
         decisions_by_candidate = _latest_decisions_by_candidate(store, job.title)
         handoffs_by_candidate = _handoffs_by_candidate(store, job.id)
+        placements_by_candidate = _placements_by_candidate(store, job.id)
 
         stage_counts = {stage: 0 for stage in STAGE_ORDER}
         internal = external = 0
         scores: list[float] = []
 
-        for evaluation in evaluations:
-            candidate = store.candidates.get(evaluation.candidate_id)
+        # Same union as `get_job_pipeline_candidates`: someone moved onto this
+        # board counts toward it even if they were never scored for the role.
+        by_candidate_id = {str(e.candidate_id): e for e in evaluations}
+        counted = 0
+        for candidate_id in set(by_candidate_id) | set(placements_by_candidate):
+            candidate = store.candidates.get(candidate_id)
             if candidate is None:
                 continue
+            counted += 1
             if candidate.source == "internal":
                 internal += 1
             else:
                 external += 1
-            if evaluation.overall_score is not None:
+            evaluation = by_candidate_id.get(candidate_id)
+            if evaluation is not None and evaluation.overall_score is not None:
                 scores.append(float(evaluation.overall_score))
             stage = _stage_for(
-                decisions_by_candidate.get(str(candidate.id)),
-                handoffs_by_candidate.get(str(candidate.id), []),
+                decisions_by_candidate.get(candidate_id),
+                handoffs_by_candidate.get(candidate_id, []),
+                placements_by_candidate.get(candidate_id),
             )
             stage_counts[stage] += 1
 
@@ -114,7 +142,7 @@ def get_job_pipeline_summaries(
                 "status": job.status,
                 "sourcing_mode": getattr(job, "sourcing_mode", "both") or "both",
                 "created_at": job.created_at,
-                "total_candidates": len(evaluations),
+                "total_candidates": counted,
                 "internal_candidates": internal,
                 "external_candidates": external,
                 "average_score": round(sum(scores) / len(scores), 2) if scores else 0.0,
@@ -132,17 +160,30 @@ def get_job_pipeline_candidates(
     evaluations = store.evaluations.list_for_job(job.id)
     decisions_by_candidate = _latest_decisions_by_candidate(store, job.title)
     handoffs_by_candidate = _handoffs_by_candidate(store, job.id)
+    placements_by_candidate = _placements_by_candidate(store, job.id)
+    round_names = {r.id: r.name for r in (job.rounds or [])}
+
+    # Evaluated candidates, plus anyone placed on this board without one.
+    # A recruiter can move a candidate who was never scored against the role;
+    # leaving them out here would drop their placement and snap them back to
+    # "screened" on the next read.
+    scored_ids = {str(e.candidate_id) for e in evaluations}
+    by_candidate_id: dict[str, Any] = {str(e.candidate_id): e for e in evaluations}
+    candidate_ids = list(scored_ids | set(placements_by_candidate))
 
     results: list[dict[str, Any]] = []
-    for evaluation in evaluations:
-        candidate = store.candidates.get(evaluation.candidate_id)
+    for candidate_id in candidate_ids:
+        candidate = store.candidates.get(candidate_id)
         if candidate is None:
             continue
         if source and source != "all" and candidate.source != source:
             continue
+        evaluation = by_candidate_id.get(candidate_id)
+        placement = placements_by_candidate.get(candidate_id)
         stage = _stage_for(
-            decisions_by_candidate.get(str(candidate.id)),
-            handoffs_by_candidate.get(str(candidate.id), []),
+            decisions_by_candidate.get(candidate_id),
+            handoffs_by_candidate.get(candidate_id, []),
+            placement,
         )
         results.append(
             {
@@ -152,10 +193,16 @@ def get_job_pipeline_candidates(
                 "source": candidate.source,
                 "employment_status": candidate.employment_status,
                 "overall_score": float(evaluation.overall_score)
-                if evaluation.overall_score is not None
+                if evaluation is not None and evaluation.overall_score is not None
                 else None,
                 "stage": stage,
-                "updated_at": evaluation.created_at,
+                "round_id": placement.round_id if placement else None,
+                "round_name": round_names.get(placement.round_id) if placement else None,
+                "round_sequence": placement.round_sequence if placement else None,
+                "moved_by": placement.moved_by if placement else None,
+                "updated_at": placement.updated_at
+                if placement
+                else (evaluation.created_at if evaluation else job.created_at),
             }
         )
 
@@ -176,13 +223,16 @@ def job_pipeline_progression(store: Store, job_id: UUID) -> dict[str, int]:
     evaluations = store.evaluations.list_for_job(job_id)
     decisions_by_candidate = _latest_decisions_by_candidate(store, job.title)
     handoffs_by_candidate = _handoffs_by_candidate(store, job.id)
-    for evaluation in evaluations:
-        candidate = store.candidates.get(evaluation.candidate_id)
+    placements_by_candidate = _placements_by_candidate(store, job.id)
+    evaluated_ids = {str(e.candidate_id) for e in evaluations}
+    for candidate_id in evaluated_ids | set(placements_by_candidate):
+        candidate = store.candidates.get(candidate_id)
         if candidate is None:
             continue
         stage = _stage_for(
-            decisions_by_candidate.get(str(candidate.id)),
-            handoffs_by_candidate.get(str(candidate.id), []),
+            decisions_by_candidate.get(candidate_id),
+            handoffs_by_candidate.get(candidate_id, []),
+            placements_by_candidate.get(candidate_id),
         )
         counts[stage] += 1
     return counts

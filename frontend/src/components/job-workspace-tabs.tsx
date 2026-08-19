@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   AlertTriangle,
   ArrowRight,
@@ -15,6 +15,7 @@ import { toast } from "sonner";
 import {
   getDashboardInsights,
   getJdOptimization,
+  moveCandidateInPipeline,
   submitCandidateDecision,
   updateJobRounds,
   type CandidateDecisionKind,
@@ -22,23 +23,22 @@ import {
   type InterviewRound,
   type JDOptimizationResponse,
   type JobResponse,
+  type PipelineCandidate,
+  type PipelineStage,
 } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { columnKeyFor, columnsForJob, STAGES, type PipelineColumn } from "@/lib/pipeline";
 import { cn } from "@/lib/utils";
 
-/** The board's columns, in the order a candidate moves through them. */
-const STAGES = [
-  { id: "screened", label: "Screened", tone: "stage-screened" },
-  { id: "interviewing", label: "Interviewing", tone: "stage-interviewing" },
-  { id: "interviewed", label: "Interviewed", tone: "stage-interviewed" },
-  { id: "selected", label: "Selected", tone: "stage-selected" },
-  { id: "hired", label: "Hired", tone: "stage-hired" },
-  { id: "rejected", label: "Rejected", tone: "stage-rejected" },
-] as const;
-
-/** Which decision moves a candidate into a given stage. */
-const MOVE_TO: Partial<Record<string, CandidateDecisionKind>> = {
+/**
+ * Which stages have a candidate-facing email behind them.
+ *
+ * Moving someone is a pipeline change, not a message: the email is offered
+ * as an explicit follow-up on the toast rather than sent automatically, so
+ * dragging a card can never mail a candidate by accident.
+ */
+const DECISION_FOR: Partial<Record<PipelineStage, CandidateDecisionKind>> = {
   interviewing: "advanced",
   selected: "approved",
   hired: "hired",
@@ -53,18 +53,123 @@ export type BoardCandidate = {
   score: number;
 };
 
+/**
+ * Moving a candidate, shared by the board and the pipeline overview.
+ *
+ * The move persists first and the caller re-reads the pipeline; the board
+ * renders stored placements rather than an optimistic guess, so a rejected
+ * write can never leave a card in the wrong column.
+ */
+function useCandidateMover({
+  jobId,
+  jobTitle,
+  onMoved,
+}: {
+  jobId: string;
+  jobTitle: string;
+  onMoved: () => void;
+}) {
+  const [moving, setMoving] = useState<string | null>(null);
+
+  const move = useCallback(
+    async (candidate: BoardCandidate, column: PipelineColumn) => {
+      setMoving(candidate.id);
+      try {
+        await moveCandidateInPipeline(jobId, candidate.id, {
+          stage: column.stage,
+          round_id: column.roundId ?? null,
+          candidate_name: candidate.name,
+        });
+        onMoved();
+
+        const decision = DECISION_FOR[column.stage];
+        toast.success(
+          `${candidate.name} → ${column.label}`,
+          decision
+            ? {
+                action: {
+                  label: "Email them",
+                  onClick: () => {
+                    void submitCandidateDecision({
+                      candidate_id: candidate.id,
+                      name: candidate.name,
+                      email: candidate.email,
+                      decision,
+                      job_title: jobTitle,
+                    })
+                      .then(() => toast.success(`Emailed ${candidate.name}`))
+                      .catch((err) =>
+                        toast.error(err instanceof Error ? err.message : "Email not sent"),
+                      );
+                  },
+                },
+              }
+            : undefined,
+        );
+      } catch (err) {
+        toast.error(err instanceof Error ? err.message : "Could not move the candidate");
+      } finally {
+        setMoving(null);
+      }
+    },
+    [jobId, jobTitle, onMoved],
+  );
+
+  return { moving, move };
+}
+
+/** The stages a candidate can be sent to from a card, as a compact menu. */
+function MoveMenu({
+  columns,
+  currentKey,
+  disabled,
+  onMove,
+}: {
+  columns: PipelineColumn[];
+  currentKey: string;
+  disabled: boolean;
+  onMove: (column: PipelineColumn) => void;
+}) {
+  return (
+    <select
+      aria-label="Move to"
+      disabled={disabled}
+      value=""
+      onChange={(e) => {
+        const next = columns.find((c) => c.key === e.target.value);
+        if (next) onMove(next);
+        e.currentTarget.value = "";
+      }}
+      className="w-full rounded-md border bg-background px-1.5 py-1 text-[10px] font-medium text-muted-foreground transition-colors hover:border-primary/40 disabled:opacity-40"
+    >
+      <option value="">{disabled ? "Moving…" : "Move to…"}</option>
+      {columns
+        .filter((c) => c.key !== currentKey)
+        .map((column) => (
+          <option key={column.key} value={column.key}>
+            {column.label}
+          </option>
+        ))}
+    </select>
+  );
+}
+
 // ---------------------------------------------------------------------------
 // Pipeline overview: the job's interview loop
 // ---------------------------------------------------------------------------
 
 export function PipelineOverviewTab({
   job,
-  stages,
+  placements,
+  candidates,
   onJobUpdated,
+  onMoved,
 }: {
   job: JobResponse | null;
-  stages: Record<string, string>;
+  placements: Record<string, PipelineCandidate>;
+  candidates: BoardCandidate[];
   onJobUpdated: (job: JobResponse) => void;
+  onMoved: () => void;
 }) {
   const [rounds, setRounds] = useState<InterviewRound[]>(job?.rounds ?? []);
   const [editing, setEditing] = useState(false);
@@ -74,13 +179,33 @@ export function PipelineOverviewTab({
     setRounds(job?.rounds ?? []);
   }, [job]);
 
+  const columns = useMemo(() => columnsForJob(job?.rounds), [job?.rounds]);
+  const { moving, move } = useCandidateMover({
+    jobId: job?.id ?? "",
+    jobTitle: job?.title ?? "this role",
+    onMoved,
+  });
+
+  /** Candidates grouped by the column they are in, so each round can show
+   * who is actually sitting in it. */
+  const byColumn = useMemo(() => {
+    const grouped: Record<string, BoardCandidate[]> = {};
+    columns.forEach((c) => (grouped[c.key] = []));
+    candidates.forEach((candidate) => {
+      const row = placements[candidate.id];
+      const key = row ? columnKeyFor(row, columns) : "screened";
+      (grouped[key] ??= []).push(candidate);
+    });
+    return grouped;
+  }, [candidates, placements, columns]);
+
   const counts = useMemo(() => {
     const tally: Record<string, number> = {};
-    Object.values(stages).forEach((stage) => {
-      tally[stage] = (tally[stage] ?? 0) + 1;
+    Object.values(placements).forEach((row) => {
+      tally[row.stage] = (tally[row.stage] ?? 0) + 1;
     });
     return tally;
-  }, [stages]);
+  }, [placements]);
 
   async function save() {
     if (!job) return;
@@ -200,6 +325,14 @@ export function PipelineOverviewTab({
                         {round.focus}
                       </p>
                     )}
+
+                    <RoundRoster
+                      occupants={byColumn[`interviewing:${round.id}`] ?? []}
+                      columns={columns}
+                      currentKey={`interviewing:${round.id}`}
+                      moving={moving}
+                      onMove={move}
+                    />
                   </>
                 )}
               </li>
@@ -244,7 +377,91 @@ export function PipelineOverviewTab({
           ))}
         </div>
       </section>
+
+      {/* Everyone not currently in a round, so the overview can move a
+          candidate all the way from screened to hired without the board. */}
+      <section className="rounded-2xl border bg-card p-6 shadow-sm">
+        <h3 className="text-sm font-semibold">Before and after the loop</h3>
+        <p className="mt-1 text-xs text-muted-foreground">
+          Candidates waiting to start, and those the loop is done with.
+        </p>
+        <div className="stagger mt-4 grid gap-3 md:grid-cols-2">
+          {columns
+            .filter((column) => !column.roundId)
+            .map((column) => (
+              <div key={column.key} className="lift rounded-xl border p-4">
+                <div className="flex items-center gap-2">
+                  <h4 className={cn("text-xs font-bold uppercase tracking-wide", column.tone)}>
+                    {column.label}
+                  </h4>
+                  <span className="metric ml-auto rounded-full bg-secondary px-2 py-0.5 text-[10px] font-bold">
+                    {(byColumn[column.key] ?? []).length}
+                  </span>
+                </div>
+                <RoundRoster
+                  occupants={byColumn[column.key] ?? []}
+                  columns={columns}
+                  currentKey={column.key}
+                  moving={moving}
+                  onMove={move}
+                />
+              </div>
+            ))}
+        </div>
+      </section>
     </div>
+  );
+}
+
+/**
+ * Who is sitting in one column, with a control to send each of them
+ * somewhere else. Used for both a round and the stages either side of the
+ * loop, so every position is movable from the overview.
+ */
+function RoundRoster({
+  occupants,
+  columns,
+  currentKey,
+  moving,
+  onMove,
+}: {
+  occupants: BoardCandidate[];
+  columns: PipelineColumn[];
+  currentKey: string;
+  moving: string | null;
+  onMove: (candidate: BoardCandidate, column: PipelineColumn) => void;
+}) {
+  if (occupants.length === 0) {
+    return (
+      <p className="mt-3 rounded-lg border border-dashed px-3 py-3 text-center text-[11px] text-muted-foreground">
+        Nobody here yet
+      </p>
+    );
+  }
+
+  return (
+    <ul className="mt-3 space-y-1.5">
+      {occupants.map((candidate) => (
+        <li
+          key={candidate.id}
+          className="flex flex-wrap items-center gap-2 rounded-lg border bg-background px-2.5 py-2"
+        >
+          <div className="min-w-0 flex-1">
+            <p className="truncate text-xs font-semibold">{candidate.name}</p>
+            <p className="truncate text-[11px] text-muted-foreground">{candidate.title || "—"}</p>
+          </div>
+          <span className="metric shrink-0 text-xs font-bold text-primary">{candidate.score}</span>
+          <div className="w-32 shrink-0">
+            <MoveMenu
+              columns={columns}
+              currentKey={currentKey}
+              disabled={moving === candidate.id}
+              onMove={(column) => onMove(candidate, column)}
+            />
+          </div>
+        </li>
+      ))}
+    </ul>
   );
 }
 
@@ -253,47 +470,50 @@ export function PipelineOverviewTab({
 // ---------------------------------------------------------------------------
 
 export function StageBoardTab({
+  job,
+  jobId,
   candidates,
-  stages,
-  jobTitle,
+  placements,
   onMoved,
 }: {
+  job: JobResponse | null;
+  jobId: string;
   candidates: BoardCandidate[];
-  stages: Record<string, string>;
-  jobTitle: string;
+  placements: Record<string, PipelineCandidate>;
   onMoved: () => void;
 }) {
-  const [moving, setMoving] = useState<string | null>(null);
+  const columns = useMemo(() => columnsForJob(job?.rounds), [job?.rounds]);
+  const { moving, move } = useCandidateMover({
+    jobId,
+    jobTitle: job?.title ?? "this role",
+    onMoved,
+  });
 
-  const columns = useMemo(() => {
-    const grouped: Record<string, BoardCandidate[]> = {};
-    STAGES.forEach((s) => (grouped[s.id] = []));
+  //: The column a card is being dragged over, so the drop target is visible.
+  const [dragOver, setDragOver] = useState<string | null>(null);
+  const [dragging, setDragging] = useState<string | null>(null);
+
+  const grouped = useMemo(() => {
+    const byColumn: Record<string, BoardCandidate[]> = {};
+    columns.forEach((c) => (byColumn[c.key] = []));
     candidates.forEach((candidate) => {
-      const stage = stages[candidate.id] ?? "screened";
-      (grouped[stage] ??= []).push(candidate);
+      const row = placements[candidate.id];
+      const key = row ? columnKeyFor(row, columns) : "screened";
+      (byColumn[key] ??= []).push(candidate);
     });
-    return grouped;
-  }, [candidates, stages]);
+    return byColumn;
+  }, [candidates, placements, columns]);
 
-  async function move(candidate: BoardCandidate, target: string) {
-    const decision = MOVE_TO[target];
-    if (!decision) return;
-    setMoving(candidate.id);
-    try {
-      await submitCandidateDecision({
-        candidate_id: candidate.id,
-        name: candidate.name,
-        email: candidate.email,
-        decision,
-        job_title: jobTitle,
-      });
-      toast.success(`${candidate.name} moved to ${target}`);
-      onMoved();
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Could not move the candidate");
-    } finally {
-      setMoving(null);
-    }
+  function handleDrop(column: PipelineColumn) {
+    setDragOver(null);
+    const candidate = candidates.find((c) => c.id === dragging);
+    setDragging(null);
+    if (!candidate) return;
+    // Dropping a card back where it started is not a move.
+    const row = placements[candidate.id];
+    const currentKey = row ? columnKeyFor(row, columns) : "screened";
+    if (currentKey === column.key) return;
+    void move(candidate, column);
   }
 
   if (candidates.length === 0) {
@@ -305,55 +525,93 @@ export function StageBoardTab({
   }
 
   return (
-    <div className="grid gap-3 overflow-x-auto pb-2 lg:grid-cols-6">
-      {STAGES.map((stage) => (
-        <section key={stage.id} className="min-w-[220px] rounded-2xl border bg-card/60 p-3">
-          <header className="flex items-center justify-between px-1 pb-2">
-            <h3 className={cn("text-xs font-bold uppercase tracking-wide", stage.tone)}>
-              {stage.label}
-            </h3>
-            <span className="metric rounded-full bg-secondary px-2 py-0.5 text-[10px] font-bold">
-              {columns[stage.id]?.length ?? 0}
-            </span>
-          </header>
+    <div className="flow-tight">
+      <p className="px-1 text-[11px] text-muted-foreground">
+        Drag a candidate between columns, or use the menu on a card. Moving someone never emails
+        them on its own — the toast offers that separately.
+      </p>
 
-          <ul className="flow-tight">
-            {(columns[stage.id] ?? []).map((candidate) => (
-              <li key={candidate.id} className="lift rounded-xl border bg-background p-3">
-                <div className="flex items-start justify-between gap-2">
-                  <div className="min-w-0">
-                    <p className="truncate text-xs font-semibold">{candidate.name}</p>
-                    <p className="truncate text-[11px] text-muted-foreground">
-                      {candidate.title || "—"}
-                    </p>
-                  </div>
-                  <span className="metric shrink-0 text-xs font-bold text-primary">
-                    {candidate.score}
-                  </span>
-                </div>
-
-                <div className="mt-2.5 flex flex-wrap gap-1">
-                  {STAGES.filter((s) => s.id !== stage.id && MOVE_TO[s.id]).map((target) => (
-                    <button
-                      key={target.id}
-                      disabled={moving === candidate.id}
-                      onClick={() => void move(candidate, target.id)}
-                      className="rounded-md border px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground transition-colors hover:border-primary/40 hover:text-foreground disabled:opacity-40"
-                    >
-                      {moving === candidate.id ? "…" : `→ ${target.label}`}
-                    </button>
-                  ))}
-                </div>
-              </li>
-            ))}
-            {(columns[stage.id] ?? []).length === 0 && (
-              <li className="rounded-xl border border-dashed px-2 py-6 text-center text-[11px] text-muted-foreground">
-                Empty
-              </li>
+      <div className="flex gap-3 overflow-x-auto pb-2">
+        {columns.map((column) => (
+          <section
+            key={column.key}
+            onDragOver={(e) => {
+              // Without this the browser refuses the drop entirely.
+              e.preventDefault();
+              setDragOver(column.key);
+            }}
+            onDragLeave={() => setDragOver((k) => (k === column.key ? null : k))}
+            onDrop={(e) => {
+              e.preventDefault();
+              handleDrop(column);
+            }}
+            className={cn(
+              "w-[220px] shrink-0 rounded-2xl border bg-card/60 p-3 transition-colors",
+              dragOver === column.key && "border-primary bg-primary/5",
             )}
-          </ul>
-        </section>
-      ))}
+          >
+            <header className="flex items-center justify-between gap-2 px-1 pb-2">
+              <h3
+                className={cn(
+                  "truncate text-xs font-bold uppercase tracking-wide",
+                  column.tone,
+                )}
+                title={column.label}
+              >
+                {column.label}
+              </h3>
+              <span className="metric shrink-0 rounded-full bg-secondary px-2 py-0.5 text-[10px] font-bold">
+                {grouped[column.key]?.length ?? 0}
+              </span>
+            </header>
+
+            <ul className="flow-tight">
+              {(grouped[column.key] ?? []).map((candidate) => (
+                <li
+                  key={candidate.id}
+                  draggable={moving !== candidate.id}
+                  onDragStart={() => setDragging(candidate.id)}
+                  onDragEnd={() => {
+                    setDragging(null);
+                    setDragOver(null);
+                  }}
+                  className={cn(
+                    "lift cursor-grab rounded-xl border bg-background p-3 active:cursor-grabbing",
+                    dragging === candidate.id && "opacity-50",
+                    moving === candidate.id && "pointer-events-none opacity-60",
+                  )}
+                >
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="min-w-0">
+                      <p className="truncate text-xs font-semibold">{candidate.name}</p>
+                      <p className="truncate text-[11px] text-muted-foreground">
+                        {candidate.title || "—"}
+                      </p>
+                    </div>
+                    <span className="metric shrink-0 text-xs font-bold text-primary">
+                      {candidate.score}
+                    </span>
+                  </div>
+
+                  <div className="mt-2.5">
+                    <MoveMenu
+                      columns={columns}
+                      currentKey={column.key}
+                      disabled={moving === candidate.id}
+                      onMove={(target) => void move(candidate, target)}
+                    />
+                  </div>
+                </li>
+              ))}
+              {(grouped[column.key] ?? []).length === 0 && (
+                <li className="rounded-xl border border-dashed px-2 py-6 text-center text-[11px] text-muted-foreground">
+                  {dragOver === column.key ? "Drop here" : "Empty"}
+                </li>
+              )}
+            </ul>
+          </section>
+        ))}
+      </div>
     </div>
   );
 }
