@@ -302,7 +302,16 @@ stages:
         pool:
           vmImage: $(vmImageName)
         variables:
-          storageAccount: $[ stageDependencies.Deploy.DeployFrontend.outputs['uploadFrontend.STORAGE_ACCOUNT'] ]
+          # FIXED 2026-08-19: was outputs['uploadFrontend.STORAGE_ACCOUNT'],
+          # which resolved empty on the real run ("Could not resolve static
+          # website URL for storage account " — blank). Confirmed against
+          # Microsoft's own docs: output variables from a *deployment* job
+          # (DeployFrontend is `deployment:`, not `job:`) need the job name
+          # prefixed a second time inside outputs[...] —
+          # dependencies.A.outputs['A.step.var'], not just
+          # dependencies.A.outputs['step.var']. Plain `job:` steps don't
+          # need this; deployment jobs specifically do.
+          storageAccount: $[ stageDependencies.Deploy.DeployFrontend.outputs['DeployFrontend.uploadFrontend.STORAGE_ACCOUNT'] ]
         steps:
           - task: AzureCLI@2
             displayName: "Look up real static website URL, curl it"
