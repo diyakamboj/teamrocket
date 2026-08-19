@@ -34,6 +34,13 @@ env:
   TF_VAR_openai_api_key: ${{ secrets.OPENAI_API_KEY }}
   TF_VAR_openai_endpoint: ${{ secrets.OPENAI_ENDPOINT }}
   TF_VAR_embedding_api_key: ${{ secrets.EMBEDDING_API_KEY }}
+  # RESTORED 2026-08-19: this line was missing entirely — this file was a
+  # stale one-time copy that predated embedding_endpoint being re-added to
+  # variables.tf (it's a real, separate setting the backend's embedding
+  # client reads, not redundant with openai_endpoint; see variables.tf's
+  # comment). Its absence here, not an empty secret, is what caused
+  # "No value for required variable" on this PR.
+  TF_VAR_embedding_endpoint: ${{ secrets.EMBEDDING_ENDPOINT }}
   TF_VAR_search_api_key: ${{ secrets.SEARCH_API_KEY }}
   TF_VAR_search_endpoint: ${{ secrets.SEARCH_ENDPOINT }}
   # Optional (empty default, gracefully degrades per KNOWN-ISSUES.md #8) —
@@ -42,6 +49,11 @@ env:
   # `GITHUB_`, since it already injects its own built-in GITHUB_TOKEN into
   # every workflow run automatically (a different, unrelated value).
   TF_VAR_github_token: ${{ secrets.GH_PAT }}
+  # New 2026-08-19 with monitoring.tf's alert_notification_email variable —
+  # no default, so this secret must exist in the repo (Settings → Secrets
+  # and variables → Actions → New repository secret) before this workflow
+  # can succeed.
+  TF_VAR_alert_notification_email: ${{ secrets.ALERT_NOTIFICATION_EMAIL }}
 
 jobs:
   plan:
