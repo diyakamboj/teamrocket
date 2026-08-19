@@ -103,7 +103,9 @@ export function CreateJobModal({ isOpen, onClose }: CreateJobModalProps) {
         description: descriptionText,
         required_skills: requiredSkills,
         nice_to_have_skills: preferredSkills,
+        sourcing_mode: hiringType,
       });
+      window.dispatchEvent(new CustomEvent("job-created", { detail: job }));
       onClose();
       setStep(1);
       toast.success(`Job "${job.title}" created.`);
@@ -114,6 +116,7 @@ export function CreateJobModal({ isOpen, onClose }: CreateJobModalProps) {
       setIsSubmitting(false);
     }
   };
+
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
@@ -247,11 +250,16 @@ export function CreateJobModal({ isOpen, onClose }: CreateJobModalProps) {
                   <label className="text-xs font-semibold text-slate-700">Target Openings</label>
                   <Input
                     type="number"
+                    min={1}
                     value={openings}
-                    onChange={(e) => setOpenings(parseInt(e.target.value) || 1)}
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      setOpenings(val === "" ? "" : Math.max(1, parseInt(val) || 1));
+                    }}
                     className="bg-white border-slate-200 text-slate-900 text-xs focus:border-blue-500"
                   />
                 </div>
+
               </div>
             </div>
           )}

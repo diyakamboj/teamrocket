@@ -46,17 +46,26 @@ export function AppShell({ children }: { children: ReactNode }) {
   // Real open jobs and their live candidate counts, from the backend store.
   useEffect(() => {
     let cancelled = false;
-    listJobPipelines()
-      .then((jobs) => {
-        if (!cancelled) setRecentJobs(jobs.slice(0, 5));
-      })
-      .catch(() => {
-        if (!cancelled) setRecentJobs([]);
-      });
+    const fetchJobs = () => {
+      listJobPipelines()
+        .then((jobs) => {
+          if (!cancelled) setRecentJobs(jobs.slice(0, 5));
+        })
+        .catch(() => {
+          if (!cancelled) setRecentJobs([]);
+        });
+    };
+
+    fetchJobs();
+
+    const handleJobCreated = () => fetchJobs();
+    window.addEventListener("job-created", handleJobCreated);
     return () => {
       cancelled = true;
+      window.removeEventListener("job-created", handleJobCreated);
     };
   }, []);
+
 
 
   return (

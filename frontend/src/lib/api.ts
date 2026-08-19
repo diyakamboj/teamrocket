@@ -276,7 +276,9 @@ export async function createJob(input: {
   required_skills?: string[];
   nice_to_have_skills?: string[];
   required_experience_years?: number;
+  sourcing_mode?: string;
 }): Promise<JobResponse> {
+
   return request<JobResponse>("/api/jobs", {
     method: "POST",
     body: JSON.stringify(input),

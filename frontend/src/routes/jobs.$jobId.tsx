@@ -89,6 +89,7 @@ function JobWorkspacePage() {
   const { jobId } = Route.useParams();
   const navigate = useNavigate();
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const { setActiveJobId, addFiles, refreshPool } = useAppState();
 
   const [activeTab, setActiveTab] = useState<"overview" | "candidates" | "upload" | "pipeline" | "insights">("candidates");
   const [searchQuery, setSearchQuery] = useState("");
@@ -99,10 +100,14 @@ function JobWorkspacePage() {
   const [selectedForCompare, setSelectedForCompare] = useState<string[]>([]);
   const [showWeightSliders, setShowWeightSliders] = useState(false);
   const [weights, setWeights] = useState({ skills: 35, experience: 25, education: 15, certifications: 10, projects: 15 });
-  const [blindMode, setBlindMode] = useState(false);
+  const [blindMode, setBlindMode] = useState(true);
   const [uploadedFiles, setUploadedFiles] = useState<
     Array<{ name: string; size: string; status: string; color: string }>
   >([]);
+
+  useEffect(() => {
+    if (jobId) setActiveJobId(jobId);
+  }, [jobId, setActiveJobId]);
 
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const fileList = e.target.files;
@@ -119,7 +124,8 @@ function JobWorkspacePage() {
     setUploadedFiles((prev) => [...newItems, ...prev]);
 
     try {
-      const res = await uploadResumesToBackend(fileArray);
+      await addFiles(fileArray);
+      refreshPool();
       setUploadedFiles((prev) =>
         prev.map((item) =>
           fileArray.some((f) => f.name === item.name)
@@ -127,13 +133,11 @@ function JobWorkspacePage() {
             : item
         )
       );
-      toast.success(`Uploaded & parsed ${res.files.length} resume(s) into candidates database!`);
+      toast.success(`Uploaded & parsed ${fileArray.length} resume(s) into job candidates database!`);
     } catch (err: any) {
       toast.error(`Upload error: ${err.message || "Failed to parse resume files"}`);
     }
   };
-
-
 
   const { candidates: pool, loading: poolLoading, error: poolError } = useCandidatePool();
 
@@ -209,8 +213,11 @@ function JobWorkspacePage() {
 
   const handleSaveWeights = () => {
     setShowWeightSliders(false);
-    toast.success("Recalculated 124 candidate scores with updated category weights!");
+    toast.success(`Recalculated ${candidates.length} candidate scores with updated category weights!`);
   };
+
+  const topMatchesCount = useMemo(() => candidates.filter((c) => c.score >= 85).length, [candidates]);
+  const readyCount = useMemo(() => candidates.filter((c) => c.score >= 70).length, [candidates]);
 
   return (
     <div className="mx-auto max-w-7xl space-y-8">
@@ -219,22 +226,23 @@ function JobWorkspacePage() {
         <div>
           <div className="flex items-center gap-2 mb-1">
             <Badge className="bg-indigo-50 text-indigo-700 border-indigo-200 text-xs uppercase font-bold">
-              External Hiring
+              {job?.sourcing_mode === "internal" ? "Internal Hiring" : "External Hiring"}
             </Badge>
             <Badge variant="outline" className="text-slate-600 border-slate-200 bg-white text-xs">
-              Seattle, WA (Hybrid)
+              {job?.education_requirements || "Seattle, WA (Hybrid)"}
             </Badge>
             <Badge className="bg-emerald-50 text-emerald-700 border-emerald-200 text-xs font-bold">
-              Active Hiring
+              {job?.status ? job.status.toUpperCase() : "Active Hiring"}
             </Badge>
           </div>
           <h1 className="text-2xl font-bold tracking-tight text-slate-900 flex items-center gap-3 mt-1">
-            Senior Software Engineer
+            {job ? job.title : "Job Workspace"}
           </h1>
           <p className="text-slate-500 text-xs mt-1">
-            Central Hiring Workspace • 124 Candidates • 18 Top Matches • 7 Ready for Interview
+            Central Hiring Workspace • {candidates.length} Candidate{candidates.length === 1 ? "" : "s"} • {topMatchesCount} Top Match{topMatchesCount === 1 ? "" : "es"} • {readyCount} Ready for Review
           </p>
         </div>
+
 
         <div className="flex items-center gap-2">
           <Button
@@ -318,12 +326,13 @@ function JobWorkspacePage() {
 
           <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
             {[
-              { key: "skills", label: "Skills (35%)", val: weights.skills },
-              { key: "experience", label: "Experience (25%)", val: weights.experience },
-              { key: "education", label: "Education (15%)", val: weights.education },
-              { key: "certifications", label: "Certs (10%)", val: weights.certifications },
-              { key: "projects", label: "Projects (15%)", val: weights.projects },
+              { key: "skills", label: `Skills (${weights.skills}%)`, val: weights.skills },
+              { key: "experience", label: `Experience (${weights.experience}%)`, val: weights.experience },
+              { key: "education", label: `Education (${weights.education}%)`, val: weights.education },
+              { key: "certifications", label: `Certs (${weights.certifications}%)`, val: weights.certifications },
+              { key: "projects", label: `Projects (${weights.projects}%)`, val: weights.projects },
             ].map((item) => (
+
               <div key={item.key} className="space-y-1 text-xs">
                 <span className="text-slate-700 font-medium">{item.label}</span>
                 <Slider

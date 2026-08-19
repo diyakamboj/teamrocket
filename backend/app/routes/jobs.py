@@ -37,8 +37,10 @@ async def create_job(payload: JobCreate, store: AppStore, recruiter_email: Recru
         required_experience_years=payload.required_experience_years,
         education_requirements=payload.education_requirements,
         nice_to_have_skills=payload.nice_to_have_skills,
+        sourcing_mode=payload.sourcing_mode or "both",
         created_by=payload.created_by or recruiter_email,
     )
+
     store.jobs.save(job)
     _log_audit(
         store,

@@ -107,8 +107,13 @@ function DashboardPage() {
     };
   }, [jobs]);
 
-  const internalJobs = jobs.filter((j) => j.internal_candidates > 0).slice(0, 3);
-  const externalJobs = jobs.filter((j) => j.external_candidates > 0).slice(0, 3);
+  const internalJobs = jobs
+    .filter((j) => j.sourcing_mode === "internal" || j.sourcing_mode === "both" || j.internal_candidates > 0)
+    .slice(0, 5);
+  const externalJobs = jobs
+    .filter((j) => j.sourcing_mode === "external" || j.sourcing_mode === "both" || j.external_candidates > 0)
+    .slice(0, 5);
+
 
   function topMatchesFor(job: JobWithPipeline): number {
     return job.pipeline.filter((c) => (c.overall_score ?? 0) >= TOP_MATCH_SCORE).length;

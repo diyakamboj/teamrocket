@@ -111,7 +111,9 @@ class JobCreate(BaseModel):
     required_experience_years: Optional[int] = None
     education_requirements: Optional[str] = None
     nice_to_have_skills: list[str] = Field(default_factory=list)
+    sourcing_mode: Optional[str] = "both"
     created_by: Optional[str] = None
+
 
 
 class JobDraftAnalyzeRequest(BaseModel):

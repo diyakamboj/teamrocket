@@ -350,7 +350,24 @@ export function UploadPage() {
                       </Button>
                     </>
                   )}
-                  {f.stage === "complete" && <CheckCircle2 className="h-5 w-5 text-success" />}
+                  {f.stage === "complete" && (
+                    <div className="flex items-center gap-2">
+                      <CheckCircle2 className="h-5 w-5 text-success" />
+                      {f.candidateId && (
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="rounded-xl text-xs flex items-center gap-1"
+                          onClick={() => {
+                            window.location.href = `/candidates?candidate=${f.candidateId}`;
+                          }}
+                        >
+                          View Candidate →
+                        </Button>
+                      )}
+                    </div>
+                  )}
+
                 </div>
               </div>
             ))}

@@ -42,7 +42,14 @@ export function useJobWorkspace(source: "internal" | "external") {
       )
       .then((rows) => {
         if (cancelled) return;
-        setJobs(rows.filter((j) => j.pipeline.length > 0));
+        setJobs(
+          rows.filter((j) => {
+            if (source === "internal") {
+              return j.sourcing_mode === "internal" || j.sourcing_mode === "both" || j.internal_candidates > 0 || j.pipeline.length === 0;
+            }
+            return j.sourcing_mode === "external" || j.sourcing_mode === "both" || j.external_candidates > 0 || j.pipeline.length === 0;
+          }),
+        );
         setLoading(false);
       })
       .catch((err: unknown) => {
@@ -50,6 +57,7 @@ export function useJobWorkspace(source: "internal" | "external") {
         setError(err instanceof Error ? err.message : "Could not reach the screening API");
         setLoading(false);
       });
+
 
     return () => {
       cancelled = true;
