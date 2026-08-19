@@ -217,14 +217,15 @@ export function mapRankedCandidate(
     years,
     level: levelFor(years),
     education: (profile?.education ?? []).map(textOf).filter(Boolean).join(" · "),
-    score: Math.round(ranked.overall_score),
+    score: Math.round(ranked.overall_score ?? 0),
     categories: {
-      skills: Math.round(ranked.skill_score),
-      experience: Math.round(ranked.experience_score),
-      education: Math.round(ranked.education_score),
-      certifications: Math.round(ranked.certification_score),
-      projects: Math.round(ranked.project_score),
+      skills: Math.round(ranked.skill_score ?? 0),
+      experience: Math.round(ranked.experience_score ?? 0),
+      education: Math.round(ranked.education_score ?? 0),
+      certifications: Math.round(ranked.certification_score ?? 0),
+      projects: Math.round(ranked.project_score ?? 0),
     },
+
     skills: (profile?.skills ?? []).map(skillName).filter(Boolean),
     strengths: toBullets(ranked.strengths),
     gaps: [

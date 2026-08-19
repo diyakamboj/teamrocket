@@ -86,8 +86,8 @@ function DashboardPage() {
 
   const stats = useMemo(() => {
     const all = jobs.flatMap((j) => j.pipeline);
-    const internal = jobs.filter((j) => j.internal_candidates > 0);
-    const external = jobs.filter((j) => j.external_candidates > 0);
+    const internal = jobs.filter((j) => (j.sourcing_mode || "both") === "internal" || (j.sourcing_mode || "both") === "both");
+    const external = jobs.filter((j) => (j.sourcing_mode || "both") === "external" || (j.sourcing_mode || "both") === "both");
     const topMatches = all.filter((c) => (c.overall_score ?? 0) >= TOP_MATCH_SCORE);
     const readyForInterview = all.filter(
       (c) => c.stage === "interviewing" || c.stage === "interviewed",
@@ -108,10 +108,10 @@ function DashboardPage() {
   }, [jobs]);
 
   const internalJobs = jobs
-    .filter((j) => j.sourcing_mode === "internal" || j.sourcing_mode === "both" || j.internal_candidates > 0)
+    .filter((j) => (j.sourcing_mode || "both") === "internal" || (j.sourcing_mode || "both") === "both")
     .slice(0, 5);
   const externalJobs = jobs
-    .filter((j) => j.sourcing_mode === "external" || j.sourcing_mode === "both" || j.external_candidates > 0)
+    .filter((j) => (j.sourcing_mode || "both") === "external" || (j.sourcing_mode || "both") === "both")
     .slice(0, 5);
 
 
@@ -127,7 +127,8 @@ function DashboardPage() {
     {
       label: "Active Job Openings",
       val: `${stats.openRoles} Role${stats.openRoles === 1 ? "" : "s"}`,
-      sub: `${stats.internalRoles} with internal • ${stats.externalRoles} with external`,
+      sub: `${stats.internalRoles} Internal • ${stats.externalRoles} External`,
+
       icon: Briefcase,
       color: "text-primary",
     },
@@ -257,7 +258,8 @@ function DashboardPage() {
                   </p>
                 ) : (
                   internalJobs.map((job) => (
-                    <Link key={job.job_id} to="/jobs/$jobId" params={{ jobId: job.job_id }}>
+                    <Link key={(job as any).job_id || job.id} to="/jobs/$jobId" params={{ jobId: String((job as any).job_id || (job as any).id || "") }}>
+
                       <div className="group flex items-center justify-between rounded-lg border border-border p-3 transition-all hover:border-primary hover:shadow-xs">
                         <div>
                           <div className="text-xs font-semibold group-hover:text-primary">
@@ -350,7 +352,8 @@ function DashboardPage() {
                   </p>
                 ) : (
                   externalJobs.map((job) => (
-                    <Link key={job.job_id} to="/jobs/$jobId" params={{ jobId: job.job_id }}>
+                    <Link key={(job as any).job_id || job.id} to="/jobs/$jobId" params={{ jobId: String((job as any).job_id || (job as any).id || "") }}>
+
                       <div className="group flex items-center justify-between rounded-lg border border-border p-3 transition-all hover:border-primary hover:shadow-xs">
                         <div>
                           <div className="text-xs font-semibold group-hover:text-primary">

@@ -44,12 +44,14 @@ export function useJobWorkspace(source: "internal" | "external") {
         if (cancelled) return;
         setJobs(
           rows.filter((j) => {
+            const mode = j.sourcing_mode || "both";
             if (source === "internal") {
-              return j.sourcing_mode === "internal" || j.sourcing_mode === "both" || j.internal_candidates > 0 || j.pipeline.length === 0;
+              return mode === "internal" || mode === "both";
             }
-            return j.sourcing_mode === "external" || j.sourcing_mode === "both" || j.external_candidates > 0 || j.pipeline.length === 0;
+            return mode === "external" || mode === "both";
           }),
         );
+
         setLoading(false);
       })
       .catch((err: unknown) => {
@@ -133,11 +135,12 @@ export function JobGrid({
               ))}
             </div>
 
-            <Link to="/jobs/$jobId" params={{ jobId: job.job_id }}>
+            <Link to="/jobs/$jobId" params={{ jobId: String((job as any).job_id || (job as any).id || "") }}>
               <Button variant="outline" className="w-full rounded-lg text-xs font-semibold">
                 Open job workspace →
               </Button>
             </Link>
+
           </CardContent>
         </Card>
       ))}

@@ -94,6 +94,7 @@ def get_job_pipeline_summaries(store: Store) -> list[dict[str, Any]]:
                 "job_id": job.id,
                 "title": job.title,
                 "status": job.status,
+                "sourcing_mode": getattr(job, "sourcing_mode", "both") or "both",
                 "created_at": job.created_at,
                 "total_candidates": len(evaluations),
                 "internal_candidates": internal,
@@ -102,6 +103,7 @@ def get_job_pipeline_summaries(store: Store) -> list[dict[str, Any]]:
                 "stage_counts": stage_counts,
             }
         )
+
 
     return summaries
 

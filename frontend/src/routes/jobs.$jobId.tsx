@@ -2,14 +2,18 @@ import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
   getAtsBenchmark,
+  getJob,
   getJobPipeline,
   listJobs,
   uploadResumesToBackend,
   type AtsBenchmark,
   type JobResponse,
 } from "@/lib/api";
+
 import { rankCandidates, type Candidate } from "@/lib/candidates";
 import { useCandidatePool } from "@/lib/use-candidate-pool";
+import { useAppState } from "@/lib/app-state";
+
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -64,23 +68,40 @@ function toRow(
   stage: string | undefined,
   benchmark: AtsBenchmark | null,
 ): CandidateRow {
-  const semantic = benchmark ? Number(benchmark.semantic_score) : null;
-  const keyword = benchmark ? Number(benchmark.keyword_score) : null;
-  const delta = benchmark ? Number(benchmark.score_delta) : null;
+  if (!candidate) {
+    return {
+      id: "unknown",
+      name: "Candidate",
+      score: 0,
+      atsScore: null,
+      semanticScore: null,
+      delta: null,
+      skillsScore: 0,
+      expScore: 0,
+      statusBadge: "Low Match",
+      isBench: false,
+      skills: [],
+      stage: "Applied",
+    };
+  }
+
+  const semantic = benchmark && !isNaN(Number(benchmark.semantic_score)) ? Number(benchmark.semantic_score) : null;
+  const keyword = benchmark && !isNaN(Number(benchmark.keyword_score)) ? Number(benchmark.keyword_score) : null;
+  const delta = benchmark && !isNaN(Number(benchmark.score_delta)) ? Number(benchmark.score_delta) : null;
+  const score = typeof candidate.score === "number" && !isNaN(candidate.score) ? candidate.score : 0;
 
   return {
-    id: candidate.id,
-    name: candidate.name,
-    score: candidate.score,
+    id: candidate.id || "c-id",
+    name: candidate.name || "Candidate",
+    score,
     atsScore: keyword,
     semanticScore: semantic,
     delta: delta === null ? null : `${delta >= 0 ? "+" : ""}${delta.toFixed(1)}%`,
-    skillsScore: candidate.categories.skills,
-    expScore: candidate.categories.experience,
-    statusBadge:
-      candidate.score >= 85 ? "Top Match" : candidate.score >= 65 ? "Review Required" : "Low Match",
+    skillsScore: candidate.categories?.skills ?? 0,
+    expScore: candidate.categories?.experience ?? 0,
+    statusBadge: score >= 85 ? "Top Match" : score >= 65 ? "Review Required" : "Low Match",
     isBench: candidate.employmentStatus === "bench",
-    skills: candidate.skills,
+    skills: Array.isArray(candidate.skills) ? candidate.skills : [],
     stage: stage ?? "Applied",
   };
 }
@@ -143,12 +164,22 @@ function JobWorkspacePage() {
 
   useEffect(() => {
     let cancelled = false;
-    listJobs()
-      .then((jobs) => {
-        if (!cancelled) setJob(jobs.find((j) => j.id === jobId) ?? null);
+    getJob(jobId)
+      .then((j: JobResponse) => {
+        if (!cancelled && j) setJob(j);
       })
       .catch(() => {
-        if (!cancelled) setJob(null);
+        listJobs()
+          .then((jobs: JobResponse[]) => {
+            if (!cancelled) {
+              const matched = jobs.find((j) => j.id === jobId || (j as any).job_id === jobId) ?? jobs[0] ?? null;
+              setJob(matched);
+            }
+          })
+
+          .catch(() => {
+            if (!cancelled) setJob(null);
+          });
       });
 
     getJobPipeline(jobId, "all")
@@ -165,37 +196,56 @@ function JobWorkspacePage() {
     };
   }, [jobId]);
 
-  const ranked = useMemo(() => rankCandidates(pool, weights), [pool, weights]);
+  const ranked = useMemo(() => rankCandidates(pool || [], weights), [pool, weights]);
 
-  // ATS benchmarks are per (candidate, job) and only exist once one has been
-  // run, so this reads what is already stored for the visible page rather
-  // than triggering scoring for the whole pool.
   useEffect(() => {
-    const visible = ranked.slice(0, 25);
+    const visible = (ranked || []).slice(0, 25);
     if (visible.length === 0) return;
     let cancelled = false;
     void Promise.all(
-      visible.map(async (c) => [c.id, await getAtsBenchmark(c.id, jobId)] as const),
-    ).then((entries) => {
-      if (!cancelled) setBenchmarks(Object.fromEntries(entries));
-    });
+      visible.map(async (c) => {
+        try {
+          const bm = await getAtsBenchmark(c.id, jobId);
+          return [c.id, bm] as const;
+        } catch {
+          return [c.id, null] as const;
+        }
+      }),
+    )
+      .then((entries) => {
+        if (!cancelled) setBenchmarks(Object.fromEntries(entries));
+      })
+      .catch(() => {});
+
     return () => {
       cancelled = true;
     };
   }, [ranked, jobId]);
 
-  const candidates = useMemo(
-    () => ranked.map((c) => toRow(c, stages[c.id], benchmarks[c.id] ?? null)),
-    [ranked, stages, benchmarks],
-  );
+  const candidates = useMemo(() => {
+    if (!Array.isArray(ranked)) return [];
+    return ranked
+      .map((c) => {
+        try {
+          return toRow(c, stages?.[c.id], benchmarks?.[c.id] ?? null);
+        } catch {
+          return null;
+        }
+      })
+      .filter((r): r is CandidateRow => r !== null);
+  }, [ranked, stages, benchmarks]);
 
-  // Filter candidates
-  const filteredCandidates = candidates.filter((c) => {
-    const matchesSearch =
-      c.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      c.skills.some((s) => s.toLowerCase().includes(searchQuery.toLowerCase()));
-    return matchesSearch;
-  });
+  // Filter candidates safely
+  const filteredCandidates = useMemo(() => {
+    const query = (searchQuery || "").toLowerCase();
+    return candidates.filter((c) => {
+      if (!c) return false;
+      const matchesName = (c.name || "").toLowerCase().includes(query);
+      const matchesSkills = (c.skills || []).some((s) => typeof s === "string" && s.toLowerCase().includes(query));
+      return matchesName || matchesSkills;
+    });
+  }, [candidates, searchQuery]);
+
 
   const toggleCompare = (id: string) => {
     setSelectedForCompare((prev) =>

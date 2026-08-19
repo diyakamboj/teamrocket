@@ -373,12 +373,14 @@ class JobPipelineSummary(BaseModel):
     job_id: UUID
     title: str
     status: str
+    sourcing_mode: str = "both"
     created_at: datetime
     total_candidates: int
     internal_candidates: int
     external_candidates: int
     average_score: float
     stage_counts: dict[str, int]
+
 
 
 class PipelineCandidate(BaseModel):

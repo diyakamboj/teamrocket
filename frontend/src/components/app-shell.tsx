@@ -123,11 +123,12 @@ export function AppShell({ children }: { children: ReactNode }) {
                 ) : (
                   recentJobs.map((job) => (
                     <Link
-                      key={job.job_id}
+                      key={(job as any).job_id || job.id}
                       to="/jobs/$jobId"
-                      params={{ jobId: job.job_id }}
+                      params={{ jobId: String((job as any).job_id || (job as any).id || "") }}
                       className="group block rounded-lg p-2 transition-all hover:bg-accent"
                     >
+
                       <div className="truncate text-xs font-semibold text-foreground group-hover:text-primary">
                         {job.title}
                       </div>

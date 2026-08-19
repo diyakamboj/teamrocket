@@ -168,10 +168,13 @@ export type JobResponse = {
   title: string;
   description: string;
   required_skills?: string[];
+  nice_to_have_skills?: string[];
   required_experience_years?: number | null;
+  education_requirements?: string | null;
   status?: JobStatus;
   sourcing_mode?: string;
 };
+
 
 function recruiterHeaders(): HeadersInit {
   const email =
@@ -269,6 +272,11 @@ export async function getChatAttachment(id: string): Promise<ChatAttachmentInfo>
 export async function listJobs(): Promise<JobResponse[]> {
   return request<JobResponse[]>("/api/jobs");
 }
+
+export async function getJob(jobId: string): Promise<JobResponse> {
+  return request<JobResponse>(`/api/jobs/${encodeURIComponent(jobId)}`);
+}
+
 
 export async function createJob(input: {
   title: string;
@@ -665,7 +673,9 @@ export type JobPipelineSummary = {
   job_id: string;
   title: string;
   status: JobStatus;
+  sourcing_mode?: string;
   created_at: string;
+
   total_candidates: number;
   internal_candidates: number;
   external_candidates: number;

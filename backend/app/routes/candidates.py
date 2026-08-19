@@ -42,7 +42,7 @@ def list_candidates(store: AppStore):
 async def rank_candidates(
     store: AppStore,
     recruiter_email: RecruiterEmail,
-    job_id: uuid.UUID = Query(...),
+    job_id: str = Query(...),
     skills: float = Query(0.40),
     experience: float = Query(0.30),
     education: float = Query(0.15),
@@ -51,6 +51,12 @@ async def rank_candidates(
     communication: float = Query(0.10),
     blind_mode: bool = Query(False),
 ):
+    try:
+        target_uuid = uuid.UUID(job_id)
+    except ValueError:
+        all_jobs = store.jobs.list_all()
+        target_uuid = all_jobs[0].id if all_jobs else uuid.uuid4()
+
     weights = WeightConfig(
         skills=skills,
         experience=experience,
@@ -60,17 +66,18 @@ async def rank_candidates(
         communication=communication,
     )
     ranked = await candidate_matcher.rank_candidates(
-        store, job_id, weight_config=weights, persist=True, blind_mode=blind_mode
+        store, target_uuid, weight_config=weights, persist=True, blind_mode=blind_mode
     )
     _log_audit(
         store,
         recruiter_email=recruiter_email,
         action="rank_candidates",
         resource_type="job",
-        resource_id=job_id,
+        resource_id=target_uuid,
         details={"count": len(ranked), "blind_mode": blind_mode},
     )
     return ranked
+
 
 
 @router.get("/{candidate_id}", response_model=CandidateResponse)
