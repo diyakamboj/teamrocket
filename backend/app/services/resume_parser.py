@@ -114,6 +114,12 @@ class ResumeParser:
         if not skills_block:
             return []
 
+        # Sub-category labels ("Languages:", "Tools:", "Core Areas:") often
+        # sit at the start of a line inside the skills section rather than
+        # being their own heading — without this they'd glue onto the first
+        # item as a single "skill" like "Languages:Python".
+        skills_block = re.sub(r"(?m)^\s*[A-Za-z][A-Za-z /&]{1,24}:\s*", "", skills_block)
+
         candidates: list[str] = []
         for part in re.split(r"[,;|\u2022\u00b7\n\t]+", skills_block):
             item = part.strip(" .-–—\t")
@@ -129,6 +135,34 @@ class ResumeParser:
             candidates.append(item)
 
         return unique_normalized(candidates)[:30]
+
+    _EMAIL_PATTERN = r"[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}"
+
+    def _first_email(self, resume_text: str) -> str:
+        """The first address in the resume — used when the model omits it."""
+        match = re.search(self._EMAIL_PATTERN, resume_text, re.I)
+        return match.group(0) if match else ""
+
+    def _likely_name(self, resume_text: str) -> str:
+        """The candidate's name, read the way a person reads a resume: the
+        first non-empty line, provided it looks like a name rather than a
+        heading, an address or a contact line."""
+        for line in (l.strip() for l in resume_text.splitlines()):
+            if not line or len(line) > 60:
+                continue
+            if re.search(self._EMAIL_PATTERN, line, re.I) or re.search(r"\d", line):
+                continue
+            # A colon anywhere means a labelled line ("Skills: Python"),
+            # never a name.
+            if ":" in line or line.lower() in {"resume", "curriculum vitae", "cv"}:
+                continue
+            if line.split()[0].rstrip(":").lower() in self._SECTION_ALIASES:
+                continue
+            words = line.split()
+            if 1 < len(words) <= 5 and all(w[:1].isalpha() for w in words):
+                return line
+            break
+        return ""
 
     def _heuristic_parse(self, resume_text: str) -> dict[str, Any]:
         lines = [line.strip() for line in resume_text.splitlines() if line.strip()]
@@ -198,10 +232,31 @@ class ResumeParser:
             resume_text,
         )
 
+    #: Wrappers a model may put contact details in. The prompt asks for JSON
+    #: without pinning a schema, so the same deployment legitimately returns
+    #: `{"name": ...}` one day and `{"contact_info": {"name": ...}}` another.
+    _CONTACT_WRAPPERS = ("contact_info", "contactInfo", "contact", "basics", "personal_info")
+
+    def _contact_fields(self, parsed: dict[str, Any]) -> dict[str, Any]:
+        """Contact details from wherever the model put them.
+
+        Reading only `contact_info` meant a top-level `{"name": ...}` — which
+        is what the current deployment returns — was silently dropped, and
+        every uploaded resume became "Unknown Candidate" with a synthesised
+        email address.
+        """
+        contact: dict[str, Any] = {}
+        for wrapper in self._CONTACT_WRAPPERS:
+            nested = parsed.get(wrapper)
+            if isinstance(nested, dict):
+                contact = {**nested, **contact}
+        for field in ("name", "email", "phone", "location"):
+            if not contact.get(field) and parsed.get(field):
+                contact[field] = parsed[field]
+        return contact
+
     def _normalize_parsed(self, parsed: dict[str, Any], resume_text: str) -> dict[str, Any]:
-        contact = parsed.get("contact_info") or {}
-        if not isinstance(contact, dict):
-            contact = {}
+        contact = self._contact_fields(parsed)
 
         skills_raw = parsed.get("skills") or []
         if isinstance(skills_raw, str):
@@ -226,8 +281,13 @@ class ResumeParser:
         if isinstance(certifications, str):
             certifications = [certifications]
 
-        email = contact.get("email") or f"unknown.{abs(hash(resume_text)) % 10_000_000}@example.com"
-        name = contact.get("name") or "Unknown Candidate"
+        # Read it off the resume ourselves before giving up on the identity:
+        # a candidate filed as "Unknown Candidate" is invisible to the
+        # recruiter who just uploaded them.
+        email = str(contact.get("email") or "").strip() or self._first_email(resume_text)
+        name = str(contact.get("name") or "").strip() or self._likely_name(resume_text)
+        email = email or f"unknown.{abs(hash(resume_text)) % 10_000_000}@example.com"
+        name = name or "Unknown Candidate"
 
         return {
             "name": name,

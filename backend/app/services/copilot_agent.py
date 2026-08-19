@@ -89,6 +89,7 @@ When the question is generic (pool health, wide shortlists), prefer gap_summary 
 
 SYNTHESIS_SYSTEM = """You are a recruiting copilot answering a recruiter's question about a scored candidate pool. Write a concise, recruiter-friendly answer using ONLY the tool output provided. Markdown bullet lists are fine.
 Never invent candidates, scores, verdicts, or quotes — everything you assert must be in the tool output. Support claims by citing evidence ids in the "evidenceIds" array, using ONLY ids shown in the tool output. If nothing in the output supports a claim, don't make it. If a candidate is labelled "Candidate #N", keep using that label and never reveal a name, file name or contact detail.
+A "Company context (recruiter-provided)" section may also be supplied, summarising documents the recruiter uploaded about their own organisation. Use it for questions about how the company works or hires, and say which document it came from. It never describes candidates: never let it change a score, verdict or claim about a person.
 Return valid JSON: {"answer": "...", "evidenceIds": [...]}."""
 
 
@@ -787,6 +788,7 @@ async def _agent_answer(
     focus_candidate_id: str | None = None,
     store=None,
     job=None,
+    company_context: str = "",
     on_progress: Callable[[str, str], None] = _noop_progress,
 ) -> dict[str, Any]:
     tool_select_system = TOOL_SELECT_SYSTEM
@@ -824,8 +826,11 @@ async def _agent_answer(
     )
 
     on_progress("answer", "Writing the answer with citations")
+    # Company context is a second permitted source alongside the tool output —
+    # labelled separately so the model cannot mistake it for candidate evidence.
+    context_block = f"\n\nCompany context (recruiter-provided):\n{company_context}" if company_context else ""
     answer_payload = openai_service.chat_json(
-        f"Question: {question}\n\nTool output:\n{result['text']}",
+        f"Question: {question}\n\nTool output:\n{result['text']}{context_block}",
         system=SYNTHESIS_SYSTEM,
         temperature=0,
         deployment=deployment,
@@ -855,6 +860,7 @@ async def copilot_answer(
     model_id: str = "gpt-4o",
     deployment: str = "gpt-4o",
     focus_candidate_id: str | None = None,
+    company_context: str = "",
     on_progress: Callable[[str, str], None] = _noop_progress,
 ) -> dict[str, Any]:
     """Answer one copilot question.
@@ -919,6 +925,7 @@ async def copilot_answer(
             focus_candidate_id=focus_candidate_id,
             store=db,
             job=job,
+            company_context=company_context,
             on_progress=on_progress,
         )
         result["pool"] = pool

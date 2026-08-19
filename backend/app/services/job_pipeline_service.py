@@ -51,8 +51,14 @@ def _stage_for(
 ) -> str:
     if decision and decision.decision == "rejected":
         return "rejected"
+    if decision and decision.decision == "hired":
+        return "hired"
     if decision and decision.decision == "approved":
         return "selected"
+    # Advancing puts the candidate into the interview loop rather than
+    # ending it, so it reads as "interviewing" until a handoff says more.
+    if decision and decision.decision == "advanced":
+        return "interviewing"
     if handoffs:
         if any(h.status == "acknowledged" for h in handoffs):
             return "interviewed"
@@ -60,8 +66,20 @@ def _stage_for(
     return "screened"
 
 
-def get_job_pipeline_summaries(store: Store) -> list[dict[str, Any]]:
-    jobs = sorted(store.jobs.list_all(), key=lambda j: j.created_at, reverse=True)
+def get_job_pipeline_summaries(
+    store: Store, recruiter_email: str | None = None
+) -> list[dict[str, Any]]:
+    """Every job with its pipeline counts, scoped to one recruiter when given.
+
+    Unscoped this returned every job on the deployment, which is how a newly
+    registered account saw other people's roles in its sidebar.
+    """
+    owned = (
+        store.jobs.query(lambda j: j.created_by == recruiter_email)
+        if recruiter_email
+        else store.jobs.list_all()
+    )
+    jobs = sorted(owned, key=lambda j: j.created_at, reverse=True)
     summaries: list[dict[str, Any]] = []
 
     for job in jobs:

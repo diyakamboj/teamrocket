@@ -181,7 +181,13 @@ class CandidateMatcher:
         if not job:
             raise NotFoundError("Job posting not found", {"job_id": str(job_id)})
 
-        candidates = store.candidates.query(lambda c: c.source == source) if source else store.candidates.list_all()
+        # Rank only the pool the job's owner actually holds — otherwise a
+        # recruiter's shortlist fills up with other accounts' candidates.
+        owner = job.created_by
+        candidates = store.candidates.query(
+            lambda c: (owner is None or c.owner_email == owner)
+            and (source is None or c.source == source)
+        )
         weights = weight_config or DEFAULT_WEIGHTS
         scores: list[dict[str, Any]] = []
 

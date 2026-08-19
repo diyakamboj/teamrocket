@@ -11,6 +11,11 @@ def _utcnow() -> datetime:
 
 class Candidate(BaseModel):
     id: uuid.UUID = Field(default_factory=uuid.uuid4)
+    #: Recruiter this candidate belongs to. Set from the uploading account, so
+    #: one recruiter's pool is not visible to another. Records created before
+    #: ownership existed have None and belong to nobody — see
+    #: `scripts/assign_legacy_owner.py` to claim them.
+    owner_email: Optional[str] = None
     name: str
     email: str
     phone: Optional[str] = None

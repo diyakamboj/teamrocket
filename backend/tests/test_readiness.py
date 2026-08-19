@@ -17,6 +17,7 @@ def test_store():
 @pytest.mark.asyncio
 async def test_evaluate_candidate_readiness(test_store):
     candidate = Candidate(
+        owner_email="recruiter@example.com",
         name="Alex Smith",
         email="alex@example.com",
         skills=["Python", "FastAPI"],
@@ -39,6 +40,7 @@ async def test_evaluate_candidate_readiness(test_store):
 
 def test_trigger_and_submit_assessment(test_store):
     candidate = Candidate(
+        owner_email="recruiter@example.com",
         name="Priya Patel",
         email="priya@example.com",
         skills=["React", "TypeScript"],

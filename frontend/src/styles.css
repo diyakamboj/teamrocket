@@ -58,44 +58,44 @@
 
 :root {
   --radius: 1.125rem;
-  --background: oklch(0.985 0.003 270);
+  --background: oklch(0.982 0.009 265);
   --foreground: oklch(0.24 0.045 267);
-  --card: oklch(1 0 0);
+  --card: oklch(0.998 0.003 265);
   --card-foreground: oklch(0.24 0.045 267);
   --popover: oklch(1 0 0);
   --popover-foreground: oklch(0.24 0.045 267);
-  --primary: oklch(0.55 0.208 285);
+  --primary: oklch(0.54 0.243 274);
   --primary-foreground: oklch(0.99 0.005 285);
-  --primary-soft: oklch(0.945 0.035 285);
-  --primary-soft-foreground: oklch(0.44 0.17 285);
-  --secondary: oklch(0.965 0.006 270);
+  --primary-soft: oklch(0.95 0.06 274);
+  --primary-soft-foreground: oklch(0.4 0.2 274);
+  --secondary: oklch(0.962 0.012 265);
   --secondary-foreground: oklch(0.3 0.05 267);
   --muted: oklch(0.965 0.006 270);
   --muted-foreground: oklch(0.56 0.03 268);
-  --accent: oklch(0.955 0.02 285);
-  --accent-foreground: oklch(0.44 0.17 285);
+  --accent: oklch(0.945 0.055 205);
+  --accent-foreground: oklch(0.42 0.15 205);
   --destructive: oklch(0.58 0.215 20);
   --destructive-foreground: oklch(0.99 0.005 20);
   --success: oklch(0.63 0.15 158);
   --success-foreground: oklch(0.99 0.005 158);
   --warning: oklch(0.75 0.15 75);
   --warning-foreground: oklch(0.25 0.06 75);
-  --border: oklch(0.925 0.008 270);
+  --border: oklch(0.918 0.014 265);
   --input: oklch(0.925 0.008 270);
-  --ring: oklch(0.55 0.208 285);
-  --chart-1: oklch(0.55 0.208 285);
-  --chart-2: oklch(0.68 0.15 285);
-  --chart-3: oklch(0.63 0.15 200);
-  --chart-4: oklch(0.63 0.15 158);
-  --chart-5: oklch(0.75 0.15 75);
-  --sidebar: oklch(1 0 0);
+  --ring: oklch(0.54 0.243 274);
+  --chart-1: oklch(0.54 0.243 274);
+  --chart-2: oklch(0.68 0.16 205);
+  --chart-3: oklch(0.7 0.17 162);
+  --chart-4: oklch(0.78 0.16 85);
+  --chart-5: oklch(0.65 0.2 12);
+  --sidebar: oklch(0.995 0.006 265);
   --sidebar-foreground: oklch(0.3 0.045 267);
-  --sidebar-primary: oklch(0.55 0.208 285);
+  --sidebar-primary: oklch(0.54 0.243 274);
   --sidebar-primary-foreground: oklch(0.99 0.005 285);
-  --sidebar-accent: oklch(0.955 0.02 285);
+  --sidebar-accent: oklch(0.945 0.055 205);
   --sidebar-accent-foreground: oklch(0.44 0.17 285);
   --sidebar-border: oklch(0.93 0.008 270);
-  --sidebar-ring: oklch(0.55 0.208 285);
+  --sidebar-ring: oklch(0.54 0.243 274);
 }
 
 .dark {
@@ -105,7 +105,7 @@
   --card-foreground: oklch(0.96 0.008 270);
   --popover: oklch(0.215 0.03 273);
   --popover-foreground: oklch(0.96 0.008 270);
-  --primary: oklch(0.68 0.175 285);
+  --primary: oklch(0.7 0.21 285);
   --primary-foreground: oklch(0.16 0.04 285);
   --primary-soft: oklch(0.3 0.06 285);
   --primary-soft-foreground: oklch(0.85 0.09 285);
@@ -113,7 +113,7 @@
   --secondary-foreground: oklch(0.95 0.008 270);
   --muted: oklch(0.27 0.03 273);
   --muted-foreground: oklch(0.7 0.025 270);
-  --accent: oklch(0.3 0.055 285);
+  --accent: oklch(0.32 0.075 220);
   --accent-foreground: oklch(0.88 0.08 285);
   --destructive: oklch(0.67 0.19 20);
   --destructive-foreground: oklch(0.16 0.04 20);
@@ -236,5 +236,349 @@
   .fraud-orbit-ring,
   .fraud-orbit-counter {
     animation: none;
+  }
+}
+
+/* ---------------------------------------------------------------------------
+   Motion system
+   ---------------------------------------------------------------------------
+   A small set of entrance and emphasis animations shared by the landing,
+   auth and app pages, so movement feels like one language rather than
+   per-page improvisation.
+
+   Every animation here is decorative: content is fully readable and usable
+   with all of it disabled, which is what the reduced-motion block at the
+   bottom does. Animations are short (200-600ms) and use transform/opacity
+   only, so they stay on the compositor and never cause layout work.
+--------------------------------------------------------------------------- */
+
+@keyframes rise-in {
+  from {
+    opacity: 0;
+    transform: translate3d(0, 14px, 0);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes scale-in {
+  from {
+    opacity: 0;
+    transform: scale(0.96);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes drift {
+  0%,
+  100% {
+    transform: translate3d(0, 0, 0);
+  }
+  50% {
+    transform: translate3d(0, -12px, 0);
+  }
+}
+
+@keyframes aurora {
+  0%,
+  100% {
+    transform: translate3d(0, 0, 0) scale(1);
+    opacity: 0.55;
+  }
+  50% {
+    transform: translate3d(3%, -4%, 0) scale(1.12);
+    opacity: 0.8;
+  }
+}
+
+@keyframes shimmer {
+  from {
+    background-position: -160% 0;
+  }
+  to {
+    background-position: 160% 0;
+  }
+}
+
+.animate-rise {
+  animation: rise-in 0.55s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+.animate-fade {
+  animation: fade-in 0.5s ease-out both;
+}
+
+.animate-pop {
+  animation: scale-in 0.4s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+.animate-drift {
+  animation: drift 7s ease-in-out infinite;
+}
+
+.animate-aurora {
+  animation: aurora 16s ease-in-out infinite;
+}
+
+/* Staggering: children appear in sequence rather than all at once, which
+   reads as one deliberate motion instead of a flash. */
+.stagger > * {
+  animation: rise-in 0.55s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+.stagger > *:nth-child(1) { animation-delay: 0.04s; }
+.stagger > *:nth-child(2) { animation-delay: 0.10s; }
+.stagger > *:nth-child(3) { animation-delay: 0.16s; }
+.stagger > *:nth-child(4) { animation-delay: 0.22s; }
+.stagger > *:nth-child(5) { animation-delay: 0.28s; }
+.stagger > *:nth-child(6) { animation-delay: 0.34s; }
+.stagger > *:nth-child(7) { animation-delay: 0.40s; }
+.stagger > *:nth-child(8) { animation-delay: 0.46s; }
+
+/* Reveal on scroll: set by an IntersectionObserver (see use-reveal.ts). */
+.reveal {
+  opacity: 0;
+  transform: translate3d(0, 20px, 0);
+  transition:
+    opacity 0.6s cubic-bezier(0.22, 1, 0.36, 1),
+    transform 0.6s cubic-bezier(0.22, 1, 0.36, 1);
+}
+.reveal[data-visible="true"] {
+  opacity: 1;
+  transform: none;
+}
+
+/* Cards that lift slightly under the cursor — enough to feel responsive,
+   not enough to shift the layout around them. */
+.lift {
+  transition:
+    transform 0.25s cubic-bezier(0.22, 1, 0.36, 1),
+    box-shadow 0.25s cubic-bezier(0.22, 1, 0.36, 1),
+    border-color 0.25s ease;
+  will-change: transform;
+}
+.lift:hover {
+  transform: translate3d(0, -3px, 0);
+  box-shadow: 0 12px 32px -12px rgb(0 0 0 / 0.18);
+}
+
+.gradient-text {
+  background: linear-gradient(
+    100deg,
+    var(--color-primary, oklch(0.55 0.2 275)),
+    oklch(0.65 0.19 200),
+    var(--color-primary, oklch(0.55 0.2 275))
+  );
+  background-size: 200% auto;
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  animation: shimmer 6s linear infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .animate-rise,
+  .animate-fade,
+  .animate-pop,
+  .animate-drift,
+  .animate-aurora,
+  .stagger > *,
+  .gradient-text {
+    animation: none !important;
+  }
+  .reveal {
+    opacity: 1;
+    transform: none;
+    transition: none;
+  }
+  .lift:hover {
+    transform: none;
+  }
+}
+
+/* ---------------------------------------------------------------------------
+   Futuristic surfaces
+   ---------------------------------------------------------------------------
+   A thin luminous edge and a soft inner glow on raised surfaces, so cards read
+   as panels of a system rather than flat boxes. Kept to borders and shadows —
+   no change to text colour or spacing, so contrast and legibility are the
+   same as before.
+--------------------------------------------------------------------------- */
+
+.panel-glow {
+  position: relative;
+  isolation: isolate;
+}
+
+.panel-glow::before {
+  content: "";
+  position: absolute;
+  inset: -1px;
+  z-index: -1;
+  border-radius: inherit;
+  background: linear-gradient(
+    135deg,
+    color-mix(in oklch, var(--color-primary) 45%, transparent),
+    transparent 45%,
+    color-mix(in oklch, var(--color-chart-2) 35%, transparent)
+  );
+  opacity: 0;
+  transition: opacity 0.3s ease;
+}
+
+.panel-glow:hover::before {
+  opacity: 1;
+}
+
+/* A single sweep of light across a surface, for things that just arrived. */
+@keyframes sheen {
+  from {
+    transform: translateX(-120%);
+  }
+  to {
+    transform: translateX(220%);
+  }
+}
+
+.sheen {
+  position: relative;
+  overflow: hidden;
+}
+
+.sheen::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    100deg,
+    transparent 35%,
+    color-mix(in oklch, var(--color-primary) 12%, transparent) 50%,
+    transparent 65%
+  );
+  transform: translateX(-120%);
+  animation: sheen 2.4s ease-in-out 0.3s;
+  pointer-events: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .sheen::after {
+    animation: none;
+    display: none;
+  }
+  .panel-glow::before {
+    transition: none;
+  }
+}
+
+/* ---------------------------------------------------------------------------
+   Flow layout + colour accents
+   ---------------------------------------------------------------------------
+   Content flows in bands with breathing room that scales with the viewport,
+   rather than sitting in fixed boxes. The colour work is deliberately
+   restrained: saturated hues carry meaning (a stage, a score, a status) and
+   surfaces stay near-neutral, which is what keeps a bright palette reading as
+   professional rather than noisy.
+--------------------------------------------------------------------------- */
+
+.flow {
+  display: flex;
+  flex-direction: column;
+  /* Space scales with the viewport instead of a fixed gap. */
+  gap: clamp(1.25rem, 2.5vw, 2.25rem);
+}
+
+.flow-tight {
+  display: flex;
+  flex-direction: column;
+  gap: clamp(0.75rem, 1.2vw, 1.25rem);
+}
+
+/* A hairline of colour along the top of a surface — enough to tint a section
+   without tinting the text it contains. */
+.edge-accent {
+  position: relative;
+}
+
+.edge-accent::before {
+  content: "";
+  position: absolute;
+  inset-inline: 0;
+  top: 0;
+  height: 2px;
+  border-radius: inherit;
+  background: linear-gradient(
+    90deg,
+    var(--color-chart-1),
+    var(--color-chart-2) 45%,
+    var(--color-chart-3)
+  );
+  opacity: 0.85;
+}
+
+/* Stage colours, used by the pipeline and candidate rows so a stage means the
+   same colour everywhere in the app. */
+.stage-screened {
+  color: var(--color-chart-2);
+}
+.stage-interviewing,
+.stage-interviewed {
+  color: var(--color-chart-4);
+}
+.stage-selected {
+  color: var(--color-chart-3);
+}
+.stage-hired {
+  color: var(--color-chart-1);
+}
+.stage-rejected {
+  color: var(--color-destructive);
+}
+
+/* Numbers that matter: tabular so columns line up, and tinted by the scale
+   they sit on. */
+.metric {
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.02em;
+}
+
+/* Buttons and interactive surfaces settle rather than snap. */
+button,
+[role="button"],
+a {
+  transition:
+    background-color 0.2s cubic-bezier(0.22, 1, 0.36, 1),
+    border-color 0.2s cubic-bezier(0.22, 1, 0.36, 1),
+    color 0.2s cubic-bezier(0.22, 1, 0.36, 1),
+    transform 0.2s cubic-bezier(0.22, 1, 0.36, 1),
+    box-shadow 0.2s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+button:active:not(:disabled),
+[role="button"]:active {
+  transform: translate3d(0, 1px, 0);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  button,
+  [role="button"],
+  a {
+    transition: none;
+  }
+  button:active:not(:disabled),
+  [role="button"]:active {
+    transform: none;
   }
 }

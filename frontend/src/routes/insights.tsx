@@ -68,6 +68,7 @@ const PIPELINE_STAGES = [
   "interviewing",
   "interviewed",
   "selected",
+  "hired",
   "rejected",
 ] as const;
 

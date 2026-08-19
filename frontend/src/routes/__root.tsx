@@ -1,18 +1,21 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import {
   Outlet,
+  useNavigate,
+  useRouterState,
   Link,
   createRootRouteWithContext,
   useRouter,
   HeadContent,
 } from "@tanstack/react-router";
-import { useEffect } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 
 import { reportLovableError } from "../lib/lovable-error-reporting";
 import { ThemeProvider } from "@/lib/theme";
 import { AppStateProvider } from "@/lib/app-state";
 import { CopilotProvider } from "@/lib/copilot-state";
 import { AppShell } from "@/components/app-shell";
+import { isSignedIn, verifySession } from "@/lib/auth";
 import { CopilotLauncher } from "@/components/copilot/copilot-launcher";
 import { Toaster } from "@/components/ui/sonner";
 
@@ -97,24 +100,71 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
   errorComponent: ErrorComponent,
 });
 
+/** Pages reachable without an account: the front door and the auth forms. */
+const PUBLIC_ROUTES = ["/welcome", "/login", "/register"];
+
+/**
+ * Gate for everything else.
+ *
+ * Renders nothing while an unauthenticated visitor is redirected, so no app
+ * chrome or API call happens for a signed-out user. The stored session is
+ * also re-verified against the server on mount — a hand-edited localStorage
+ * entry gets someone as far as a redirect back to sign-in, not into the app.
+ */
+function RequireAuth({ children }: { children: ReactNode }) {
+  const navigate = useNavigate();
+  const [allowed, setAllowed] = useState(() => isSignedIn());
+
+  useEffect(() => {
+    if (!isSignedIn()) {
+      setAllowed(false);
+      void navigate({ to: "/welcome", replace: true });
+      return;
+    }
+    void verifySession().then((session) => {
+      if (session) return;
+      setAllowed(false);
+      void navigate({ to: "/login", replace: true });
+    });
+  }, [navigate]);
+
+  if (!allowed) return null;
+  return <>{children}</>;
+}
+
 function RootComponent() {
   const { queryClient } = Route.useRouteContext();
+  const pathname = useRouterState({ select: (s) => s.location.pathname });
+  const isPublic = PUBLIC_ROUTES.some(
+    (route) => pathname === route || pathname.startsWith(`${route}/`),
+  );
 
   return (
     <QueryClientProvider client={queryClient}>
       {/* Applies each matched route's head() (title, meta, OG tags) to document.head client-side. */}
       <HeadContent />
       <ThemeProvider>
-        <AppStateProvider>
-          <CopilotProvider>
-            <AppShell>
-              {/* Required: nested routes render here. */}
-              <Outlet />
-            </AppShell>
-            <CopilotLauncher />
+        {isPublic ? (
+          <>
+            {/* No shell, no app state: these pages must render for someone
+                who has no account yet. */}
+            <Outlet />
             <Toaster position="bottom-center" richColors />
-          </CopilotProvider>
-        </AppStateProvider>
+          </>
+        ) : (
+          <RequireAuth>
+            <AppStateProvider>
+              <CopilotProvider>
+                <AppShell>
+                  {/* Required: nested routes render here. */}
+                  <Outlet />
+                </AppShell>
+                <CopilotLauncher />
+                <Toaster position="bottom-center" richColors />
+              </CopilotProvider>
+            </AppStateProvider>
+          </RequireAuth>
+        )}
       </ThemeProvider>
     </QueryClientProvider>
   );

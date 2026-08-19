@@ -62,10 +62,25 @@ function getDynamicBenchmark(title: string) {
   };
 }
 
+type JobRoundDraft = {
+  name: string;
+  focus: string;
+  interview_type: string;
+  duration_minutes: number;
+};
+
 export function CreateJobModal({ isOpen, onClose }: CreateJobModalProps) {
 
   const navigate = useNavigate();
   const [step, setStep] = useState(1);
+  // The interview loop for this role. Seeded so a new job always has a
+  // pipeline the board can render, and editable before the job is created.
+  const [rounds, setRounds] = useState<JobRoundDraft[]>([
+    { name: "Recruiter screen", focus: "Motivation, logistics, comp", interview_type: "Recruiter Screen", duration_minutes: 30 },
+    { name: "Technical interview", focus: "Depth in the core stack", interview_type: "Technical Interview", duration_minutes: 60 },
+    { name: "System design", focus: "Design judgement and trade-offs", interview_type: "System Design", duration_minutes: 60 },
+    { name: "Hiring manager", focus: "Ownership, collaboration, fit", interview_type: "Hiring Manager", duration_minutes: 45 },
+  ]);
   const [hiringType, setHiringType] = useState<"internal" | "external">("external");
   const [jobTitle, setJobTitle] = useState("");
   const [department, setDepartment] = useState("");
@@ -142,6 +157,9 @@ export function CreateJobModal({ isOpen, onClose }: CreateJobModalProps) {
         required_skills: requiredSkills,
         nice_to_have_skills: preferredSkills,
         sourcing_mode: hiringType,
+        rounds: rounds
+          .filter((r) => r.name.trim())
+          .map((r, i) => ({ ...r, name: r.name.trim(), sequence: i + 1 })),
       });
       window.dispatchEvent(new CustomEvent("job-created", { detail: job }));
       onClose();
@@ -453,8 +471,66 @@ export function CreateJobModal({ isOpen, onClose }: CreateJobModalProps) {
           {step === 5 && (
             <div className="space-y-4">
               <div>
-                <h3 className="text-base font-semibold text-slate-900">Step 5 — Final Review & Publishing</h3>
-                <p className="text-xs text-slate-500 mt-1">Confirm job details before creating job posting and opening the JD workspace.</p>
+                <h3 className="text-base font-semibold text-slate-900">Step 5 — Interview Loop & Publishing</h3>
+                <p className="text-xs text-slate-500 mt-1">Set the rounds a candidate goes through, then create the job.</p>
+              </div>
+
+              <div className="p-4 rounded-xl bg-white border border-slate-200 space-y-3 shadow-xs">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-bold text-slate-900">Interview loop</span>
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setRounds((prev) => [
+                        ...prev,
+                        { name: "", focus: "", interview_type: "Technical Interview", duration_minutes: 45 },
+                      ])
+                    }
+                    className="text-xs font-semibold text-blue-600 hover:underline"
+                  >
+                    + Add round
+                  </button>
+                </div>
+
+                {rounds.map((round, index) => (
+                  <div key={index} className="flex items-center gap-2">
+                    <span className="grid h-6 w-6 shrink-0 place-items-center rounded-lg bg-blue-50 text-[11px] font-bold text-blue-700">
+                      {index + 1}
+                    </span>
+                    <Input
+                      value={round.name}
+                      onChange={(e) =>
+                        setRounds((prev) =>
+                          prev.map((r, i) => (i === index ? { ...r, name: e.target.value } : r)),
+                        )
+                      }
+                      placeholder="Round name"
+                      className="h-8 text-xs rounded-lg"
+                    />
+                    <Input
+                      value={round.focus}
+                      onChange={(e) =>
+                        setRounds((prev) =>
+                          prev.map((r, i) => (i === index ? { ...r, focus: e.target.value } : r)),
+                        )
+                      }
+                      placeholder="What it's for"
+                      className="h-8 text-xs rounded-lg"
+                    />
+                    <button
+                      type="button"
+                      aria-label={`Remove round ${index + 1}`}
+                      onClick={() => setRounds((prev) => prev.filter((_, i) => i !== index))}
+                      className="shrink-0 rounded-md px-2 py-1 text-xs text-slate-400 hover:text-rose-600"
+                    >
+                      ✕
+                    </button>
+                  </div>
+                ))}
+                <p className="text-[11px] text-slate-500">
+                  These become the columns on the job's Stage Kanban Board and the rounds shown in
+                  Pipeline Overview.
+                </p>
               </div>
 
               <div className="p-4 rounded-xl bg-white border border-slate-200 space-y-4 shadow-xs">

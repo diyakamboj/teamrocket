@@ -58,9 +58,9 @@ async def job_distribution(job_id: uuid.UUID, store: AppStore):
 
 
 @router.get("/jobs", response_model=list[JobPipelineSummary])
-def list_job_pipelines(store: AppStore):
-    """Top-level recruiter dashboard: every job with candidate/pipeline counts."""
-    return job_pipeline_service.get_job_pipeline_summaries(store)
+def list_job_pipelines(store: AppStore, recruiter_email: RecruiterEmail):
+    """Top-level recruiter dashboard: this recruiter's jobs with pipeline counts."""
+    return job_pipeline_service.get_job_pipeline_summaries(store, recruiter_email)
 
 
 @router.get("/jobs/{job_id}/pipeline", response_model=list[PipelineCandidate])

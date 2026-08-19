@@ -21,6 +21,10 @@ from app.models.candidate import Candidate
 from app.models.job_posting import JobPosting
 from app.storage.store import Store, get_store
 
+#: The recruiter the sample job and candidates belong to. Ownership is
+#: enforced now, so fixtures have to agree on who owns what.
+RECRUITER_EMAIL = "recruiter@example.com"
+
 
 class InMemoryJsonBlobStore:
     """Dict-backed stand-in for `JsonBlobStore`, same interface (put/get/
@@ -105,7 +109,7 @@ def sample_job(store: Store) -> JobPosting:
         required_experience_years=3,
         education_requirements="Bachelor's in Computer Science",
         nice_to_have_skills=["Kubernetes"],
-        created_by="recruiter@example.com",
+        created_by=RECRUITER_EMAIL,
     )
     store.jobs.save(job)
     return job
@@ -115,6 +119,7 @@ def sample_job(store: Store) -> JobPosting:
 def sample_candidate(store: Store) -> Candidate:
     candidate = Candidate(
         id=uuid.uuid4(),
+        owner_email=RECRUITER_EMAIL,
         name="Alice Johnson",
         email="alice.johnson@example.com",
         phone="+1-555-1111",

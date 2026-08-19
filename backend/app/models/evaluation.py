@@ -113,6 +113,9 @@ class ResumeUpload(BaseModel):
     """Tracks bulk resume upload processing status."""
 
     id: uuid.UUID = Field(default_factory=uuid.uuid4)
+    #: Who uploaded it — the background task needs this to file the resulting
+    #: candidate under the right recruiter.
+    recruiter_email: Optional[str] = None
     filename: str
     blob_path: Optional[str] = None
     status: str = "queued"

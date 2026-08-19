@@ -1,4 +1,4 @@
-import { Link, useRouterState } from "@tanstack/react-router";
+import { Link, useNavigate, useRouterState } from "@tanstack/react-router";
 import {
 
   Bell,
@@ -14,6 +14,7 @@ import {
   Bot,
   User,
   LogOut,
+  Network,
   Building2,
 } from "lucide-react";
 import { useEffect, useState, type ReactNode } from "react";
@@ -27,6 +28,7 @@ import { CreateJobModal } from "@/components/create-job-modal";
 import { listJobPipelines, type JobPipelineSummary } from "@/lib/api";
 
 const PRIMARY_NAV = [
+  { to: "/network", label: "Recruiter Network", icon: Network },
   { to: "/", label: "Dashboard", icon: LayoutDashboard },
   { to: "/internal-hiring", label: "Internal Hiring", icon: Briefcase },
   { to: "/external-hiring", label: "External Hiring", icon: Globe },
@@ -40,7 +42,9 @@ export function AppShell({ children }: { children: ReactNode }) {
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const { active, counts, overallProgress } = useAppState();
   const pathname = useRouterState({ select: (s) => s.location.pathname });
+  const navigate = useNavigate();
   const session = getSession();
+  const initials = session?.name?.trim().slice(0, 2).toUpperCase() ?? "";
   const [recentJobs, setRecentJobs] = useState<JobPipelineSummary[]>([]);
 
   // Real open jobs and their live candidate counts, from the backend store.
@@ -209,17 +213,32 @@ export function AppShell({ children }: { children: ReactNode }) {
               </button>
             </Link>
 
-            <Link to="/settings">
-              <div className="flex items-center gap-2 cursor-pointer border-l border-border pl-2 hover:opacity-90 transition-all">
-                <span className="grid h-8 w-8 place-items-center rounded-full bg-blue-100 border border-blue-200 text-xs font-bold text-blue-700">
-                  {session.name ? session.name.substring(0, 2) : "AS"}
-                </span>
-                <div className="hidden md:block text-left">
-                  <div className="text-xs font-semibold leading-none text-foreground">{session.name}</div>
-                  <div className="mt-0.5 text-[10px] text-muted-foreground">{session.role}</div>
+            <div className="flex items-center gap-1 border-l border-border pl-2">
+              <Link to="/settings">
+                <div className="flex cursor-pointer items-center gap-2 rounded-lg p-1 transition-colors hover:bg-accent">
+                  <span className="grid h-8 w-8 place-items-center rounded-full border border-blue-200 bg-blue-100 text-xs font-bold text-blue-700">
+                    {initials}
+                  </span>
+                  <div className="hidden text-left md:block">
+                    <div className="text-xs font-semibold leading-none text-foreground">
+                      {session?.name}
+                    </div>
+                    <div className="mt-0.5 text-[10px] text-muted-foreground">{session?.role}</div>
+                  </div>
                 </div>
-              </div>
-            </Link>
+              </Link>
+              <button
+                aria-label="Sign out"
+                title="Sign out"
+                onClick={() => {
+                  logoutSession();
+                  void navigate({ to: "/welcome", replace: true });
+                }}
+                className="grid h-8 w-8 place-items-center rounded-lg text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+              >
+                <LogOut className="h-4 w-4" />
+              </button>
+            </div>
           </div>
         </header>
 

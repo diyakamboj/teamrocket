@@ -1,3 +1,5 @@
+import { recruiterEmail } from "@/lib/auth";
+
 const API_BASE =
   (import.meta.env["VITE_API_BASE_URL"] as string | undefined)?.replace(/\/$/, "") ?? "";
 
@@ -163,6 +165,17 @@ export type ChatAttachmentInfo = {
 
 export type JobStatus = "open" | "paused" | "closed";
 
+// ---------- Job interview rounds ----------
+
+export type InterviewRound = {
+  id: string;
+  name: string;
+  sequence: number;
+  focus?: string | null;
+  interview_type: string;
+  duration_minutes: number;
+};
+
 export type JobResponse = {
   id: string;
   title: string;
@@ -173,12 +186,13 @@ export type JobResponse = {
   education_requirements?: string | null;
   status?: JobStatus;
   sourcing_mode?: string;
+  /** The interview loop for this role, in order. */
+  rounds?: InterviewRound[];
 };
 
 
 function recruiterHeaders(): HeadersInit {
-  const email =
-    (import.meta.env["VITE_RECRUITER_EMAIL"] as string | undefined) || "recruiter@example.com";
+  const email = recruiterEmail();
   return {
     "Content-Type": "application/json",
     "X-Recruiter-Email": email,
@@ -313,8 +327,7 @@ export async function uploadChatAttachment(
   file: File,
   sessionId?: string | null,
 ): Promise<ChatAttachmentInfo> {
-  const email =
-    (import.meta.env["VITE_RECRUITER_EMAIL"] as string | undefined) || "recruiter@example.com";
+  const email = recruiterEmail();
   const form = new FormData();
   form.append("file", file);
   if (sessionId) form.append("session_id", sessionId);
@@ -343,6 +356,230 @@ export async function getChatAttachment(id: string): Promise<ChatAttachmentInfo>
   return request<ChatAttachmentInfo>(`/api/agent/attachments/${encodeURIComponent(id)}`);
 }
 
+// ---------- Recruiter network ----------
+
+export type ConnectionState = "none" | "pending_outgoing" | "pending_incoming" | "connected";
+
+export type DirectoryRecruiter = {
+  email: string;
+  name: string;
+  role: string;
+  department: string;
+  connection_state: ConnectionState;
+};
+
+export type RecruiterConnection = {
+  id: string;
+  status: "pending" | "accepted" | "declined";
+  direction: "incoming" | "outgoing";
+  counterpart_email: string;
+  counterpart_name: string;
+  counterpart_role: string;
+  message?: string | null;
+  created_at: string;
+};
+
+export async function listRecruiterDirectory(): Promise<DirectoryRecruiter[]> {
+  return request<DirectoryRecruiter[]>("/api/connections/directory");
+}
+
+export async function listConnections(): Promise<RecruiterConnection[]> {
+  return request<RecruiterConnection[]>("/api/connections");
+}
+
+export async function requestConnection(
+  email: string,
+  message?: string,
+): Promise<RecruiterConnection> {
+  return request<RecruiterConnection>("/api/connections", {
+    method: "POST",
+    body: JSON.stringify({ email, message: message || null }),
+  });
+}
+
+export async function respondToConnection(
+  id: string,
+  accept: boolean,
+): Promise<RecruiterConnection> {
+  return request<RecruiterConnection>(`/api/connections/${encodeURIComponent(id)}/respond`, {
+    method: "POST",
+    body: JSON.stringify({ accept }),
+  });
+}
+
+export async function removeConnection(id: string): Promise<void> {
+  const response = await fetch(`${API_BASE}/api/connections/${encodeURIComponent(id)}`, {
+    method: "DELETE",
+    headers: { "X-Recruiter-Email": recruiterEmail() },
+  });
+  if (!response.ok) throw new Error(`Could not remove connection (${response.status})`);
+}
+
+// ---------- Collaboration: shared candidates and messages ----------
+
+export type SharedCandidate = {
+  share_id: string;
+  candidate_id: string;
+  name: string;
+  title?: string | null;
+  location?: string | null;
+  skills: string[];
+  shared_by_email: string;
+  shared_by_name: string;
+  note?: string | null;
+  job_title?: string | null;
+  screening_summary?: string | null;
+  screening_score?: number | null;
+  created_at: string;
+};
+
+export type MessageThread = {
+  counterpart_email: string;
+  counterpart_name: string;
+  last_message: string;
+  last_message_at: string;
+  unread_count: number;
+};
+
+export type DirectMessage = {
+  id: string;
+  sender_email: string;
+  recipient_email: string;
+  body: string;
+  candidate_id?: string | null;
+  read_at?: string | null;
+  created_at: string;
+};
+
+export async function shareCandidate(input: {
+  candidate_id: string;
+  email: string;
+  note?: string;
+  job_id?: string | null;
+}): Promise<SharedCandidate> {
+  return request<SharedCandidate>("/api/connections/share", {
+    method: "POST",
+    body: JSON.stringify(input),
+  });
+}
+
+export async function listSharedWithMe(): Promise<SharedCandidate[]> {
+  return request<SharedCandidate[]>("/api/connections/shared-with-me");
+}
+
+export async function listSharedByMe(): Promise<SharedCandidate[]> {
+  return request<SharedCandidate[]>("/api/connections/shared-by-me");
+}
+
+export async function revokeShare(shareId: string): Promise<void> {
+  const response = await fetch(`${API_BASE}/api/connections/share/${encodeURIComponent(shareId)}`, {
+    method: "DELETE",
+    headers: { "X-Recruiter-Email": recruiterEmail() },
+  });
+  if (!response.ok) throw new Error(`Could not revoke the share (${response.status})`);
+}
+
+export async function listMessageThreads(): Promise<MessageThread[]> {
+  return request<MessageThread[]>("/api/connections/messages");
+}
+
+export async function readMessageThread(email: string): Promise<DirectMessage[]> {
+  return request<DirectMessage[]>(`/api/connections/messages/${encodeURIComponent(email)}`);
+}
+
+export async function sendMessage(input: {
+  email: string;
+  body: string;
+  candidate_id?: string | null;
+}): Promise<DirectMessage> {
+  return request<DirectMessage>("/api/connections/messages", {
+    method: "POST",
+    body: JSON.stringify(input),
+  });
+}
+
+export async function updateJobRounds(
+  jobId: string,
+  rounds: Omit<InterviewRound, "id">[] | InterviewRound[],
+): Promise<JobResponse> {
+  return request<JobResponse>(`/api/jobs/${encodeURIComponent(jobId)}/rounds`, {
+    method: "PUT",
+    body: JSON.stringify({ rounds }),
+  });
+}
+
+// ---------- Company context documents ----------
+
+export type CompanyDocCategory = "vision" | "values" | "culture" | "guidelines";
+
+/**
+ * A company context document held by the backend.
+ *
+ * These live server-side, scoped to the recruiter who uploaded them — the
+ * browser keeps no copy and no id index, so the list survives a cleared
+ * localStorage and cannot be read by another account.
+ */
+export type CompanyDocument = {
+  id: string;
+  recruiter_email: string;
+  category: CompanyDocCategory;
+  filename: string;
+  size_bytes: number;
+  status: "queued" | "processing" | "processed" | "failed";
+  extracted_text?: string | null;
+  extracted_summary?: string | null;
+  error?: string | null;
+  created_at: string;
+};
+
+export async function listCompanyDocuments(): Promise<CompanyDocument[]> {
+  return request<CompanyDocument[]>("/api/company-documents");
+}
+
+export async function getCompanyDocument(id: string): Promise<CompanyDocument> {
+  return request<CompanyDocument>(`/api/company-documents/${encodeURIComponent(id)}`);
+}
+
+export async function uploadCompanyDocument(
+  file: File,
+  category: CompanyDocCategory,
+): Promise<CompanyDocument> {
+  const form = new FormData();
+  form.append("file", file);
+  form.append("category", category);
+
+  const response = await fetch(`${API_BASE}/api/company-documents`, {
+    method: "POST",
+    // Only the identity header: the browser must not set Content-Type here,
+    // or the multipart boundary is lost.
+    headers: { "X-Recruiter-Email": recruiterEmail() },
+    body: form,
+  });
+
+  if (!response.ok) {
+    let detail = `Upload failed (${response.status})`;
+    try {
+      const body = await response.json();
+      detail = body?.error || body?.detail || detail;
+    } catch {
+      // ignore parse errors
+    }
+    throw new Error(detail);
+  }
+
+  return response.json() as Promise<CompanyDocument>;
+}
+
+export async function deleteCompanyDocument(id: string): Promise<void> {
+  const response = await fetch(`${API_BASE}/api/company-documents/${encodeURIComponent(id)}`, {
+    method: "DELETE",
+    headers: { "X-Recruiter-Email": recruiterEmail() },
+  });
+  if (!response.ok) {
+    throw new Error(`Could not delete document (${response.status})`);
+  }
+}
+
 export async function listJobs(): Promise<JobResponse[]> {
   return request<JobResponse[]>("/api/jobs");
 }
@@ -359,6 +596,8 @@ export async function createJob(input: {
   nice_to_have_skills?: string[];
   required_experience_years?: number;
   sourcing_mode?: string;
+  /** The interview loop; omitted means the backend's default loop. */
+  rounds?: Array<Omit<InterviewRound, "id"> & { id?: string }>;
 }): Promise<JobResponse> {
 
   return request<JobResponse>("/api/jobs", {
@@ -595,9 +834,12 @@ export type InterviewSlot = {
   outlook_url: string;
 };
 
+/** Mirrors the backend's CANDIDATE_DECISIONS (see decision_service.py). */
+export type CandidateDecisionKind = "advanced" | "approved" | "hired" | "rejected";
+
 export type CandidateDecisionResult = {
   candidate_id: string;
-  decision: "approved" | "rejected";
+  decision: CandidateDecisionKind;
   email_sent: boolean;
   email_source: "live" | "mock";
   email_error?: string | null;
@@ -608,7 +850,7 @@ export async function submitCandidateDecision(input: {
   candidate_id: string;
   name: string;
   email: string;
-  decision: "approved" | "rejected";
+  decision: CandidateDecisionKind;
   job_title?: string;
 }): Promise<CandidateDecisionResult> {
   return request<CandidateDecisionResult>("/api/candidates/decision", {
@@ -1191,8 +1433,7 @@ export async function uploadResumesToBackend(files: File[]): Promise<BackendResu
     formData.append("files", f);
   }
 
-  const email =
-    (import.meta.env["VITE_RECRUITER_EMAIL"] as string | undefined) || "recruiter@example.com";
+  const email = recruiterEmail();
   const res = await fetch(`${API_BASE}/api/resumes/upload`, {
     method: "POST",
     headers: { "X-Recruiter-Email": email },

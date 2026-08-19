@@ -62,7 +62,7 @@ const STAGE_CLASS: Record<UploadStage, string> = {
 const FILTERS = ["all", "queued", "processing", "complete", "failed", "duplicate"] as const;
 const PAGE_SIZE = 25;
 
-export function UploadPage() {
+function UploadPage() {
 
   const {
     files,

@@ -160,7 +160,7 @@ function DashboardPage() {
             <Sparkles className="h-4 w-4" /> ResumeIQ Executive Control Center
           </div>
           <h1 className="text-2xl font-extrabold tracking-tight sm:text-3xl">
-            {greeting()}, {session.name.split(" ")[0]} 👋
+            {greeting()}, {session?.name?.split(" ")[0] ?? "there"} 👋
           </h1>
           <p className="mt-1 text-sm text-muted-foreground">
             {loading
@@ -172,9 +172,9 @@ function DashboardPage() {
         </div>
       </header>
 
-      <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
+      <div className="stagger grid grid-cols-2 gap-4 md:grid-cols-4">
         {metrics.map((m) => (
-          <Card key={m.label} className="card-surface">
+          <Card key={m.label} className="card-surface lift edge-accent panel-glow">
             <CardContent className="p-4">
               <div className="flex items-center justify-between">
                 <span className="text-xs font-medium text-muted-foreground">{m.label}</span>

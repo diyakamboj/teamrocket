@@ -75,6 +75,55 @@ def _reject_email(candidate_name: str, job_title: str) -> tuple[str, str, str]:
     return subject, html, text
 
 
+#: What a recruiter can do to a candidate, in pipeline order. "advanced"
+#: moves them to the next round; "approved" is a final selection; "hired"
+#: closes the loop with an offer.
+CANDIDATE_DECISIONS = ("advanced", "approved", "hired", "rejected")
+
+
+def _advance_email(candidate_name: str, job_title: str, slots: list[InterviewSlot]) -> tuple[str, str, str]:
+    """Moving to the next round is not the same message as a final selection —
+    it invites the candidate to the next stage rather than congratulating
+    them on the outcome."""
+    subject = f"Next round — {job_title}"
+    slot_rows_html = "".join(
+        f'<tr><td style="padding:8px 0;">{s.label}</td>'
+        f'<td style="padding:8px 0;"><a href="{s.outlook_url}">Add to calendar</a></td></tr>'
+        for s in slots
+    )
+    html = f"""
+    <div style="font-family:Segoe UI,Arial,sans-serif;max-width:560px;margin:0 auto;color:#1f2937;">
+      <p>Hi {candidate_name},</p>
+      <p>Good news — you're moving on to the next round for <strong>{job_title}</strong>.</p>
+      <p>Here are some times that work on our side:</p>
+      <table style="width:100%;border-collapse:collapse;">{slot_rows_html}</table>
+      <p>Reply with whichever suits you and we'll confirm.</p>
+    </div>
+    """
+    text = (
+        f"Hi {candidate_name},\n\nYou're moving on to the next round for {job_title}.\n"
+        + "\n".join(f"- {s.label}" for s in slots)
+        + "\n\nReply with whichever suits you and we'll confirm.\n"
+    )
+    return subject, html, text
+
+
+def _hired_email(candidate_name: str, job_title: str) -> tuple[str, str, str]:
+    subject = f"Offer — {job_title}"
+    html = f"""
+    <div style="font-family:Segoe UI,Arial,sans-serif;max-width:560px;margin:0 auto;color:#1f2937;">
+      <p>Hi {candidate_name},</p>
+      <p>We'd like to offer you the <strong>{job_title}</strong> role. Congratulations!</p>
+      <p>Your recruiter will follow up with the paperwork and a start date.</p>
+    </div>
+    """
+    text = (
+        f"Hi {candidate_name},\n\nWe'd like to offer you the {job_title} role. "
+        "Congratulations! Your recruiter will follow up with the paperwork and a start date.\n"
+    )
+    return subject, html, text
+
+
 def process_decision(
     *,
     candidate_name: str,
@@ -85,11 +134,17 @@ def process_decision(
 ) -> DecisionOutcome:
     slots: list[InterviewSlot] = []
 
-    if decision == "approved":
+    if decision in ("approved", "advanced"):
         slots = build_interview_slots(
             candidate_name=candidate_name, job_title=job_title, recruiter_email=recruiter_email
         )
-        subject, html, text = _approve_email(candidate_name, job_title, slots)
+        subject, html, text = (
+            _advance_email(candidate_name, job_title, slots)
+            if decision == "advanced"
+            else _approve_email(candidate_name, job_title, slots)
+        )
+    elif decision == "hired":
+        subject, html, text = _hired_email(candidate_name, job_title)
     else:
         subject, html, text = _reject_email(candidate_name, job_title)
 

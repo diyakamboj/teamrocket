@@ -11,6 +11,10 @@ from __future__ import annotations
 
 from app.models.ats_benchmark import AtsBenchmarkScore
 from app.models.candidate import Candidate
+from app.models.user import User
+from app.models.company_document import CompanyDocument
+from app.models.collaboration import CandidateShare, DirectMessage
+from app.models.connection import RecruiterConnection
 from app.models.evaluation import (
     AgentSession,
     AuditLog,
@@ -83,6 +87,19 @@ class Store:
         )
         self.jd_recommendations: Repository[JDRecommendationRecord] = Repository(
             backing, JDRecommendationRecord, "jd_recommendations"
+        )
+        self.company_documents: Repository[CompanyDocument] = Repository(
+            backing, CompanyDocument, "company_documents"
+        )
+        self.users: Repository[User] = Repository(backing, User, "users")
+        self.recruiter_connections: Repository[RecruiterConnection] = Repository(
+            backing, RecruiterConnection, "recruiter_connections"
+        )
+        self.candidate_shares: Repository[CandidateShare] = Repository(
+            backing, CandidateShare, "candidate_shares"
+        )
+        self.direct_messages: Repository[DirectMessage] = Repository(
+            backing, DirectMessage, "direct_messages"
         )
 
 

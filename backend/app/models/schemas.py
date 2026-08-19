@@ -5,6 +5,8 @@ from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, EmailStr, Field, model_validator
 
+from app.models.job_posting import InterviewRound
+
 
 
 class ORMModel(BaseModel):
@@ -112,7 +114,14 @@ class JobCreate(BaseModel):
     education_requirements: Optional[str] = None
     nice_to_have_skills: list[str] = Field(default_factory=list)
     sourcing_mode: Optional[str] = "both"
+    #: The interview loop. Omitted means the default loop, so a job always has
+    #: rounds for the pipeline board to render.
+    rounds: Optional[list[InterviewRound]] = None
     created_by: Optional[str] = None
+
+
+class JobRoundsUpdate(BaseModel):
+    rounds: list[InterviewRound]
 
 
 
@@ -144,6 +153,8 @@ class JobResponse(ORMModel):
     nice_to_have_skills: Optional[list[Any]] = None
     status: str = "open"
     sourcing_mode: str = "both"
+    #: The interview loop, so the workspace can render the pipeline and board.
+    rounds: list[InterviewRound] = Field(default_factory=list)
     created_by: Optional[str] = None
     created_at: datetime
     updated_at: datetime

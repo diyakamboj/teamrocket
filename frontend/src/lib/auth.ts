@@ -1,40 +1,136 @@
+/**
+ * Recruiter session, backed by real credentials.
+ *
+ * The session used to be a hardcoded "Alex Smith" object returned whether or
+ * not anyone had signed in. Now registering or signing in returns a token
+ * from the backend, and that token is what proves who the user is — the
+ * stored copy of the profile is only a cache so the shell can render without
+ * waiting for a round-trip. `verifySession()` re-checks it against
+ * `/api/auth/me`, so a stale or tampered localStorage entry cannot keep
+ * anyone signed in.
+ */
+
+const STORAGE_KEY = "resumeiq_session";
+
+const API_BASE =
+  (import.meta.env["VITE_API_BASE_URL"] as string | undefined)?.replace(/\/$/, "") ?? "";
+
 export type UserSession = {
+  token: string;
   email: string;
   name: string;
   role: string;
   department: string;
-  isAuthenticated: boolean;
 };
 
-const DEFAULT_SESSION: UserSession = {
-  email: "alex.recruiter@example.com",
-  name: "Alex Smith",
-  role: "Senior Technical Recruiter",
-  department: "Talent Acquisition",
-  isAuthenticated: true,
+type AuthPayload = {
+  token: string;
+  user: { id: string; email: string; name: string; role: string; department: string };
 };
 
-export function getSession(): UserSession {
-  try {
-    if (typeof window !== "undefined" && window.localStorage) {
-      const raw = localStorage.getItem("resumeiq_session");
-      if (raw) return JSON.parse(raw);
-    }
-  } catch (e) {
-    // fallback
+function store(payload: AuthPayload): UserSession {
+  const session: UserSession = {
+    token: payload.token,
+    email: payload.user.email,
+    name: payload.user.name,
+    role: payload.user.role,
+    department: payload.user.department,
+  };
+  if (typeof window !== "undefined") {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(session));
   }
-  return DEFAULT_SESSION;
+  return session;
 }
 
-export function setSession(session: UserSession): void {
-  if (typeof window !== "undefined" && window.localStorage) {
-    localStorage.setItem("resumeiq_session", JSON.stringify(session));
+export function getSession(): UserSession | null {
+  try {
+    if (typeof window === "undefined") return null;
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as Partial<UserSession>;
+    // A record without a token cannot be verified, so it is not a session.
+    if (!parsed.token || !parsed.email) return null;
+    return parsed as UserSession;
+  } catch {
+    return null;
+  }
+}
+
+export function isSignedIn(): boolean {
+  return getSession() !== null;
+}
+
+async function post(path: string, body: unknown): Promise<AuthPayload> {
+  const response = await fetch(`${API_BASE}${path}`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
+  const data = await response.json().catch(() => ({}));
+  if (!response.ok) {
+    throw new Error(data?.error || data?.detail || "Something went wrong. Try again.");
+  }
+  return data as AuthPayload;
+}
+
+export async function register(input: {
+  email: string;
+  password: string;
+  name: string;
+  role?: string;
+  department?: string;
+}): Promise<UserSession> {
+  return store(await post("/api/auth/register", input));
+}
+
+export async function login(email: string, password: string): Promise<UserSession> {
+  return store(await post("/api/auth/login", { email, password }));
+}
+
+/**
+ * Confirm the stored token is still valid, refreshing the cached profile.
+ * Returns null when the session is gone — the caller should send the user to
+ * sign in. A network failure is *not* treated as signed-out, so a brief API
+ * outage does not eject someone mid-task.
+ */
+export async function verifySession(): Promise<UserSession | null> {
+  const session = getSession();
+  if (!session) return null;
+  try {
+    const response = await fetch(`${API_BASE}/api/auth/me`, {
+      headers: { Authorization: `Bearer ${session.token}` },
+    });
+    if (response.status === 401) {
+      logoutSession();
+      return null;
+    }
+    if (!response.ok) return session;
+    const user = await response.json();
+    return store({ token: session.token, user });
+  } catch {
+    return session;
   }
 }
 
 export function logoutSession(): void {
-  if (typeof window !== "undefined" && window.localStorage) {
-    localStorage.removeItem("resumeiq_session");
+  const session = getSession();
+  if (typeof window !== "undefined") {
+    localStorage.removeItem(STORAGE_KEY);
+  }
+  if (session) {
+    // Best effort: drop the token server-side too, so it cannot be replayed.
+    void fetch(`${API_BASE}/api/auth/logout`, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${session.token}` },
+    }).catch(() => undefined);
   }
 }
 
+/** Identity header the rest of the API uses to scope a recruiter's data. */
+export function recruiterEmail(): string {
+  return (
+    getSession()?.email ||
+    (import.meta.env["VITE_RECRUITER_EMAIL"] as string | undefined) ||
+    "recruiter@example.com"
+  );
+}

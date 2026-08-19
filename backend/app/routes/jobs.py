@@ -1,11 +1,13 @@
 import uuid
+from datetime import datetime, timezone
 
 from fastapi import APIRouter
 
 from app.dependencies import AppStore, RecruiterEmail
 from app.models.evaluation import AuditLog
-from app.models.job_posting import JobPosting
+from app.models.job_posting import DEFAULT_ROUNDS, InterviewRound, JobPosting
 from app.models.schemas import (
+    JobRoundsUpdate,
     JobAnalyzeResponse,
     JobCreate,
     JobDraftAnalyzeRequest,
@@ -38,6 +40,7 @@ async def create_job(payload: JobCreate, store: AppStore, recruiter_email: Recru
         education_requirements=payload.education_requirements,
         nice_to_have_skills=payload.nice_to_have_skills,
         sourcing_mode=payload.sourcing_mode or "both",
+        rounds=payload.rounds or [InterviewRound(**r) for r in DEFAULT_ROUNDS],
         created_by=payload.created_by or recruiter_email,
     )
 
@@ -53,8 +56,44 @@ async def create_job(payload: JobCreate, store: AppStore, recruiter_email: Recru
 
 
 @router.get("", response_model=list[JobResponse])
-def list_jobs(store: AppStore):
-    return sorted(store.jobs.list_all(), key=lambda j: j.created_at, reverse=True)
+def list_jobs(store: AppStore, recruiter_email: RecruiterEmail):
+    """Jobs this recruiter created, newest first (see `list_candidates`)."""
+    mine = store.jobs.query(lambda j: j.created_by == recruiter_email)
+    return sorted(mine, key=lambda j: j.created_at, reverse=True)
+
+
+@router.put("/{job_id}/rounds", response_model=JobResponse)
+def update_job_rounds(
+    job_id: uuid.UUID,
+    payload: JobRoundsUpdate,
+    store: AppStore,
+    recruiter_email: RecruiterEmail,
+):
+    """Replace a job's interview loop.
+
+    The board and the pipeline overview render these, so the recruiter can
+    reshape the process without recreating the job.
+    """
+    job = store.jobs.get(job_id)
+    if not job:
+        raise NotFoundError("Job posting not found", {"job_id": str(job_id)})
+
+    # Renumber so the sequence always reflects the order supplied.
+    job.rounds = [
+        InterviewRound(**{**round_.model_dump(), "sequence": index})
+        for index, round_ in enumerate(payload.rounds, start=1)
+    ]
+    job.updated_at = datetime.now(timezone.utc).replace(tzinfo=None)
+    store.jobs.save(job)
+    _log_audit(
+        store,
+        recruiter_email=recruiter_email,
+        action="update_job_rounds",
+        resource_type="job",
+        resource_id=job.id,
+        details={"rounds": len(job.rounds)},
+    )
+    return job
 
 
 @router.get("/{job_id}", response_model=JobResponse)

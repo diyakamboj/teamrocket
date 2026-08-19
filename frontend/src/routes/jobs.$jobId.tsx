@@ -1,6 +1,11 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
+  JdInsightsTab,
+  PipelineOverviewTab,
+  StageBoardTab,
+} from "@/components/job-workspace-tabs";
+import {
   getAtsBenchmark,
   getJob,
   getJobPipeline,
@@ -414,6 +419,46 @@ function JobWorkspacePage() {
             ))}
           </div>
         </Card>
+      )}
+
+      {/* TAB: PIPELINE OVERVIEW — the job's interview loop */}
+      {activeTab === "overview" && (
+        <div className="animate-rise">
+          <PipelineOverviewTab job={job} stages={stages} onJobUpdated={setJob} />
+        </div>
+      )}
+
+      {/* TAB: STAGE KANBAN BOARD */}
+      {activeTab === "pipeline" && (
+        <div className="animate-rise">
+          <StageBoardTab
+            jobTitle={job?.title ?? "this role"}
+            stages={stages}
+            candidates={(ranked ?? []).map((c) => ({
+              id: c.id,
+              name: c.name,
+              email: c.email,
+              title: c.title,
+              score: c.score,
+            }))}
+            onMoved={() => {
+              // Re-read the stages the backend derived, rather than guessing
+              // locally — the board must show persisted state.
+              void getJobPipeline(jobId, "all")
+                .then((rows) =>
+                  setStages(Object.fromEntries(rows.map((r) => [r.candidate_id, r.stage]))),
+                )
+                .catch(() => undefined);
+            }}
+          />
+        </div>
+      )}
+
+      {/* TAB: JD INSIGHTS & SKEW ANALYSIS */}
+      {activeTab === "insights" && (
+        <div className="animate-rise">
+          <JdInsightsTab jobId={jobId} />
+        </div>
       )}
 
       {/* TAB: ORIGINAL JD & REQUIREMENTS */}

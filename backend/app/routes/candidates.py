@@ -16,7 +16,7 @@ from app.models.schemas import (
 )
 from app.services import handoff_service
 from app.services.candidate_matcher import candidate_matcher
-from app.services.decision_service import process_decision
+from app.services.decision_service import CANDIDATE_DECISIONS, process_decision
 from app.services.resume_parser import resume_parser
 from app.storage.store import Store
 from app.utils.error_handlers import NotFoundError, ValidationAppError
@@ -34,8 +34,16 @@ def _log_audit(store: Store, **fields) -> None:
 
 
 @router.get("", response_model=list[CandidateResponse])
-def list_candidates(store: AppStore):
-    return sorted(store.candidates.list_all(), key=lambda c: c.created_at, reverse=True)
+def list_candidates(store: AppStore, recruiter_email: RecruiterEmail):
+    """This recruiter's candidates, newest first.
+
+    Scoped to the account: the pool used to be global, so signing in as a new
+    recruiter showed every candidate anyone had ever uploaded. Records created
+    before candidates had an owner belong to nobody and are not listed — see
+    `scripts/assign_legacy_owner.py` to claim them.
+    """
+    mine = store.candidates.query(lambda c: c.owner_email == recruiter_email)
+    return sorted(mine, key=lambda c: c.created_at, reverse=True)
 
 
 @router.get("/rank", response_model=list[RankedCandidate])
@@ -222,9 +230,10 @@ async def submit_candidate_decision(
     store: AppStore,
     recruiter_email: RecruiterEmail,
 ):
-    if payload.decision not in ("approved", "rejected"):
+    if payload.decision not in CANDIDATE_DECISIONS:
         raise ValidationAppError(
-            "decision must be 'approved' or 'rejected'", {"decision": payload.decision}
+            f"decision must be one of {', '.join(CANDIDATE_DECISIONS)}",
+            {"decision": payload.decision},
         )
 
     outcome = await run_in_threadpool(

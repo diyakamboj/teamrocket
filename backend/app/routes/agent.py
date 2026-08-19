@@ -273,8 +273,19 @@ async def upload_attachment(
 
 
 @router.get("/attachments/{attachment_id}", response_model=AgentAttachmentResponse)
-def get_attachment(attachment_id: uuid.UUID, store: AppStore):
+def get_attachment(attachment_id: uuid.UUID, store: AppStore, recruiter_email: RecruiterEmail):
+    """One attachment, readable only by the recruiter who uploaded it.
+
+    The record carries the extracted text of an uploaded file, so it was a
+    hole to serve it to any caller that knew (or guessed) an id. Attachments
+    stored before uploads recorded an owner have no `recruiter_email` and
+    stay readable, rather than disappearing from existing chat threads.
+    """
     attachment = store.chat_attachments.get(attachment_id)
     if not attachment:
+        raise NotFoundError("Attachment not found", {"attachment_id": str(attachment_id)})
+    if attachment.recruiter_email and attachment.recruiter_email != recruiter_email:
+        # 404 rather than 403: an id someone else owns should not be
+        # confirmable.
         raise NotFoundError("Attachment not found", {"attachment_id": str(attachment_id)})
     return attachment

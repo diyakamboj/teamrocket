@@ -1,41 +1,38 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+  Bot,
+  Building2,
+  CheckCircle2,
+  FileText,
+  Info,
+  Loader2,
+  Lock,
+  ShieldCheck,
+  Sliders,
+  Sparkles,
+  Trash2,
+  Upload,
+  User,
+} from "lucide-react";
+import { toast } from "sonner";
 import {
   getRecruiterSettings,
   saveRecruiterSettings,
   type CompanyDocCategory,
-  type CompanyDocRef,
   type RecruiterSettings,
 } from "@/lib/settings";
+import {
+  deleteCompanyDocument,
+  listCompanyDocuments,
+  uploadCompanyDocument,
+  type CompanyDocument,
+} from "@/lib/api";
+import { useAppState } from "@/lib/app-state";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
 import { Slider } from "@/components/ui/slider";
-import {
-  Settings as SettingsIcon,
-  Building2,
-  Bot,
-  Sliders,
-  User,
-  Upload,
-  FileText,
-  Trash2,
-  CheckCircle,
-  Loader2,
-  Sparkles,
-  Info,
-} from "lucide-react";
-import { toast } from "sonner";
-import {
-  getAgentModels,
-  getChatAttachment,
-  uploadChatAttachment,
-  type ChatAttachmentInfo,
-  type CopilotModelInfo,
-} from "@/lib/api";
-import { useAppState } from "@/lib/app-state";
 import { cn } from "@/lib/utils";
 
 export const Route = createFileRoute("/settings")({
@@ -45,158 +42,219 @@ export const Route = createFileRoute("/settings")({
       {
         name: "description",
         content:
-          "Manage your recruiter profile, choose the Copilot model, and upload company context documents.",
+          "Manage your recruiter profile, upload company context documents, and set default scoring weights.",
       },
     ],
   }),
   component: SettingsPage,
 });
 
-const DOC_CATEGORIES: { value: CompanyDocCategory; label: string }[] = [
-  { value: "values", label: "Core Values" },
-  { value: "vision", label: "Vision & Mission" },
-  { value: "culture", label: "Engineering Culture" },
-  { value: "guidelines", label: "Hiring Guidelines" },
+const DOC_CATEGORIES: { value: CompanyDocCategory; label: string; hint: string }[] = [
+  { value: "values", label: "Core values", hint: "What the company rewards" },
+  { value: "vision", label: "Vision & mission", hint: "Where the company is going" },
+  { value: "culture", label: "Culture", hint: "How teams actually work" },
+  { value: "guidelines", label: "Hiring guidelines", hint: "How you assess and hire" },
 ];
 
 const WEIGHT_FIELDS = [
-  { key: "skills", label: "Technical Skills" },
-  { key: "experience", label: "Role Experience" },
-  { key: "education", label: "Education Level" },
+  { key: "skills", label: "Technical skills" },
+  { key: "experience", label: "Role experience" },
+  { key: "education", label: "Education" },
   { key: "certifications", label: "Certifications" },
-  { key: "projects", label: "Portfolio Projects" },
+  { key: "projects", label: "Portfolio projects" },
 ] as const;
 
-/** A company doc: local category label + its live backend attachment record. */
-type CompanyDocView = CompanyDocRef & {
-  attachment: ChatAttachmentInfo | null;
-  missing?: boolean;
-};
+const SECTIONS = [
+  { id: "profile", label: "Recruiter identity", icon: User },
+  { id: "context", label: "Company context", icon: Building2 },
+  { id: "copilot", label: "Copilot grounding", icon: Bot },
+  { id: "scoring", label: "Scoring defaults", icon: Sliders },
+] as const;
+
+const ACCEPTED = ".pdf,.docx,.doc,.txt,.md";
+
+function formatSize(bytes: number): string {
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${Math.round(bytes / 1024)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+}
+
+function SectionCard({
+  id,
+  eyebrow,
+  title,
+  description,
+  icon: Icon,
+  children,
+}: {
+  id: string;
+  eyebrow: string;
+  title: string;
+  description: string;
+  icon: typeof User;
+  children: React.ReactNode;
+}) {
+  return (
+    <section id={id} className="scroll-mt-24 rounded-2xl border bg-card shadow-sm">
+      <header className="flex items-start gap-3 border-b px-6 py-5">
+        <span className="mt-0.5 grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-primary/10 text-primary">
+          <Icon className="h-4.5 w-4.5" />
+        </span>
+        <div className="min-w-0">
+          <p className="text-[11px] font-semibold uppercase tracking-wider text-primary">
+            {eyebrow}
+          </p>
+          <h2 className="mt-0.5 text-base font-semibold tracking-tight">{title}</h2>
+          <p className="mt-1 text-xs leading-relaxed text-muted-foreground">{description}</p>
+        </div>
+      </header>
+      <div className="px-6 py-5">{children}</div>
+    </section>
+  );
+}
+
+function Field({
+  label,
+  hint,
+  children,
+}: {
+  label: string;
+  hint?: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <div className="space-y-1.5">
+      <label className="text-xs font-medium text-foreground">{label}</label>
+      {children}
+      {hint && <p className="text-[11px] text-muted-foreground">{hint}</p>}
+    </div>
+  );
+}
+
+function DocumentRow({
+  doc,
+  onDelete,
+}: {
+  doc: CompanyDocument;
+  onDelete: (id: string) => void;
+}) {
+  const pending = doc.status === "queued" || doc.status === "processing";
+  const category = DOC_CATEGORIES.find((c) => c.value === doc.category);
+
+  return (
+    <li className="group flex items-start gap-3 rounded-xl border bg-background p-4 transition-colors hover:border-primary/40">
+      <span className="mt-0.5 grid h-9 w-9 shrink-0 place-items-center rounded-lg bg-secondary text-muted-foreground">
+        <FileText className="h-4 w-4" />
+      </span>
+      <div className="min-w-0 flex-1">
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="truncate text-sm font-semibold">{doc.filename}</span>
+          <span className="rounded-full bg-secondary px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-secondary-foreground">
+            {category?.label ?? doc.category}
+          </span>
+          {pending && (
+            <span className="inline-flex items-center gap-1 text-[11px] text-muted-foreground">
+              <Loader2 className="h-3 w-3 animate-spin" /> Extracting…
+            </span>
+          )}
+          {doc.status === "processed" && (
+            <span className="inline-flex items-center gap-1 text-[11px] font-medium text-emerald-600 dark:text-emerald-400">
+              <CheckCircle2 className="h-3 w-3" /> Ready for Copilot
+            </span>
+          )}
+          {doc.status === "failed" && (
+            <span className="rounded-full bg-destructive/10 px-2 py-0.5 text-[10px] font-semibold text-destructive">
+              Extraction failed
+            </span>
+          )}
+        </div>
+
+        <p className="mt-1.5 text-xs leading-relaxed text-muted-foreground">
+          {doc.status === "failed"
+            ? (doc.error ?? "The document could not be read.")
+            : (doc.extracted_summary ?? "Reading the document…")}
+        </p>
+
+        <p className="mt-2 text-[11px] text-muted-foreground/80">
+          {formatSize(doc.size_bytes)} · uploaded {new Date(doc.created_at).toLocaleDateString()}
+        </p>
+      </div>
+      <Button
+        variant="ghost"
+        size="icon"
+        aria-label={`Remove ${doc.filename}`}
+        onClick={() => onDelete(doc.id)}
+        className="h-8 w-8 shrink-0 text-muted-foreground opacity-0 transition-opacity hover:text-destructive focus-visible:opacity-100 group-hover:opacity-100"
+      >
+        <Trash2 className="h-4 w-4" />
+      </Button>
+    </li>
+  );
+}
 
 function SettingsPage() {
   const { setWeights } = useAppState();
-  const [settings, setSettings] = useState<RecruiterSettings>(getRecruiterSettings());
-  const [savedSuccess, setSavedSuccess] = useState(false);
-  const [docs, setDocs] = useState<CompanyDocView[]>([]);
+  const [settings, setSettings] = useState<RecruiterSettings>(getRecruiterSettings);
+  const [saved, setSaved] = useState(false);
+  const [docs, setDocs] = useState<CompanyDocument[]>([]);
+  const [docsError, setDocsError] = useState<string | null>(null);
+  const [loadingDocs, setLoadingDocs] = useState(true);
   const [uploading, setUploading] = useState(false);
-  const [newDocCategory, setNewDocCategory] = useState<CompanyDocCategory>("values");
-  const [models, setModels] = useState<CopilotModelInfo[]>([]);
-  const [modelsError, setModelsError] = useState<string | null>(null);
+  const [dragging, setDragging] = useState(false);
+  const [category, setCategory] = useState<CompanyDocCategory>("values");
+  const [active, setActive] = useState<string>(SECTIONS[0].id);
   const fileRef = useRef<HTMLInputElement>(null);
 
-  // The Copilot model list is server-enforced — never a hardcoded menu here.
-  useEffect(() => {
-    let cancelled = false;
-    getAgentModels()
-      .then((res) => {
-        if (cancelled) return;
-        setModels(res.models);
-        setSettings((prev) =>
-          res.models.some((m) => m.id === prev.copilotConfig.modelId)
-            ? prev
-            : {
-                ...prev,
-                copilotConfig: { ...prev.copilotConfig, modelId: res.default_model_id },
-              },
-        );
-      })
-      .catch((err: unknown) => {
-        if (!cancelled) {
-          setModelsError(err instanceof Error ? err.message : "Could not load models");
-        }
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, []);
-
-  // Re-hydrate each stored document from the backend so the list reflects real
-  // processing status and the AI-extracted summary, not a local placeholder.
-  useEffect(() => {
-    let cancelled = false;
-    const refs = getRecruiterSettings().companyDocs;
-    if (refs.length === 0) {
-      setDocs([]);
-      return;
+  const refreshDocs = useCallback(async () => {
+    try {
+      setDocs(await listCompanyDocuments());
+      setDocsError(null);
+    } catch (err) {
+      setDocsError(err instanceof Error ? err.message : "Could not load documents");
+    } finally {
+      setLoadingDocs(false);
     }
-    void Promise.all(
-      refs.map(async (ref) => {
-        try {
-          return { ...ref, attachment: await getChatAttachment(ref.attachmentId) };
-        } catch {
-          return { ...ref, attachment: null, missing: true };
-        }
-      }),
-    ).then((rows) => {
-      if (!cancelled) setDocs(rows);
-    });
-    return () => {
-      cancelled = true;
-    };
   }, []);
 
-  // Documents are processed in the background — poll until each settles.
   useEffect(() => {
-    const pending = docs.filter(
-      (d) => d.attachment && (d.attachment.status === "queued" || d.attachment.status === "processing"),
+    void refreshDocs();
+  }, [refreshDocs]);
+
+  // Extraction runs in the background — poll only while something is pending.
+  const pendingCount = docs.filter(
+    (d) => d.status === "queued" || d.status === "processing",
+  ).length;
+  useEffect(() => {
+    if (pendingCount === 0) return;
+    const timer = window.setInterval(() => void refreshDocs(), 1500);
+    return () => window.clearInterval(timer);
+  }, [pendingCount, refreshDocs]);
+
+  // Highlight the section currently in view.
+  useEffect(() => {
+    const observer = new IntersectionObserver(
+      (entries) => {
+        const visible = entries
+          .filter((e) => e.isIntersecting)
+          .sort((a, b) => b.intersectionRatio - a.intersectionRatio)[0];
+        if (visible) setActive(visible.target.id);
+      },
+      { rootMargin: "-96px 0px -60% 0px", threshold: [0.1, 0.5] },
     );
-    if (pending.length === 0) return;
-
-    let cancelled = false;
-    const timer = window.setInterval(() => {
-      void Promise.all(
-        pending.map(async (d) => {
-          try {
-            return { id: d.attachmentId, attachment: await getChatAttachment(d.attachmentId) };
-          } catch {
-            return null;
-          }
-        }),
-      ).then((updates) => {
-        if (cancelled) return;
-        setDocs((prev) =>
-          prev.map((row) => {
-            const update = updates.find((u) => u?.id === row.attachmentId);
-            return update ? { ...row, attachment: update.attachment } : row;
-          }),
-        );
-      });
-    }, 1500);
-
-    return () => {
-      cancelled = true;
-      window.clearInterval(timer);
-    };
-  }, [docs]);
-
-  function persist(next: RecruiterSettings) {
-    setSettings(next);
-    saveRecruiterSettings(next);
-  }
-
-  const handleSave = () => {
-    saveRecruiterSettings(settings);
-    // Default weights are only meaningful if they actually take effect.
-    setWeights(settings.defaultWeights);
-    setSavedSuccess(true);
-    toast.success("Preferences saved — default scoring weights applied.");
-    setTimeout(() => setSavedSuccess(false), 2500);
-  };
+    SECTIONS.forEach(({ id }) => {
+      const el = document.getElementById(id);
+      if (el) observer.observe(el);
+    });
+    return () => observer.disconnect();
+  }, []);
 
   async function handleUpload(file: File | undefined) {
     if (!file) return;
     setUploading(true);
     try {
-      // Real upload: the backend stores the file in blob storage and runs
-      // text extraction + AI classification over it in the background.
-      const attachment = await uploadChatAttachment(file);
-      const ref: CompanyDocRef = {
-        attachmentId: attachment.id,
-        category: newDocCategory,
-      };
-      persist({ ...settings, companyDocs: [...settings.companyDocs, ref] });
-      setDocs((prev) => [...prev, { ...ref, attachment }]);
-      toast.success(`Uploaded ${attachment.filename} — extracting context…`);
+      const doc = await uploadCompanyDocument(file, category);
+      setDocs((prev) => [doc, ...prev]);
+      toast.success(`Uploaded ${doc.filename} — extracting its content…`);
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Upload failed");
     } finally {
@@ -205,354 +263,297 @@ function SettingsPage() {
     }
   }
 
-  const handleDeleteDoc = (attachmentId: string) => {
-    persist({
-      ...settings,
-      companyDocs: settings.companyDocs.filter((d) => d.attachmentId !== attachmentId),
-    });
-    setDocs((prev) => prev.filter((d) => d.attachmentId !== attachmentId));
-    toast.info("Company context document removed from this list.");
-  };
+  async function handleDelete(id: string) {
+    const previous = docs;
+    setDocs((prev) => prev.filter((d) => d.id !== id));
+    try {
+      await deleteCompanyDocument(id);
+      toast.info("Document deleted.");
+    } catch (err) {
+      setDocs(previous); // put it back — the server still has it
+      toast.error(err instanceof Error ? err.message : "Could not delete the document");
+    }
+  }
 
-  const totalWeight = Object.values(settings.defaultWeights).reduce((a, b) => a + b, 0);
+  function handleSave() {
+    saveRecruiterSettings(settings);
+    setWeights(settings.defaultWeights);
+    setSaved(true);
+    toast.success("Preferences saved — default scoring weights applied.");
+    window.setTimeout(() => setSaved(false), 2400);
+  }
+
+  const totalWeight = useMemo(
+    () => Object.values(settings.defaultWeights).reduce((a, b) => a + b, 0),
+    [settings.defaultWeights],
+  );
+  const readyDocs = docs.filter((d) => d.status === "processed").length;
+  const failedDocs = docs.filter((d) => d.status === "failed").length;
 
   return (
-    <div className="mx-auto max-w-6xl space-y-8">
-      <header className="flex flex-wrap items-center justify-between gap-4 border-b border-border pb-6">
-        <div>
-          <div className="mb-1 flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-primary">
-            <SettingsIcon className="h-4 w-4" /> Recruiter Settings &amp; Organizational Context
+    <div className="mx-auto max-w-6xl pb-16">
+      <header className="sticky top-0 z-20 -mx-4 mb-8 border-b bg-background/85 px-4 py-4 backdrop-blur supports-[backdrop-filter]:bg-background/70">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <h1 className="text-xl font-bold tracking-tight sm:text-2xl">Settings &amp; context</h1>
+            <p className="mt-0.5 text-xs text-muted-foreground">
+              Your profile, the company context Copilot reasons from, and how candidates are scored.
+            </p>
           </div>
-          <h1 className="text-2xl font-extrabold tracking-tight sm:text-3xl">
-            Settings &amp; Organizational Context
-          </h1>
-          <p className="mt-1 text-sm text-muted-foreground">
-            Manage your recruiter profile, choose the Copilot model, and upload company
-            vision/culture documents.
-          </p>
+          <Button onClick={handleSave} className="rounded-xl">
+            {saved ? (
+              <CheckCircle2 className="mr-2 h-4 w-4" />
+            ) : (
+              <Sparkles className="mr-2 h-4 w-4" />
+            )}
+            {saved ? "Saved" : "Save preferences"}
+          </Button>
         </div>
-
-        <Button onClick={handleSave} className="rounded-xl">
-          {savedSuccess ? (
-            <CheckCircle className="mr-2 h-4 w-4" />
-          ) : (
-            <Sparkles className="mr-2 h-4 w-4" />
-          )}
-          {savedSuccess ? "Saved!" : "Save preferences"}
-        </Button>
       </header>
 
-      <div className="grid grid-cols-1 gap-8 lg:grid-cols-3">
-        <div className="space-y-8 lg:col-span-2">
-          {/* Company context documents */}
-          <Card className="card-surface">
-            <CardHeader>
-              <div className="flex items-center gap-2 text-sm font-semibold text-primary">
-                <Building2 className="h-4 w-4" /> Company Context &amp; Culture Hub
-              </div>
-              <CardTitle className="text-xl">Company vision &amp; culture documents</CardTitle>
-              <CardDescription className="text-xs">
-                Upload company documents (vision, core values, leadership principles, culture
-                guidelines). Each file is stored in blob storage and its text is extracted and
-                summarized so it can be referenced as Copilot context.
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-6">
-              <div className="space-y-3">
-                {docs.length === 0 ? (
-                  <div className="rounded-lg border border-dashed border-border p-6 text-center text-xs text-muted-foreground">
-                    No company context documents uploaded yet.
-                  </div>
-                ) : (
-                  docs.map((doc) => {
-                    const a = doc.attachment;
-                    const processing = a?.status === "queued" || a?.status === "processing";
-                    return (
-                      <div
-                        key={doc.attachmentId}
-                        className="flex items-start justify-between gap-4 rounded-lg border border-border bg-secondary/40 p-4 transition-colors hover:border-primary/40"
-                      >
-                        <div className="flex min-w-0 items-start gap-3">
-                          <div className="mt-0.5 rounded-lg border border-primary/20 bg-primary-soft p-2 text-primary-soft-foreground">
-                            <FileText className="h-5 w-5" />
-                          </div>
-                          <div className="min-w-0">
-                            <div className="flex flex-wrap items-center gap-2">
-                              <span className="text-sm font-semibold">
-                                {a?.filename ?? "Unavailable document"}
-                              </span>
-                              <Badge variant="outline" className="text-[10px] uppercase">
-                                {doc.category}
-                              </Badge>
-                              {processing && (
-                                <span className="inline-flex items-center gap-1 text-[10px] text-muted-foreground">
-                                  <Loader2 className="h-3 w-3 animate-spin" /> Extracting…
-                                </span>
-                              )}
-                              {a?.status === "failed" && (
-                                <Badge className="border-destructive/30 bg-destructive/15 text-[10px] text-destructive">
-                                  Failed
-                                </Badge>
-                              )}
-                            </div>
-                            <p className="mt-1 text-xs text-muted-foreground">
-                              {doc.missing
-                                ? "This document is no longer available on the server."
-                                : (a?.extracted_summary ??
-                                  a?.error ??
-                                  "Waiting for text extraction…")}
-                            </p>
-                            {a && (
-                              <span className="mt-2 block text-[10px] text-muted-foreground">
-                                Uploaded {new Date(a.created_at).toLocaleDateString()} ·{" "}
-                                {Math.max(1, Math.round(a.size_bytes / 1024))} KB
-                              </span>
-                            )}
-                          </div>
-                        </div>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => handleDeleteDoc(doc.attachmentId)}
-                          className="text-muted-foreground hover:text-destructive"
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </Button>
-                      </div>
-                    );
-                  })
-                )}
-              </div>
+      <div className="grid gap-8 lg:grid-cols-[200px_minmax(0,1fr)]">
+        <nav aria-label="Settings sections" className="hidden lg:block">
+          <ul className="sticky top-28 space-y-1">
+            {SECTIONS.map(({ id, label, icon: Icon }) => (
+              <li key={id}>
+                <a
+                  href={`#${id}`}
+                  aria-current={active === id ? "true" : undefined}
+                  className={cn(
+                    "flex items-center gap-2.5 rounded-lg px-3 py-2 text-xs font-medium transition-colors",
+                    active === id
+                      ? "bg-primary/10 text-primary"
+                      : "text-muted-foreground hover:bg-secondary hover:text-foreground",
+                  )}
+                >
+                  <Icon className="h-3.5 w-3.5" />
+                  {label}
+                </a>
+              </li>
+            ))}
+          </ul>
+        </nav>
 
-              <div className="space-y-4 rounded-lg border border-border bg-secondary/30 p-4">
-                <div className="flex items-center gap-2 text-xs font-semibold">
-                  <Upload className="h-4 w-4 text-primary" /> Upload a company context document
-                </div>
-                <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
-                  <div className="md:col-span-2">
-                    <input
-                      ref={fileRef}
-                      type="file"
-                      accept=".pdf,.docx,.txt,.png,.jpg"
-                      className="block w-full cursor-pointer rounded-md border border-border bg-background text-xs file:mr-3 file:cursor-pointer file:rounded-l-md file:border-0 file:bg-secondary file:px-3 file:py-2 file:text-xs file:font-semibold"
-                      onChange={(e) => void handleUpload(e.target.files?.[0])}
-                      disabled={uploading}
-                    />
-                  </div>
-                  <select
-                    value={newDocCategory}
-                    onChange={(e) => setNewDocCategory(e.target.value as CompanyDocCategory)}
-                    className="h-9 w-full rounded-md border border-border bg-background px-3 text-xs"
-                  >
-                    {DOC_CATEGORIES.map((c) => (
-                      <option key={c.value} value={c.value}>
-                        {c.label}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-                {uploading && (
-                  <p className="flex items-center gap-2 text-xs text-muted-foreground">
-                    <Loader2 className="h-3.5 w-3.5 animate-spin" /> Uploading to blob storage…
-                  </p>
-                )}
-              </div>
-            </CardContent>
-          </Card>
-
-          {/* Copilot model */}
-          <Card className="card-surface">
-            <CardHeader>
-              <div className="flex items-center gap-2 text-sm font-semibold text-primary">
-                <Bot className="h-4 w-4" /> Recruiter Copilot Intelligence Model
-              </div>
-              <CardTitle className="text-xl">AI model selection</CardTitle>
-              <CardDescription className="text-xs">
-                Choose the model powering Recruiter Copilot. The list comes from the server's
-                allowlist for your account.
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-6">
-              <div className="space-y-3">
-                <label className="text-xs font-medium">Default AI model engine</label>
-                {modelsError ? (
-                  <p className="text-xs text-destructive">
-                    Could not load available models: {modelsError}
-                  </p>
-                ) : models.length === 0 ? (
-                  <p className="flex items-center gap-2 text-xs text-muted-foreground">
-                    <Loader2 className="h-3.5 w-3.5 animate-spin" /> Loading available models…
-                  </p>
-                ) : (
-                  <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
-                    {models.map((m) => {
-                      const selected = settings.copilotConfig.modelId === m.id;
-                      return (
-                        <button
-                          key={m.id}
-                          type="button"
-                          onClick={() =>
-                            setSettings({
-                              ...settings,
-                              copilotConfig: { ...settings.copilotConfig, modelId: m.id },
-                            })
-                          }
-                          className={cn(
-                            "rounded-lg border p-3 text-left transition-colors",
-                            selected
-                              ? "border-primary bg-primary-soft"
-                              : "border-border bg-background hover:border-primary/40",
-                          )}
-                        >
-                          <div className="flex items-center justify-between text-xs font-semibold">
-                            {m.label}
-                            {selected && <CheckCircle className="h-3.5 w-3.5 text-primary" />}
-                          </div>
-                          <p className="mt-1 text-[11px] text-muted-foreground">{m.description}</p>
-                        </button>
-                      );
-                    })}
-                  </div>
-                )}
-              </div>
-
-              <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
-                <div className="space-y-2">
-                  <div className="flex justify-between text-xs">
-                    <label className="font-medium">Creativity / temperature</label>
-                    <span className="font-mono text-primary">
-                      {settings.copilotConfig.temperature}
-                    </span>
-                  </div>
-                  <Slider
-                    min={0}
-                    max={1}
-                    step={0.05}
-                    value={[settings.copilotConfig.temperature]}
-                    onValueChange={([val]) =>
-                      setSettings({
-                        ...settings,
-                        copilotConfig: {
-                          ...settings.copilotConfig,
-                          temperature: val ?? settings.copilotConfig.temperature,
-                        },
-                      })
-                    }
-                  />
-                  <span className="text-[10px] text-muted-foreground">
-                    Lower values produce stricter, more factual evidence analysis.
-                  </span>
-                </div>
-
-                <div className="space-y-2">
-                  <label className="text-xs font-medium">Reasoning depth</label>
-                  <select
-                    value={settings.copilotConfig.reasoningEffort}
-                    onChange={(e) =>
-                      setSettings({
-                        ...settings,
-                        copilotConfig: {
-                          ...settings.copilotConfig,
-                          reasoningEffort: e.target
-                            .value as RecruiterSettings["copilotConfig"]["reasoningEffort"],
-                        },
-                      })
-                    }
-                    className="h-9 w-full rounded-md border border-border bg-background px-3 text-xs"
-                  >
-                    <option value="low">Low (fast summaries)</option>
-                    <option value="medium">Medium (standard analytical rigor)</option>
-                    <option value="high">High (exhaustive evidence verification)</option>
-                  </select>
-                </div>
-              </div>
-
-              <div className="space-y-2">
-                <label className="text-xs font-medium">Custom recruiter system instructions</label>
-                <Textarea
-                  value={settings.copilotConfig.systemPromptAddendum}
-                  onChange={(e) =>
-                    setSettings({
-                      ...settings,
-                      copilotConfig: {
-                        ...settings.copilotConfig,
-                        systemPromptAddendum: e.target.value,
-                      },
-                    })
-                  }
-                  rows={3}
-                  className="text-xs"
-                  placeholder="Additional instructions for Copilot when reviewing candidates…"
-                />
-              </div>
-            </CardContent>
-          </Card>
-        </div>
-
-        {/* Right column */}
-        <div className="space-y-8">
-          <Card className="card-surface">
-            <CardHeader>
-              <div className="flex items-center gap-2 text-sm font-semibold text-primary">
-                <User className="h-4 w-4" /> Profile details
-              </div>
-              <CardTitle className="text-lg">Recruiter identity</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="space-y-1.5">
-                <label className="text-xs font-medium">Full name</label>
+        <div className="min-w-0 space-y-6">
+          {/* ---------- Recruiter identity ---------- */}
+          <SectionCard
+            id="profile"
+            eyebrow="Profile"
+            title="Recruiter identity"
+            description="Prefilled from your signed-in account. Used on interview invitations and decision emails."
+            icon={User}
+          >
+            <div className="grid gap-4 sm:grid-cols-2">
+              <Field label="Full name">
                 <Input
                   value={settings.recruiterName}
                   onChange={(e) => setSettings({ ...settings, recruiterName: e.target.value })}
-                  className="text-xs"
+                  className="rounded-lg"
                 />
-              </div>
-              <div className="space-y-1.5">
-                <label className="text-xs font-medium">Work email</label>
+              </Field>
+              <Field label="Work email">
                 <Input
                   type="email"
                   value={settings.recruiterEmail}
                   onChange={(e) => setSettings({ ...settings, recruiterEmail: e.target.value })}
-                  className="text-xs"
+                  className="rounded-lg"
                 />
-              </div>
-              <div className="space-y-1.5">
-                <label className="text-xs font-medium">Department</label>
+              </Field>
+              <Field label="Department">
                 <Input
                   value={settings.department}
                   onChange={(e) => setSettings({ ...settings, department: e.target.value })}
-                  className="text-xs"
+                  className="rounded-lg"
                 />
-              </div>
-              <div className="space-y-1.5">
-                <label className="text-xs font-medium">Email signature for invites</label>
+              </Field>
+              <Field label="Email signature" hint="Appended to candidate emails you send.">
                 <Textarea
                   value={settings.emailSignature}
                   onChange={(e) => setSettings({ ...settings, emailSignature: e.target.value })}
                   rows={3}
-                  className="font-mono text-xs"
+                  className="rounded-lg font-mono text-xs"
+                />
+              </Field>
+            </div>
+          </SectionCard>
+
+          {/* ---------- Company context ---------- */}
+          <SectionCard
+            id="context"
+            eyebrow="Organizational context"
+            title="Company vision & culture documents"
+            description="Upload vision, values, culture or hiring-guideline documents. Each one is stored, its text extracted, and summarized so Copilot can answer from how your company actually hires."
+            icon={Building2}
+          >
+            <div className="space-y-5">
+              <div className="grid gap-3 sm:grid-cols-4">
+                {DOC_CATEGORIES.map((c) => (
+                  <button
+                    key={c.value}
+                    type="button"
+                    onClick={() => setCategory(c.value)}
+                    aria-pressed={category === c.value}
+                    className={cn(
+                      "rounded-xl border p-3 text-left transition-colors",
+                      category === c.value
+                        ? "border-primary bg-primary/5"
+                        : "hover:border-primary/40",
+                    )}
+                  >
+                    <span className="block text-xs font-semibold">{c.label}</span>
+                    <span className="mt-0.5 block text-[11px] text-muted-foreground">{c.hint}</span>
+                  </button>
+                ))}
+              </div>
+
+              <div
+                onDragOver={(e) => {
+                  e.preventDefault();
+                  setDragging(true);
+                }}
+                onDragLeave={() => setDragging(false)}
+                onDrop={(e) => {
+                  e.preventDefault();
+                  setDragging(false);
+                  void handleUpload(e.dataTransfer.files?.[0]);
+                }}
+                className={cn(
+                  "rounded-xl border-2 border-dashed px-6 py-8 text-center transition-colors",
+                  dragging ? "border-primary bg-primary/5" : "border-border",
+                )}
+              >
+                <span className="mx-auto grid h-10 w-10 place-items-center rounded-xl bg-secondary text-muted-foreground">
+                  {uploading ? (
+                    <Loader2 className="h-4.5 w-4.5 animate-spin" />
+                  ) : (
+                    <Upload className="h-4.5 w-4.5" />
+                  )}
+                </span>
+                <p className="mt-3 text-sm font-medium">
+                  {uploading ? "Uploading…" : "Drop a document here"}
+                </p>
+                <p className="mt-1 text-xs text-muted-foreground">
+                  Filing under <strong>{DOC_CATEGORIES.find((c) => c.value === category)?.label}</strong>
+                  {" · "}PDF, Word, text or Markdown · up to 10MB
+                </p>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="mt-4 rounded-lg"
+                  disabled={uploading}
+                  onClick={() => fileRef.current?.click()}
+                >
+                  Choose a file
+                </Button>
+                <input
+                  ref={fileRef}
+                  type="file"
+                  accept={ACCEPTED}
+                  className="hidden"
+                  onChange={(e) => void handleUpload(e.target.files?.[0])}
                 />
               </div>
-            </CardContent>
-          </Card>
 
-          <Card className="card-surface">
-            <CardHeader>
-              <div className="flex items-center gap-2 text-sm font-semibold text-primary">
-                <Sliders className="h-4 w-4" /> Default scoring weights
+              {loadingDocs ? (
+                <p className="flex items-center gap-2 text-xs text-muted-foreground">
+                  <Loader2 className="h-3.5 w-3.5 animate-spin" /> Loading your documents…
+                </p>
+              ) : docsError ? (
+                <p className="rounded-lg bg-destructive/10 px-3 py-2 text-xs text-destructive">
+                  {docsError}
+                </p>
+              ) : docs.length === 0 ? (
+                <p className="rounded-xl border border-dashed px-4 py-6 text-center text-xs text-muted-foreground">
+                  No company documents yet. Copilot will answer from evaluation data alone.
+                </p>
+              ) : (
+                <ul className="space-y-2.5">
+                  {docs.map((doc) => (
+                    <DocumentRow key={doc.id} doc={doc} onDelete={(id) => void handleDelete(id)} />
+                  ))}
+                </ul>
+              )}
+
+              <div className="flex items-start gap-2.5 rounded-xl border bg-secondary/40 p-3.5">
+                <ShieldCheck className="mt-0.5 h-4 w-4 shrink-0 text-primary" />
+                <p className="text-[11px] leading-relaxed text-muted-foreground">
+                  <span className="font-medium text-foreground">How these are handled.</span>{" "}
+                  Documents are stored in your own Azure blob container and are readable only by
+                  this account — another recruiter cannot list or open them, even with the id. File
+                  names are sanitized before storage, only document formats are accepted, and the
+                  content is never parsed into candidate records.
+                </p>
               </div>
-              <CardTitle className="text-lg">Default category importance</CardTitle>
-              <CardDescription className="text-xs">
-                Applied to the candidate ranking when you save. Can still be adjusted per session
-                from the ranking page.
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-5">
+            </div>
+          </SectionCard>
+
+          {/* ---------- Copilot grounding ---------- */}
+          <SectionCard
+            id="copilot"
+            eyebrow="Copilot"
+            title="What Copilot reasons from"
+            description="Copilot answers from your stored evaluation data and the context you upload — never from guesswork. There is no model to choose: answers run on the GPT-5 deployment configured for this environment."
+            icon={Bot}
+          >
+            <div className="space-y-4">
+              <div className="grid gap-3 sm:grid-cols-3">
+                <div className="rounded-xl border p-4">
+                  <p className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
+                    Model
+                  </p>
+                  <p className="mt-1 text-sm font-semibold">GPT-5</p>
+                  <p className="mt-1 text-[11px] text-muted-foreground">
+                    Set by the Azure deployment, not per recruiter.
+                  </p>
+                </div>
+                <div className="rounded-xl border p-4">
+                  <p className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
+                    Company documents
+                  </p>
+                  <p className="mt-1 text-sm font-semibold tabular-nums">{readyDocs} in context</p>
+                  <p className="mt-1 text-[11px] text-muted-foreground">
+                    {failedDocs > 0
+                      ? `${failedDocs} could not be read.`
+                      : pendingCount > 0
+                        ? `${pendingCount} still being read.`
+                        : "Summaries are attached to every question."}
+                  </p>
+                </div>
+                <div className="rounded-xl border p-4">
+                  <p className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
+                    Evidence
+                  </p>
+                  <p className="mt-1 text-sm font-semibold">Stored verdicts</p>
+                  <p className="mt-1 text-[11px] text-muted-foreground">
+                    Answers cite screening results, not the raw résumé text.
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex items-start gap-2.5 rounded-xl border bg-secondary/40 p-3.5">
+                <Lock className="mt-0.5 h-4 w-4 shrink-0 text-primary" />
+                <p className="text-[11px] leading-relaxed text-muted-foreground">
+                  Blind review is toggled per session on the ranking page, and applies to Copilot
+                  too — names and contact details are withheld from prompts while it is on.
+                </p>
+              </div>
+            </div>
+          </SectionCard>
+
+          {/* ---------- Scoring defaults ---------- */}
+          <SectionCard
+            id="scoring"
+            eyebrow="Ranking"
+            title="Default scoring weights"
+            description="Applied to candidate ranking when you save. Still adjustable per session from the ranking page."
+            icon={Sliders}
+          >
+            <div className="space-y-5">
               {WEIGHT_FIELDS.map((item) => (
-                <div key={item.key} className="space-y-1.5">
-                  <div className="flex justify-between text-xs">
+                <div key={item.key} className="space-y-2">
+                  <div className="flex items-center justify-between text-xs">
                     <span className="font-medium">{item.label}</span>
-                    <span className="font-semibold text-primary">
+                    <span className="font-semibold tabular-nums text-primary">
                       {settings.defaultWeights[item.key]}%
                     </span>
                   </div>
@@ -574,15 +575,15 @@ function SettingsPage() {
                 </div>
               ))}
 
-              <div className="flex items-start gap-2 rounded-lg border border-primary/20 bg-primary-soft p-3 text-xs text-primary-soft-foreground">
-                <Info className="mt-0.5 h-4 w-4 shrink-0" />
-                <span>
-                  Total weight: <strong>{totalWeight}%</strong>
-                  {totalWeight !== 100 && " — scores are normalized, so this need not sum to 100."}
-                </span>
+              <div className="flex items-start gap-2.5 rounded-xl border bg-secondary/40 p-3.5">
+                <Info className="mt-0.5 h-4 w-4 shrink-0 text-primary" />
+                <p className="text-[11px] leading-relaxed text-muted-foreground">
+                  Total <strong className="text-foreground tabular-nums">{totalWeight}%</strong> —
+                  weights are normalized, so they need not add up to 100.
+                </p>
               </div>
-            </CardContent>
-          </Card>
+            </div>
+          </SectionCard>
         </div>
       </div>
     </div>

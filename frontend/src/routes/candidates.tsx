@@ -1,6 +1,7 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useMemo, useState } from "react";
 import {
+  ArrowRight,
   Calendar,
   Check,
   ChevronDown,
@@ -8,17 +9,23 @@ import {
   Loader2,
   Search,
   SlidersHorizontal,
+  Trophy,
   X,
 } from "lucide-react";
 import { toast } from "sonner";
 import { useAppState } from "@/lib/app-state";
 import { allSkills, DEFAULT_WEIGHTS, rankCandidates, type Candidate } from "@/lib/candidates";
 import { useCandidatePool } from "@/lib/use-candidate-pool";
-import { submitCandidateDecision, type InterviewSlot } from "@/lib/api";
+import {
+  submitCandidateDecision,
+  type CandidateDecisionKind,
+  type InterviewSlot,
+} from "@/lib/api";
 import { MiniBar, ScoreRing } from "@/components/score-ring";
 import { CandidateInterviewSection } from "@/components/interview-card";
 import { CandidateScreeningSection } from "@/components/screening";
 import { CandidateStatusBadges } from "@/components/candidate-badges";
+import { ShareCandidateButton } from "@/components/share-candidate-button";
 import { CandidateEnrichmentCard } from "@/components/candidate-enrichment-card";
 import { CandidateReadinessSection } from "@/components/candidate-readiness-card";
 import { Button } from "@/components/ui/button";
@@ -35,7 +42,7 @@ type DecisionState =
   | { status: "sending" }
   | {
       status: "done";
-      decision: "approved" | "rejected";
+      decision: CandidateDecision;
       source: "live" | "mock";
       slots: InterviewSlot[];
       error?: string | null | undefined;
@@ -95,6 +102,51 @@ function rankReason(c: Candidate, allRows: Candidate[]): string {
   return [strengthPart, gapPart, positionPart].filter(Boolean).join(" · ");
 }
 
+/**
+ * What a recruiter can do to a candidate, mirroring the backend's
+ * CANDIDATE_DECISIONS. Each carries the wording of the email that goes out,
+ * so the confirmation step says exactly what will be sent.
+ */
+type CandidateDecision = CandidateDecisionKind;
+
+const DECISIONS: Record<
+  CandidateDecision,
+  { label: string; done: string; confirm: string; icon: typeof Check; tone: string; doneTone: string }
+> = {
+  advanced: {
+    label: "Advance",
+    done: "Advanced to next round",
+    confirm: "Send next-round invitation",
+    icon: ArrowRight,
+    tone: "border-sky-300 text-sky-700 hover:bg-sky-50 dark:border-sky-500/30 dark:text-sky-300 dark:hover:bg-sky-500/10",
+    doneTone: "bg-sky-100 text-sky-700 dark:bg-sky-500/15 dark:text-sky-300",
+  },
+  approved: {
+    label: "Select",
+    done: "Selected",
+    confirm: "Send selection",
+    icon: Check,
+    tone: "border-emerald-300 text-emerald-700 hover:bg-emerald-50 dark:border-emerald-500/30 dark:text-emerald-300 dark:hover:bg-emerald-500/10",
+    doneTone: "bg-emerald-100 text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-300",
+  },
+  hired: {
+    label: "Hire",
+    done: "Hired",
+    confirm: "Send offer",
+    icon: Trophy,
+    tone: "border-violet-300 text-violet-700 hover:bg-violet-50 dark:border-violet-500/30 dark:text-violet-300 dark:hover:bg-violet-500/10",
+    doneTone: "bg-violet-100 text-violet-700 dark:bg-violet-500/15 dark:text-violet-300",
+  },
+  rejected: {
+    label: "Reject",
+    done: "Rejected",
+    confirm: "Send rejection",
+    icon: X,
+    tone: "border-rose-300 text-rose-700 hover:bg-rose-50 dark:border-rose-500/30 dark:text-rose-300 dark:hover:bg-rose-500/10",
+    doneTone: "bg-rose-100 text-rose-700 dark:bg-rose-500/15 dark:text-rose-300",
+  },
+};
+
 function DecisionControls({
   candidate,
   state,
@@ -104,11 +156,11 @@ function DecisionControls({
 }: {
   candidate: Candidate;
   state: DecisionState | undefined;
-  onDecide: (decision: "approved" | "rejected") => void;
+  onDecide: (decision: CandidateDecision) => void;
   blindMode: boolean;
   displayName: string;
 }) {
-  const [pending, setPending] = useState<"approved" | "rejected" | null>(null);
+  const [pending, setPending] = useState<CandidateDecision | null>(null);
 
   if (state?.status === "sending") {
     return (
@@ -119,37 +171,30 @@ function DecisionControls({
   }
 
   if (state?.status === "done") {
-    const isApproved = state.decision === "approved";
+    const meta = DECISIONS[state.decision];
+    const Icon = meta.icon;
     return (
       <span
         className={cn(
-          "inline-flex items-center gap-1.5 rounded-xl px-3 py-1.5 text-xs font-semibold",
-          isApproved
-            ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-300"
-            : "bg-rose-100 text-rose-700 dark:bg-rose-500/15 dark:text-rose-300",
+          "animate-pop inline-flex items-center gap-1.5 rounded-xl px-3 py-1.5 text-xs font-semibold",
+          meta.doneTone,
         )}
       >
-        {isApproved ? <Check className="h-3.5 w-3.5" /> : <X className="h-3.5 w-3.5" />}
-        {isApproved ? "Selected" : "Rejected"} — email{" "}
-        {state.source === "mock" ? "logged (mock)" : "sent"}
+        <Icon className="h-3.5 w-3.5" />
+        {meta.done} — email {state.source === "mock" ? "logged (mock)" : "sent"}
       </span>
     );
   }
 
   if (pending) {
-    const isApproved = pending === "approved";
     return (
-      <div className="flex items-center gap-2 text-xs">
+      <div className="animate-fade flex flex-wrap items-center gap-2 text-xs">
         <span className="text-muted-foreground">
-          {isApproved ? "Send selection" : "Send rejection"} email to{" "}
-          {blindMode ? displayName : candidate.email}?
+          {DECISIONS[pending].confirm} email to {blindMode ? displayName : candidate.email}?
         </span>
         <Button
           size="sm"
-          className={cn(
-            "rounded-xl",
-            isApproved ? "bg-emerald-600 hover:bg-emerald-700" : "bg-rose-600 hover:bg-rose-700",
-          )}
+          className="rounded-xl"
           onClick={() => {
             onDecide(pending);
             setPending(null);
@@ -165,28 +210,27 @@ function DecisionControls({
   }
 
   return (
-    <div className="flex items-center gap-2">
-      <Button
-        size="sm"
-        variant="outline"
-        className="rounded-xl border-emerald-300 text-emerald-700 hover:bg-emerald-50 dark:border-emerald-500/30 dark:text-emerald-300 dark:hover:bg-emerald-500/10"
-        onClick={() => setPending("approved")}
-      >
-        <Check className="mr-1.5 h-3.5 w-3.5" /> Approve
-      </Button>
-      <Button
-        size="sm"
-        variant="outline"
-        className="rounded-xl border-rose-300 text-rose-700 hover:bg-rose-50 dark:border-rose-500/30 dark:text-rose-300 dark:hover:bg-rose-500/10"
-        onClick={() => setPending("rejected")}
-      >
-        <X className="mr-1.5 h-3.5 w-3.5" /> Reject
-      </Button>
+    <div className="flex flex-wrap items-center gap-2">
+      {(Object.keys(DECISIONS) as CandidateDecision[]).map((key) => {
+        const meta = DECISIONS[key];
+        const Icon = meta.icon;
+        return (
+          <Button
+            key={key}
+            size="sm"
+            variant="outline"
+            className={cn("rounded-xl", meta.tone)}
+            onClick={() => setPending(key)}
+          >
+            <Icon className="mr-1.5 h-3.5 w-3.5" /> {meta.label}
+          </Button>
+        );
+      })}
     </div>
   );
 }
 
-export function Candidates() {
+function Candidates() {
 
   const {
     weights,
@@ -216,7 +260,7 @@ export function Candidates() {
   const skillOptions = useMemo(() => allSkills(pool), [pool]);
 
 
-  async function handleDecision(candidate: Candidate, decision: "approved" | "rejected") {
+  async function handleDecision(candidate: Candidate, decision: CandidateDecision) {
     setDecisions((d) => ({ ...d, [candidate.id]: { status: "sending" } }));
     try {
       const result = await submitCandidateDecision({
@@ -239,9 +283,7 @@ export function Candidates() {
       if (result.email_sent) {
         const label = blindMode ? `Candidate #${candidate.rank}` : candidate.name;
         toast.success(
-          decision === "approved"
-            ? `Selection email sent to ${label}${result.email_source === "mock" ? " (mock — configure SMTP to send for real)" : ""}`
-            : `Rejection email sent to ${label}${result.email_source === "mock" ? " (mock — configure SMTP to send for real)" : ""}`,
+          `${DECISIONS[decision].done} — email ${result.email_source === "mock" ? "logged (mock — configure SMTP to send for real)" : `sent to ${label}`}`,
         );
       } else {
         toast.error(`Email failed to send: ${result.email_error ?? "unknown error"}`);
@@ -276,7 +318,7 @@ export function Candidates() {
   const rows = filtered.slice((current - 1) * PAGE_SIZE, current * PAGE_SIZE);
 
   return (
-    <div className="mx-auto max-w-7xl space-y-6">
+    <div className="mx-auto flow max-w-7xl">
       <header className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-4">
         <div className="min-w-0">
           <h1 className="truncate text-2xl font-extrabold sm:text-3xl">Candidate Ranking</h1>
@@ -374,7 +416,7 @@ export function Candidates() {
               const isOpen = expanded === c.id;
               const displayName = blindMode ? `Candidate #${c.rank}` : c.name;
               return (
-                <div key={c.id} className="transition-colors hover:bg-secondary/40">
+                <div key={c.id} className="animate-fade transition-colors hover:bg-secondary/40">
                   <div className="grid grid-cols-[52px_minmax(0,1fr)_92px] items-center gap-4 px-5 py-4 md:grid-cols-[52px_minmax(0,1fr)_92px_minmax(0,1.3fr)_44px]">
                     <span className="text-sm font-extrabold tabular-nums text-muted-foreground">
                       #{c.rank}
@@ -427,6 +469,11 @@ export function Candidates() {
                       {isOpen ? "Hide" : "Why this rank?"}
                     </Button>
                     <div className="ml-auto">
+                      <ShareCandidateButton
+                        candidateId={c.id}
+                        candidateName={blindMode ? displayName : c.name}
+                        jobId={activeJobId}
+                      />
                       <DecisionControls
                         candidate={c}
                         state={decisions[c.id]}

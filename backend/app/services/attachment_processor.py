@@ -60,6 +60,7 @@ def upsert_candidate_from_parsed(
     parsed: dict[str, Any],
     text: str,
     blob_path: Optional[str],
+    owner_email: Optional[str] = None,
 ) -> Candidate:
     """Create-or-update a `Candidate` from a parsed resume (email-dedup
     upsert). Extracted from `resumes.py::_process_resume`'s original
@@ -71,7 +72,16 @@ def upsert_candidate_from_parsed(
         email = f"candidate.{uuid.uuid4().hex[:10]}@example.com"
         parsed["email"] = email
 
-    existing = next((c for c in active_store.candidates.list_all() if c.email == email), None)
+    # Dedup within the owner's own pool: two recruiters may each hold the
+    # same person, and neither should overwrite the other's copy.
+    existing = next(
+        (
+            c
+            for c in active_store.candidates.list_all()
+            if c.email == email and (owner_email is None or c.owner_email == owner_email)
+        ),
+        None,
+    )
     if existing:
         candidate = existing
         candidate.name = parsed.get("name") or candidate.name
@@ -90,6 +100,7 @@ def upsert_candidate_from_parsed(
         candidate.portfolio_url = parsed.get("portfolio_url") or candidate.portfolio_url
     else:
         candidate = Candidate(
+            owner_email=owner_email,
             name=parsed.get("name") or "Unknown",
             email=email,
             phone=parsed.get("phone"),
@@ -129,7 +140,9 @@ def _process_attachment(attachment_id: uuid.UUID) -> None:
 
         if attachment.kind == "resume":
             parsed = asyncio.run(resume_parser.parse_resume(text))
-            candidate = upsert_candidate_from_parsed(store, parsed, text, attachment.blob_path)
+            candidate = upsert_candidate_from_parsed(
+                store, parsed, text, attachment.blob_path, owner_email=attachment.recruiter_email
+            )
             attachment.candidate_id = candidate.id
 
         attachment.status = "processed"

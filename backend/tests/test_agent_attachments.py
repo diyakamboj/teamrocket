@@ -59,3 +59,33 @@ def test_attachment_upload_rejects_bad_extension(client):
         files={"file": ("malware.exe", io.BytesIO(b"nope"), "application/octet-stream")},
     )
     assert response.status_code == 422
+
+
+def test_attachment_is_not_readable_by_another_recruiter(client):
+    """The record holds the file's extracted text, so an id alone must not
+    be enough to read someone else's upload."""
+    uploaded = client.post(
+        "/api/agent/attachments",
+        files={"file": ("notes.txt", io.BytesIO(b"internal notes"), "text/plain")},
+        headers={"X-Recruiter-Email": "alice@example.com"},
+    ).json()
+
+    response = client.get(
+        f"/api/agent/attachments/{uploaded['id']}",
+        headers={"X-Recruiter-Email": "mallory@example.com"},
+    )
+    assert response.status_code == 404
+
+
+def test_attachment_is_readable_by_its_owner(client):
+    uploaded = client.post(
+        "/api/agent/attachments",
+        files={"file": ("notes.txt", io.BytesIO(b"internal notes"), "text/plain")},
+        headers={"X-Recruiter-Email": "alice@example.com"},
+    ).json()
+
+    response = client.get(
+        f"/api/agent/attachments/{uploaded['id']}",
+        headers={"X-Recruiter-Email": "alice@example.com"},
+    )
+    assert response.status_code == 200

@@ -19,6 +19,7 @@ from openai import AzureOpenAI
 
 from app.config import settings
 from app.utils.error_handlers import AzureServiceError
+from app.utils.validators import safe_upload_filename
 from app.utils.logger import get_logger
 
 logger = get_logger(__name__)
@@ -72,8 +73,16 @@ class AzureBlobService:
                 except Exception:
                     pass
 
-    def upload_bytes(self, data: bytes, filename: str, content_type: str = "application/pdf") -> str:
-        blob_name = f"resumes/{uuid.uuid4()}/{filename}"
+    def upload_bytes(
+        self,
+        data: bytes,
+        filename: str,
+        content_type: str = "application/pdf",
+        prefix: str = "resumes",
+    ) -> str:
+        # The filename is client-supplied and becomes part of the blob key, so
+        # it is reduced to a single safe segment before it gets there.
+        blob_name = f"{prefix}/{uuid.uuid4()}/{safe_upload_filename(filename)}"
         if self.mock:
             local_dir = Path(settings.UPLOAD_DIR) / "blobs"
             local_dir.mkdir(parents=True, exist_ok=True)
@@ -90,6 +99,24 @@ class AzureBlobService:
             content_settings=ContentSettings(content_type=content_type),
         )
         return blob_name
+
+    def delete_blob(self, blob_path: str) -> None:
+        """Remove an uploaded file. Deleting the record without this leaves
+        the bytes in storage forever, which is not what "delete" should mean
+        for a document someone uploaded."""
+        if self.mock or Path(blob_path).exists():
+            path = Path(blob_path)
+            if path.exists():
+                path.unlink()
+            return
+
+        assert self._client is not None
+        try:
+            self._client.get_blob_client(
+                container=self.container, blob=blob_path
+            ).delete_blob()
+        except Exception as exc:
+            logger.warning("Blob delete failed for %s: %s", blob_path, exc)
 
     def download_bytes(self, blob_path: str) -> bytes:
         if self.mock or Path(blob_path).exists():
@@ -893,10 +920,16 @@ class AzureDocumentIntelligenceService:
                 pass
         return ""
 
+    #: Formats that are already text. Sending these to Document Intelligence
+    #: fails — `prebuilt-read` expects PDFs or images — and it would be a
+    #: pointless round-trip even if it worked.
+    PLAIN_TEXT_SUFFIXES = (".txt", ".md")
+
     def extract_text(self, file_bytes: bytes, filename: str = "resume.pdf") -> str:
+        if filename.lower().endswith(self.PLAIN_TEXT_SUFFIXES):
+            return file_bytes.decode("utf-8", errors="ignore")
+
         if self.mock:
-            if filename.lower().endswith(".txt"):
-                return file_bytes.decode("utf-8", errors="ignore")
             extracted = self._extract_pdf_or_docx_fallback(file_bytes, filename)
             if extracted and len(extracted.strip()) > 30:
                 return extracted
@@ -919,12 +952,20 @@ class AzureDocumentIntelligenceService:
                 content_type="application/octet-stream",
             )
             result = poller.result()
-            return result.content or ""
+            if result.content:
+                return result.content
         except Exception as exc:
-            logger.exception("Document Intelligence failed")
-            raise AzureServiceError(
-                "Document Intelligence extraction failed", {"reason": str(exc)}
-            ) from exc
+            logger.warning("Document Intelligence failed for %s: %s", filename, exc)
+
+        # Local extraction as a fallback: a readable PDF or Word file should
+        # not be unreadable just because the OCR service rejected it.
+        extracted = self._extract_pdf_or_docx_fallback(file_bytes, filename)
+        if extracted and extracted.strip():
+            return extracted
+        raise AzureServiceError(
+            "Could not extract text from the document",
+            {"filename": filename},
+        )
 
 
 class AzureSearchService:

@@ -54,7 +54,9 @@ def _process_resume(upload_id: uuid.UUID) -> None:
 
         parsed = asyncio.run(resume_parser.parse_resume(text))
 
-        candidate = upsert_candidate_from_parsed(store, parsed, text, upload.blob_path)
+        candidate = upsert_candidate_from_parsed(
+            store, parsed, text, upload.blob_path, owner_email=upload.recruiter_email
+        )
 
         upload.candidate_id = candidate.id
         upload.status = "complete"
@@ -83,12 +85,23 @@ async def upload_resumes(
     Path(settings.UPLOAD_DIR).mkdir(parents=True, exist_ok=True)
     batch_id = str(uuid.uuid4())
     items: list[ResumeUploadItem] = []
-    seen_names = {row.filename.lower() for row in store.resume_uploads.list_all()}
+    # Duplicate detection is per recruiter: matching on every upload ever made
+    # meant one recruiter's "resume.pdf" silently marked another's as a
+    # duplicate, so the file was skipped and no candidate ever appeared.
+    # Only filenames that already produced a candidate count as duplicates —
+    # a prior failed/unprocessed attempt with the same name must not block a
+    # retry from ever being processed.
+    seen_names = {
+        row.filename.lower()
+        for row in store.resume_uploads.query(lambda r: r.recruiter_email == recruiter_email)
+        if row.candidate_id is not None
+    }
 
     for file in files:
         filename = file.filename or "resume.pdf"
         if not is_allowed_resume_filename(filename):
             upload = ResumeUpload(
+                recruiter_email=recruiter_email,
                 filename=filename,
                 status="failed",
                 progress=100,
@@ -109,6 +122,7 @@ async def upload_resumes(
         content = await file.read()
         if len(content) > MAX_RESUME_SIZE_BYTES:
             upload = ResumeUpload(
+                recruiter_email=recruiter_email,
                 filename=filename,
                 status="failed",
                 progress=100,
@@ -135,6 +149,7 @@ async def upload_resumes(
             content_type=file.content_type or "application/pdf",
         )
         upload = ResumeUpload(
+            recruiter_email=recruiter_email,
             filename=filename,
             blob_path=blob_path,
             status="duplicate" if is_duplicate else "queued",
