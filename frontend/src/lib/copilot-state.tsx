@@ -11,7 +11,9 @@ import {
 import { toast } from "sonner";
 import {
   askAgent,
+  askAgentStreaming,
   getAgentModels,
+  type AgentProgress,
   getCandidate,
   getChatAttachment,
   listAgentSessions,
@@ -86,6 +88,7 @@ type Ctx = {
   send: (text: string, opts?: SendOptions) => Promise<void>;
   loading: boolean;
   toolInFlight: string | null;
+  thinking: AgentProgress[];
   models: CopilotModelInfo[];
   selectedModelId: string | null;
   setSelectedModelId: (id: string | null) => void;
@@ -110,6 +113,8 @@ export function CopilotProvider({ children }: { children: ReactNode }) {
   const [chatbotConversationId, setChatbotConversationId] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [toolInFlight, setToolInFlight] = useState<string | null>(null);
+  // What the agent reported doing for the message in flight.
+  const [thinking, setThinking] = useState<AgentProgress[]>([]);
 
   const [models, setModels] = useState<CopilotModelInfo[]>([]);
   const [selectedModelId, setSelectedModelId] = useState<string | null>(null);
@@ -256,20 +261,24 @@ export function CopilotProvider({ children }: { children: ReactNode }) {
       };
       setMessages((m) => [...m, userMsg]);
       setLoading(true);
+      setThinking([]);
       setToolInFlight(guessToolInFlight(query));
 
       try {
-        const result = await askAgent({
-          query,
-          job_id: activeJobId,
-          session_id: sessionId,
-          chatbot_conversation_id: chatbotConversationId,
-          blind_mode: blindMode,
-          weights,
-          candidate_id: isBackendUuid(viewingCandidateId) ? viewingCandidateId : null,
-          model_id: selectedModelId,
-          attachment_ids: attachmentIds,
-        });
+        const result = await askAgentStreaming(
+          {
+            query,
+            job_id: activeJobId,
+            session_id: sessionId,
+            chatbot_conversation_id: chatbotConversationId,
+            blind_mode: blindMode,
+            weights,
+            candidate_id: isBackendUuid(viewingCandidateId) ? viewingCandidateId : null,
+            model_id: selectedModelId,
+            attachment_ids: attachmentIds,
+          },
+          (progress) => setThinking((steps) => [...steps, progress]),
+        );
 
         setSessionId(result.session_id);
         if (result.chatbot_conversation_id) {
@@ -313,6 +322,7 @@ export function CopilotProvider({ children }: { children: ReactNode }) {
       } finally {
         setLoading(false);
         setToolInFlight(null);
+        setThinking([]);
       }
     },
     [
@@ -401,6 +411,7 @@ export function CopilotProvider({ children }: { children: ReactNode }) {
       send,
       loading,
       toolInFlight,
+      thinking,
       models,
       selectedModelId,
       setSelectedModelId,
@@ -421,6 +432,7 @@ export function CopilotProvider({ children }: { children: ReactNode }) {
       send,
       loading,
       toolInFlight,
+      thinking,
       models,
       selectedModelId,
       sessions,

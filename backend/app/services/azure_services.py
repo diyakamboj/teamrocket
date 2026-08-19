@@ -1,13 +1,19 @@
+import copy
 import hashlib
 import json
 import math
 import re
+import threading
 import time
 import uuid
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 from typing import Any, Optional
 
+import requests
+from requests.adapters import HTTPAdapter
 from azure.core.credentials import AzureKeyCredential
+from azure.core.pipeline.transport import RequestsTransport
 from azure.storage.blob import BlobServiceClient, ContentSettings
 from openai import AzureOpenAI
 
@@ -16,6 +22,22 @@ from app.utils.error_handlers import AzureServiceError
 from app.utils.logger import get_logger
 
 logger = get_logger(__name__)
+
+
+def _build_blob_transport() -> RequestsTransport:
+    """HTTP transport sized for the batched reads/writes the store issues.
+
+    azure-core mounts a plain `requests` adapter, whose pool defaults to 10
+    connections. Batched operations run `BLOB_MAX_CONCURRENCY` threads, so on
+    the stock pool most of them queue for a socket and the overflow pays a
+    fresh TLS handshake per call.
+    """
+    pool = max(settings.BLOB_CONNECTION_POOL_SIZE, settings.BLOB_MAX_CONCURRENCY)
+    session = requests.Session()
+    adapter = HTTPAdapter(pool_connections=pool, pool_maxsize=pool)
+    session.mount("https://", adapter)
+    session.mount("http://", adapter)
+    return RequestsTransport(session=session, session_owner=False)
 
 
 class AzureBlobService:
@@ -30,7 +52,8 @@ class AzureBlobService:
             # say so loudly instead.
             try:
                 self._client = BlobServiceClient.from_connection_string(
-                    settings.AZURE_STORAGE_CONNECTION_STRING
+                    settings.AZURE_STORAGE_CONNECTION_STRING,
+                    transport=_build_blob_transport(),
                 )
             except Exception as exc:
                 logger.error(
@@ -80,6 +103,148 @@ class AzureBlobService:
         return blob.download_blob().readall()
 
 
+_BLOB_POOL: Optional[ThreadPoolExecutor] = None
+_BLOB_POOL_LOCK = threading.Lock()
+
+
+def _blob_pool() -> ThreadPoolExecutor:
+    """One process-wide worker pool for batched blob I/O, so a batch does not
+    create (and tear down) a thread pool per call."""
+    global _BLOB_POOL
+    if _BLOB_POOL is None:
+        with _BLOB_POOL_LOCK:
+            if _BLOB_POOL is None:
+                _BLOB_POOL = ThreadPoolExecutor(
+                    max_workers=max(1, settings.BLOB_MAX_CONCURRENCY),
+                    thread_name_prefix="blob",
+                )
+    return _BLOB_POOL
+
+
+class _DocumentCache:
+    """ETag-validated cache of JSON documents.
+
+    Blob Storage returns an ETag for every blob in a *listing*, and listing
+    200 blobs costs one round-trip where reading them costs 200. So a
+    collection read lists first and then downloads only the blobs whose ETag
+    differs from the cached copy — re-reading unchanged data becomes a single
+    LIST.
+
+    Coherence: a cached document is served only while the ETag from the most
+    recent listing (or from our own write) still matches, so another writer's
+    change is picked up by the next listing. Documents in append-only
+    collections are never rewritten, so those are cached without
+    revalidation (`immutable=True` on `list_prefix`). `BLOB_CACHE_ENABLED`
+    turns the whole thing off.
+    """
+
+    #: Sentinel ETag for blobs in append-only collections, which by contract
+    #: are written once and never modified.
+    IMMUTABLE = "\x00immutable"
+
+    def __init__(self, *, enabled: bool, listing_ttl: float, max_documents: int = 50_000) -> None:
+        self.enabled = enabled
+        self._listing_ttl = listing_ttl
+        self._max_documents = max_documents
+        self._docs: dict[str, tuple[str, dict]] = {}
+        self._etags: dict[str, str] = {}
+        self._listings: dict[str, tuple[float, list[str]]] = {}
+        self._lock = threading.Lock()
+        self.hits = 0
+        self.misses = 0
+
+    @staticmethod
+    def _normalize(etag: Optional[str]) -> Optional[str]:
+        # Listings and upload responses quote ETags inconsistently.
+        return etag.strip('"') if etag else None
+
+    def fresh_doc(self, key: str) -> Optional[dict]:
+        """Cached document if its ETag still matches what the server last
+        reported, else None. Returns a copy — callers must not share state."""
+        if not self.enabled:
+            return None
+        with self._lock:
+            cached = self._docs.get(key)
+            expected = self._etags.get(key)
+            if cached is not None and expected is not None and cached[0] == expected:
+                self.hits += 1
+                return copy.deepcopy(cached[1])
+            self.misses += 1
+            return None
+
+    def store_doc(self, key: str, etag: Optional[str], doc: dict) -> None:
+        etag = self._normalize(etag)
+        if not self.enabled or etag is None:
+            return
+        with self._lock:
+            if len(self._docs) >= self._max_documents:
+                self._docs.clear()
+            self._docs[key] = (etag, copy.deepcopy(doc))
+            self._etags[key] = etag
+
+    def note_etag(self, key: str, etag: Optional[str]) -> None:
+        etag = self._normalize(etag)
+        if not self.enabled or etag is None:
+            return
+        with self._lock:
+            if len(self._etags) >= self._max_documents:
+                self._etags.clear()
+                self._docs.clear()
+            self._etags[key] = etag
+
+    def note_immutable(self, keys: list[str]) -> None:
+        """Mark keys as write-once, so cached copies never need revalidating."""
+        if not self.enabled:
+            return
+        with self._lock:
+            if len(self._etags) + len(keys) >= self._max_documents:
+                self._etags.clear()
+                self._docs.clear()
+            for key in keys:
+                self._etags.setdefault(key, self.IMMUTABLE)
+
+    def forget(self, key: str) -> None:
+        if not self.enabled:
+            return
+        with self._lock:
+            self._docs.pop(key, None)
+            self._etags.pop(key, None)
+
+    def listing(self, prefix: str) -> Optional[list[str]]:
+        if not self.enabled or self._listing_ttl <= 0:
+            return None
+        with self._lock:
+            entry = self._listings.get(prefix)
+            if entry and (time.monotonic() - entry[0]) < self._listing_ttl:
+                return list(entry[1])
+            return None
+
+    def store_listing(self, prefix: str, keys: list[str]) -> None:
+        if not self.enabled or self._listing_ttl <= 0:
+            return
+        with self._lock:
+            self._listings[prefix] = (time.monotonic(), list(keys))
+
+    def invalidate_listings_for(self, key: str) -> None:
+        """Drop any cached listing that covered `key`, so our own write is
+        visible to the next read immediately."""
+        if not self.enabled:
+            return
+        with self._lock:
+            for prefix in [p for p in self._listings if key.startswith(p)]:
+                self._listings.pop(prefix, None)
+            self._listings.pop("", None)
+
+    def stats(self) -> dict[str, Any]:
+        with self._lock:
+            return {
+                "enabled": self.enabled,
+                "documents": len(self._docs),
+                "hits": self.hits,
+                "misses": self.misses,
+            }
+
+
 class JsonBlobStore:
     """Generic JSON-document store layered on top of AzureBlobService.
 
@@ -98,6 +263,30 @@ class JsonBlobStore:
     def __init__(self, blob_service: AzureBlobService, prefix: str = "documents") -> None:
         self._blob_service = blob_service
         self.prefix = prefix.strip("/")
+        # Local mock mode reads straight off disk, where caching would only
+        # add copying overhead and a second source of truth.
+        self._cache = _DocumentCache(
+            enabled=settings.BLOB_CACHE_ENABLED and not blob_service.mock,
+            listing_ttl=settings.BLOB_LISTING_CACHE_SECONDS,
+        )
+
+    @property
+    def cache(self) -> _DocumentCache:
+        return self._cache
+
+    def _blob_client(self, key: str):
+        client = self._blob_service._client
+        assert client is not None
+        return client.get_blob_client(
+            container=self._blob_service.container, blob=self._blob_name(key)
+        )
+
+    def _map(self, fn, items: list) -> list:
+        """Run `fn` over `items` on the shared pool, preserving order."""
+        workers = min(max(1, settings.BLOB_MAX_CONCURRENCY), len(items))
+        if workers <= 1:
+            return [fn(item) for item in items]
+        return list(_blob_pool().map(fn, items))
 
     def _local_root(self) -> Path:
         root = Path(settings.UPLOAD_DIR) / self.prefix
@@ -118,14 +307,15 @@ class JsonBlobStore:
             path.write_bytes(data)
             return
 
-        client = self._blob_service._client
-        assert client is not None
-        blob = client.get_blob_client(container=self._blob_service.container, blob=self._blob_name(key))
-        blob.upload_blob(
+        result = self._blob_client(key).upload_blob(
             data,
             overwrite=True,
             content_settings=ContentSettings(content_type="application/json"),
         )
+        # The write response carries the new ETag, so what we just wrote is
+        # readable from cache without a round-trip.
+        self._cache.store_doc(key, (result or {}).get("etag"), doc)
+        self._cache.invalidate_listings_for(key)
 
     def get(self, key: str) -> Optional[dict]:
         if self._blob_service.mock:
@@ -134,14 +324,82 @@ class JsonBlobStore:
                 return None
             return json.loads(path.read_text(encoding="utf-8"))
 
-        client = self._blob_service._client
-        assert client is not None
-        blob = client.get_blob_client(container=self._blob_service.container, blob=self._blob_name(key))
+        cached = self._cache.fresh_doc(key)
+        if cached is not None:
+            return cached
+        return self._fetch(key)
+
+    def _fetch(self, key: str) -> Optional[dict]:
+        """Download and cache one document, skipping the cache lookup."""
         try:
-            data = blob.download_blob().readall()
+            downloader = self._blob_client(key).download_blob()
+            data = downloader.readall()
         except Exception:
             return None
-        return json.loads(data.decode("utf-8"))
+        doc = json.loads(data.decode("utf-8"))
+        properties = getattr(downloader, "properties", None)
+        self._cache.store_doc(key, getattr(properties, "etag", None), doc)
+        return doc
+
+    def get_many(self, keys: list[str]) -> list[Optional[dict]]:
+        """Fetch many documents concurrently, preserving input order.
+
+        Against real Blob Storage every read is a ~40ms round-trip, so reading
+        a collection one key at a time is what made listing endpoints slow.
+        Documents whose ETag has not changed since the last listing come from
+        cache, so only genuinely changed blobs are downloaded.
+        """
+        if not keys:
+            return []
+        if self._blob_service.mock:
+            return [self.get(key) for key in keys]
+
+        results: list[Optional[dict]] = [None] * len(keys)
+        pending: list[int] = []
+        for i, key in enumerate(keys):
+            cached = self._cache.fresh_doc(key)
+            if cached is not None:
+                results[i] = cached
+            else:
+                pending.append(i)
+        if not pending:
+            return results
+
+        def fetch(index: int) -> tuple[int, Optional[dict]]:
+            try:
+                return index, self._fetch(keys[index])
+            except Exception as exc:
+                logger.warning("Failed to read blob %s: %s", keys[index], exc)
+                return index, None
+
+        for index, doc in self._map(fetch, pending):
+            results[index] = doc
+        return results
+
+    def put_many(self, items: list[tuple[str, dict]], *, strict: bool = False) -> None:
+        """Write many documents concurrently.
+
+        `strict=True` propagates the first failure, for primary domain writes
+        that must not be silently lost; the default logs and continues, which
+        is what secondary writes (evidence, history) want.
+        """
+        if not items:
+            return
+        if self._blob_service.mock:
+            for key, doc in items:
+                self.put(key, doc)
+            return
+
+        def write(item: tuple[str, dict]) -> None:
+            key, doc = item
+            try:
+                self.put(key, doc)
+            except Exception as exc:
+                if strict:
+                    raise
+                logger.warning("Failed to write blob %s: %s", key, exc)
+
+        self._map(write, items)
 
     def delete(self, key: str) -> None:
         if self._blob_service.mock:
@@ -150,25 +408,38 @@ class JsonBlobStore:
                 path.unlink()
             return
 
-        client = self._blob_service._client
-        assert client is not None
-        blob = client.get_blob_client(container=self._blob_service.container, blob=self._blob_name(key))
         try:
-            blob.delete_blob()
+            self._blob_client(key).delete_blob()
         except Exception:
             pass
+        self._cache.forget(key)
+        self._cache.invalidate_listings_for(key)
+
+    def delete_many(self, keys: list[str]) -> None:
+        """Delete many documents concurrently (see `get_many` for why)."""
+        if not keys:
+            return
+        if self._blob_service.mock:
+            for key in keys:
+                self.delete(key)
+            return
+        self._map(self.delete, keys)
 
     def exists(self, key: str) -> bool:
         if self._blob_service.mock:
             return self._local_path(key).exists()
 
-        client = self._blob_service._client
-        assert client is not None
-        blob = client.get_blob_client(container=self._blob_service.container, blob=self._blob_name(key))
-        return bool(blob.exists())
+        if self._cache.fresh_doc(key) is not None:
+            return True
+        return bool(self._blob_client(key).exists())
 
-    def list_prefix(self, prefix: str) -> list[str]:
-        """List document keys (relative to `documents/`) under `prefix`, sorted ascending."""
+    def list_prefix(self, prefix: str, *, immutable: bool = False) -> list[str]:
+        """List document keys (relative to `documents/`) under `prefix`, sorted ascending.
+
+        `immutable=True` promises the caller only ever writes a key once
+        (append-only collections), which lets the listing skip fetching ETags
+        and lets cached documents be reused without revalidation.
+        """
         prefix = prefix.strip("/")
         if self._blob_service.mock:
             root = self._local_root()
@@ -182,15 +453,32 @@ class JsonBlobStore:
             ]
             return sorted(keys)
 
+        cached_listing = self._cache.listing(prefix)
+        if cached_listing is not None:
+            return cached_listing
+
         client = self._blob_service._client
         assert client is not None
         container_client = client.get_container_client(self._blob_service.container)
         full_prefix = f"{self.prefix}/{prefix}" if prefix else f"{self.prefix}/"
-        keys = [
-            blob.name[len(self.prefix) + 1 :]
-            for blob in container_client.list_blobs(name_starts_with=full_prefix)
-        ]
-        return sorted(keys)
+        strip = len(self.prefix) + 1
+
+        if immutable:
+            keys = [
+                name[strip:]
+                for name in container_client.list_blob_names(name_starts_with=full_prefix)
+            ]
+            self._cache.note_immutable(keys)
+        else:
+            keys = []
+            for blob in container_client.list_blobs(name_starts_with=full_prefix):
+                key = blob.name[strip:]
+                keys.append(key)
+                self._cache.note_etag(key, blob.etag)
+
+        keys.sort()
+        self._cache.store_listing(prefix, keys)
+        return keys
 
 
 class AzureOpenAIService:
@@ -204,7 +492,7 @@ class AzureOpenAIService:
                 api_key=settings.AZURE_OPENAI_API_KEY,
                 api_version=settings.AZURE_OPENAI_API_VERSION,
                 azure_endpoint=settings.AZURE_OPENAI_ENDPOINT,
-                timeout=30.0,
+                timeout=settings.AZURE_OPENAI_TIMEOUT_SECONDS,
                 max_retries=settings.AZURE_OPENAI_MAX_RETRIES,
             )
 
@@ -214,7 +502,7 @@ class AzureOpenAIService:
                 api_key=settings.AZURE_OPENAI_EMBEDDING_API_KEY,
                 api_version=settings.AZURE_OPENAI_API_VERSION,
                 azure_endpoint=settings.AZURE_OPENAI_EMBEDDING_ENDPOINT,
-                timeout=30.0,
+                timeout=settings.AZURE_OPENAI_TIMEOUT_SECONDS,
                 max_retries=settings.AZURE_OPENAI_MAX_RETRIES,
             )
         else:
@@ -246,7 +534,13 @@ class AzureOpenAIService:
         temperature: float = 0.3,
         deployment: Optional[str] = None,
     ) -> dict[str, Any]:
-        content = self.chat_text(prompt, system=system, temperature=temperature, deployment=deployment)
+        content = self.chat_text(
+            prompt,
+            system=system,
+            temperature=temperature,
+            deployment=deployment,
+            response_format={"type": "json_object"},
+        )
         return self._safe_json(content)
 
     def chat_json_or_empty(
@@ -286,6 +580,7 @@ class AzureOpenAIService:
         max_tokens: int = 1200,
         messages: Optional[list[dict[str, str]]] = None,
         deployment: Optional[str] = None,
+        response_format: Optional[dict[str, str]] = None,
     ) -> str:
         if self.mock:
             return self._mock_response(prompt)
@@ -301,12 +596,22 @@ class AzureOpenAIService:
             {"role": "system", "content": system},
             {"role": "user", "content": prompt},
         ]
+        selected_deployment = deployment or settings.AZURE_OPENAI_DEPLOYMENT_NAME
+        is_gpt5 = selected_deployment.lower().startswith("gpt-5")
+        effort = (settings.AZURE_OPENAI_REASONING_EFFORT or "").strip().lower()
+        completion_options = {
+            **({"max_completion_tokens": max(max_tokens, 3000)} if is_gpt5 else {"max_tokens": max_tokens}),
+            **({} if is_gpt5 else {"temperature": temperature}),
+            # Reasoning effort is only meaningful to reasoning deployments;
+            # sending it to gpt-4o-class models is an API error.
+            **({"reasoning_effort": effort} if is_gpt5 and effort else {}),
+            **({"response_format": response_format} if response_format else {}),
+        }
         try:
             response = self._client.chat.completions.create(
-                model=deployment or settings.AZURE_OPENAI_DEPLOYMENT_NAME,
+                model=selected_deployment,
                 messages=payload,
-                temperature=temperature,
-                max_completion_tokens=max_tokens,
+                **completion_options,
             )
         except Exception as exc:
             self._record_failure()

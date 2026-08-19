@@ -6,7 +6,6 @@ import { Button } from "@/components/ui/button";
 import {
   Briefcase,
   Globe,
-  PlusCircle,
   Zap,
   Users,
   Loader2,
@@ -14,7 +13,6 @@ import {
   Sparkles,
 } from "lucide-react";
 import { getSession } from "@/lib/auth";
-import { CreateJobModal } from "@/components/create-job-modal";
 import {
   getJobPipeline,
   listJobPipelines,
@@ -50,7 +48,6 @@ function greeting(): string {
 
 function DashboardPage() {
   const session = getSession();
-  const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [jobs, setJobs] = useState<JobWithPipeline[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -173,11 +170,6 @@ function DashboardPage() {
                 : "Here's what is happening across your internal and external hiring pipelines right now."}
           </p>
         </div>
-
-        <Button onClick={() => setIsCreateModalOpen(true)} className="rounded-xl">
-          <PlusCircle className="mr-2 h-4 w-4" />
-          Create new job
-        </Button>
       </header>
 
       <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
@@ -419,7 +411,6 @@ function DashboardPage() {
         </CardContent>
       </Card>
 
-      <CreateJobModal isOpen={isCreateModalOpen} onClose={() => setIsCreateModalOpen(false)} />
     </div>
   );
 }

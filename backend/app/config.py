@@ -19,6 +19,21 @@ class Settings(BaseSettings):
     AZURE_STORAGE_CONNECTION_STRING: Optional[str] = None
     AZURE_BLOB_CONTAINER_NAME: str = "resumes"
 
+    # Blob-store performance. The document store is this app's database, so
+    # its round-trip count dominates request latency (see JsonBlobStore).
+    #   CONCURRENCY      threads used for batched get/put/delete
+    #   CONNECTION_POOL  HTTPS connections kept alive; must be >= concurrency
+    #                    or threads queue for sockets and pay TLS handshakes
+    #   CACHE_ENABLED    serve documents from memory while their ETag is
+    #                    unchanged; disable if another writer shares the
+    #                    container
+    #   LISTING_CACHE    seconds a prefix listing may be reused (our own
+    #                    writes invalidate it immediately)
+    BLOB_MAX_CONCURRENCY: int = 32
+    BLOB_CONNECTION_POOL_SIZE: int = 64
+    BLOB_CACHE_ENABLED: bool = True
+    BLOB_LISTING_CACHE_SECONDS: float = 5.0
+
     # Azure AI Document Intelligence
     AZURE_DOCUMENT_INTELLIGENCE_KEY: Optional[str] = None
     AZURE_DOCUMENT_INTELLIGENCE_ENDPOINT: Optional[str] = None
@@ -34,9 +49,20 @@ class Settings(BaseSettings):
     # Own-fallback retries: every LLM seam degrades deterministically, so the
     # SDK retrying 3x per call only multiplies outage latency.
     AZURE_OPENAI_MAX_RETRIES: int = 1
+
+    # GPT-5 spends tokens "thinking" before it answers, and defaults to
+    # medium effort. The copilot's calls are structured extraction and
+    # grounded synthesis, not open problem solving, so low effort answers in
+    # a fraction of the time: measured 8.5s -> 3.9s on a 11KB synthesis
+    # prompt. Set "minimal" to disable reasoning, or "medium"/"high" to trade
+    # latency back for depth. Ignored by non-reasoning deployments.
+    AZURE_OPENAI_REASONING_EFFORT: str = "low"
+    # A copilot answer used to exceed the old hardcoded 30s ceiling, retry,
+    # and then fall back to the deterministic answer after ~85s of waiting.
+    AZURE_OPENAI_TIMEOUT_SECONDS: float = 60.0
     # Consecutive failures before the breaker opens, and how long it stays open.
-    AZURE_OPENAI_FAILURE_THRESHOLD: int = 3
-    AZURE_OPENAI_BREAKER_COOLDOWN_SECONDS: float = 60.0
+    AZURE_OPENAI_FAILURE_THRESHOLD: int = 8
+    AZURE_OPENAI_BREAKER_COOLDOWN_SECONDS: float = 15.0
 
 
     # Azure AI Search

@@ -37,6 +37,41 @@ logger = get_logger(__name__)
 MAX_FOCUS_AREAS = 5
 
 
+def build_history_event(
+    *,
+    candidate_id: str,
+    event_type: str,
+    candidate_name: Optional[str] = None,
+    job_id: Optional[str] = None,
+    job_title: Optional[str] = None,
+    actor_email: Optional[str] = None,
+    summary: Optional[str] = None,
+    details: Optional[dict[str, Any]] = None,
+) -> CandidateHistoryEvent:
+    """An unsaved history event, so callers writing many at once can batch."""
+    return CandidateHistoryEvent(
+        candidate_id=str(candidate_id),
+        candidate_name=candidate_name,
+        job_id=str(job_id) if job_id else None,
+        job_title=job_title,
+        event_type=event_type,
+        actor_email=actor_email,
+        summary=summary,
+        details=details or {},
+    )
+
+
+def log_history_events(store: Store, events: list[CandidateHistoryEvent]) -> None:
+    """Append many history events in one batch. Best-effort, like
+    `log_history_event` — a failed audit trail must not fail the request."""
+    if not events:
+        return
+    try:
+        store.candidate_history_events.save_many(events)
+    except Exception as exc:
+        logger.warning("Failed to persist %d history events: %s", len(events), exc)
+
+
 def log_history_event(
     store: Store,
     *,
@@ -51,30 +86,28 @@ def log_history_event(
 ) -> Optional[CandidateHistoryEvent]:
     """Append a history event. Best-effort: logs and swallows on failure
     rather than failing the caller's request (secondary write)."""
-    event = CandidateHistoryEvent(
-        candidate_id=str(candidate_id),
-        candidate_name=candidate_name,
-        job_id=str(job_id) if job_id else None,
-        job_title=job_title,
+    event = build_history_event(
+        candidate_id=candidate_id,
         event_type=event_type,
+        candidate_name=candidate_name,
+        job_id=job_id,
+        job_title=job_title,
         actor_email=actor_email,
         summary=summary,
-        details=details or {},
+        details=details,
     )
-    try:
-        store.candidate_history_events.save(event)
-    except Exception as exc:
-        logger.warning("Failed to persist history event %s: %s", event_type, exc)
+    log_history_events(store, [event])
     return event
 
 
 def get_history(
     store: Store, candidate_id: str, job_id: Optional[str] = None
 ) -> list[CandidateHistoryEvent]:
-    events = store.candidate_history_events.query(
-        lambda e: e.candidate_id == str(candidate_id)
-        and (job_id is None or e.job_id == str(job_id))
-    )
+    events = [
+        event
+        for event in store.candidate_history_events.list_for_candidate(candidate_id)
+        if job_id is None or event.job_id == str(job_id)
+    ]
     return sorted(events, key=lambda e: (e.created_at, e.event_type == "evaluation_updated"), reverse=True)
 
 
