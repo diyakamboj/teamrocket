@@ -1,6 +1,18 @@
 # Backend (FastAPI, Python 3.12 per root README). Frontend is static-hosted
-# from the storage account (storage.tf) instead of a second App Service —
-# it's a pure client-side Vite SPA with no server-side rendering need.
+# from the storage account (storage.tf), not a second App Service.
+#
+# CORRECTION 2026-08-19: this comment used to claim the frontend was "a
+# pure client-side Vite SPA with no server-side rendering need" — checked
+# directly against the actual build output and that's wrong. The frontend
+# uses TanStack Start and its build produces real server-rendered route
+# bundles (.output/server/), not just static files. It also defaulted to
+# targeting Cloudflare Workers, confirmed to be an unconfigured scaffolding
+# default (no wrangler.toml committed, no cloudflare package dependency),
+# not a deliberate choice. Decision made 2026-08-19: reconfigure the build
+# to produce static output instead (Nitro's `static` preset) rather than
+# add new compute here — a teammate is implementing that on the frontend
+# side. If that turns out not to be viable, this comment and storage.tf's
+# static website setup will need revisiting.
 
 resource "azurerm_service_plan" "backend" {
   name                = "asp-${var.project_name}-${var.environment}"
@@ -29,6 +41,15 @@ resource "azurerm_linux_web_app" "backend" {
       python_version = "3.12"
     }
     app_command_line = "uvicorn app.main:app --host 0.0.0.0 --port 8000"
+
+    # backend/app/main.py exposes an unauthenticated GET /health with no
+    # downstream calls (just reflects in-memory settings) — confirmed
+    # directly against the app repo before wiring this in. On a single B1
+    # instance this mainly surfaces unhealthy status in the portal/App
+    # Insights; it starts actually rotating instances out once this plan
+    # scales beyond one.
+    health_check_path                 = "/health"
+    health_check_eviction_time_in_min = 2 # provider requires both set together; 2 = min allowed, fastest eviction
 
     # `dynamic` (with a static for_each) rather than a plain `cors {}` block —
     # the allowed_origins value below isn't known until the storage account
@@ -77,11 +98,16 @@ resource "azurerm_linux_web_app" "backend" {
     AZURE_DOCUMENT_INTELLIGENCE_ENDPOINT = "@Microsoft.KeyVault(SecretUri=${azurerm_key_vault_secret.document_intelligence_endpoint.versionless_id})"
     AZURE_OPENAI_API_KEY                 = "@Microsoft.KeyVault(SecretUri=${azurerm_key_vault_secret.openai_api_key.versionless_id})"
     AZURE_OPENAI_ENDPOINT                = "@Microsoft.KeyVault(SecretUri=${azurerm_key_vault_secret.openai_endpoint.versionless_id})"
+    AZURE_OPENAI_EMBEDDING_API_KEY       = "@Microsoft.KeyVault(SecretUri=${azurerm_key_vault_secret.embedding_api_key.versionless_id})"
+    AZURE_OPENAI_EMBEDDING_ENDPOINT      = "@Microsoft.KeyVault(SecretUri=${azurerm_key_vault_secret.embedding_endpoint.versionless_id})"
     AZURE_SEARCH_ADMIN_KEY               = "@Microsoft.KeyVault(SecretUri=${azurerm_key_vault_secret.search_api_key.versionless_id})"
     AZURE_SEARCH_ENDPOINT                = "@Microsoft.KeyVault(SecretUri=${azurerm_key_vault_secret.search_endpoint.versionless_id})"
     SMTP_USERNAME                        = "@Microsoft.KeyVault(SecretUri=${azurerm_key_vault_secret.smtp_username.versionless_id})"
     SMTP_PASSWORD                        = "@Microsoft.KeyVault(SecretUri=${azurerm_key_vault_secret.smtp_password.versionless_id})"
     GITHUB_TOKEN                         = "@Microsoft.KeyVault(SecretUri=${azurerm_key_vault_secret.github_token.versionless_id})"
+    # Enables full Azure Monitor telemetry in backend/app/config.py (PR #8) —
+    # produced by monitoring.tf, which previously didn't exist.
+    APPLICATIONINSIGHTS_CONNECTION_STRING = "@Microsoft.KeyVault(SecretUri=${azurerm_key_vault_secret.app_insights_connection_string.versionless_id})"
 
     # HACKERRANK_API_KEY intentionally omitted — confirmed dead code, see
     # KNOWN-ISSUES.md #8.
