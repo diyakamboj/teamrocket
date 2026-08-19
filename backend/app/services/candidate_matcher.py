@@ -181,7 +181,22 @@ class CandidateMatcher:
         if not job:
             raise NotFoundError("Job posting not found", {"job_id": str(job_id)})
 
-        candidates = store.candidates.query(lambda c: c.source == source) if source else store.candidates.list_all()
+        # External applicants are scoped to the job their resume was
+        # actually uploaded against (see Candidate.sourced_job_ids), so one
+        # job's pipeline can't show another job's uploads. Internal bench
+        # candidates are excluded from that check — bench auto-matching is
+        # meant to search the whole internal pool against any open role,
+        # not just candidates pre-tagged to it.
+        job_id_str = str(job_id)
+
+        def _in_scope(c: Candidate) -> bool:
+            if source is not None and c.source != source:
+                return False
+            if c.source == "internal":
+                return True
+            return job_id_str in c.sourced_job_ids
+
+        candidates = store.candidates.query(_in_scope)
         weights = weight_config or DEFAULT_WEIGHTS
         scores: list[dict[str, Any]] = []
 

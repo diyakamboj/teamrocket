@@ -132,7 +132,7 @@ function JobWorkspacePage() {
   const [selectedForCompare, setSelectedForCompare] = useState<string[]>([]);
   const [showWeightSliders, setShowWeightSliders] = useState(false);
   const [weights, setWeights] = useState({ skills: 35, experience: 25, education: 15, certifications: 10, projects: 15 });
-  const [blindMode, setBlindMode] = useState(true);
+  const [blindMode, setBlindMode] = useState(false);
   const [uploadedFiles, setUploadedFiles] = useState<
     Array<{ name: string; size: string; status: string; color: string }>
   >([]);
@@ -152,7 +152,7 @@ function JobWorkspacePage() {
     setUploadedFiles((prev) => [...newItems, ...prev]);
 
     try {
-      const res = await uploadResumesToBackend(fileArray);
+      const res = await uploadResumesToBackend(fileArray, jobId);
       toast.success(`Uploaded ${res.files.length} resume(s) — parsing in the background…`, {
         action: {
           label: "View Candidates",

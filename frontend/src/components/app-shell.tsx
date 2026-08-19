@@ -1,4 +1,4 @@
-import { Link, useRouterState } from "@tanstack/react-router";
+import { Link, useNavigate, useRouterState } from "@tanstack/react-router";
 import {
   ChevronsLeft,
   ChevronsRight,
@@ -7,12 +7,18 @@ import {
   Globe,
   Zap,
   Settings,
+  Plus,
+  Search,
 } from "lucide-react";
-import { useEffect, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { useAppState } from "@/lib/app-state";
 import { useTheme } from "@/lib/theme";
 import { cn } from "@/lib/utils";
 import { CreateJobModal } from "@/components/create-job-modal";
+import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { getSession } from "@/lib/auth";
 import { listJobPipelines, type JobPipelineSummary } from "@/lib/api";
 
 const PRIMARY_NAV = [
@@ -29,7 +35,12 @@ export function AppShell({ children }: { children: ReactNode }) {
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const { active, counts, overallProgress } = useAppState();
   const pathname = useRouterState({ select: (s) => s.location.pathname });
-  const [recentJobs, setRecentJobs] = useState<JobPipelineSummary[]>([]);
+  const navigate = useNavigate();
+  const session = getSession();
+  const [allJobs, setAllJobs] = useState<JobPipelineSummary[]>([]);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [searchFocused, setSearchFocused] = useState(false);
+  const recentJobs = allJobs.slice(0, 5);
 
   // Real open jobs and their live candidate counts, from the backend store.
   useEffect(() => {
@@ -37,10 +48,10 @@ export function AppShell({ children }: { children: ReactNode }) {
     const fetchJobs = () => {
       listJobPipelines()
         .then((jobs) => {
-          if (!cancelled) setRecentJobs(jobs.slice(0, 5));
+          if (!cancelled) setAllJobs(jobs);
         })
         .catch(() => {
-          if (!cancelled) setRecentJobs([]);
+          if (!cancelled) setAllJobs([]);
         });
     };
 
@@ -53,6 +64,18 @@ export function AppShell({ children }: { children: ReactNode }) {
       window.removeEventListener("job-created", handleJobCreated);
     };
   }, []);
+
+  const searchResults = useMemo(() => {
+    const q = searchQuery.trim().toLowerCase();
+    if (!q) return [];
+    return allJobs.filter((job) => job.title.toLowerCase().includes(q)).slice(0, 8);
+  }, [allJobs, searchQuery]);
+
+  function goToJob(job: JobPipelineSummary) {
+    setSearchQuery("");
+    setSearchFocused(false);
+    void navigate({ to: "/jobs/$jobId", params: { jobId: String((job as any).job_id || (job as any).id || "") } });
+  }
 
 
 
@@ -168,6 +191,68 @@ export function AppShell({ children }: { children: ReactNode }) {
       </aside>
 
       <div className="flex min-w-0 flex-1 flex-col">
+        <header className="sticky top-0 z-10 flex items-center gap-4 border-b border-border bg-card px-6 py-3">
+          <div className="relative w-full max-w-md">
+            <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+            <Input
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              onFocus={() => setSearchFocused(true)}
+              onBlur={() => setTimeout(() => setSearchFocused(false), 150)}
+              placeholder="Search active jobs by title…"
+              className="h-10 rounded-lg pl-9 text-sm"
+            />
+            {searchFocused && searchQuery.trim() && (
+              <div className="absolute left-0 right-0 top-full z-30 mt-1 max-h-72 overflow-y-auto rounded-lg border border-border bg-popover shadow-lg">
+                {searchResults.length === 0 ? (
+                  <div className="px-3 py-3 text-xs text-muted-foreground">No matching jobs.</div>
+                ) : (
+                  searchResults.map((job) => (
+                    <button
+                      key={(job as any).job_id || job.id}
+                      type="button"
+                      onMouseDown={(e) => e.preventDefault()}
+                      onClick={() => goToJob(job)}
+                      className="flex w-full items-center justify-between px-3 py-2 text-left text-xs hover:bg-accent"
+                    >
+                      <span className="truncate font-medium text-foreground">{job.title}</span>
+                      <span className="ml-2 shrink-0 text-muted-foreground">
+                        {job.total_candidates} candidate{job.total_candidates === 1 ? "" : "s"}
+                      </span>
+                    </button>
+                  ))
+                )}
+              </div>
+            )}
+          </div>
+
+          <div className="ml-auto flex shrink-0 items-center gap-4">
+            <Button
+              onClick={() => setIsCreateModalOpen(true)}
+              className="rounded-xl text-xs font-semibold"
+            >
+              <Plus className="mr-1.5 h-4 w-4" /> Create New Job
+            </Button>
+
+            <div className="flex items-center gap-2.5">
+              <Avatar className="h-8 w-8">
+                <AvatarFallback className="bg-primary/10 text-xs font-bold text-primary">
+                  {session.name
+                    .split(" ")
+                    .map((p) => p[0])
+                    .join("")
+                    .slice(0, 2)
+                    .toUpperCase()}
+                </AvatarFallback>
+              </Avatar>
+              <div className="hidden min-w-0 sm:block">
+                <p className="truncate text-xs font-semibold text-foreground">{session.name}</p>
+                <p className="truncate text-[10px] text-muted-foreground">{session.role}</p>
+              </div>
+            </div>
+          </div>
+        </header>
+
         <main className="flex-1 bg-background p-8">{children}</main>
 
         <CreateJobModal

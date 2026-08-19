@@ -90,7 +90,7 @@ const AppCtx = createContext<Ctx | null>(null);
 export function AppStateProvider({ children }: { children: ReactNode }) {
   const [files, setFiles] = useState<UploadFile[]>([]);
   const [weights, setWeights] = useState<Weights>(DEFAULT_WEIGHTS);
-  const [blindMode, setBlindMode] = useState(true);
+  const [blindMode, setBlindMode] = useState(false);
 
   const [compareIds, setCompareIds] = useState<string[]>([]);
   const [activeJobId, setActiveJobId] = useState<string | null>(null);
@@ -108,7 +108,11 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
     ensureActiveJob()
       .then((job) => {
         if (!cancelled) {
-          setActiveJobId(job.id);
+          // Fallback default only — a page that has already picked a job
+          // from its own URL (jobs.$jobId.tsx, upload.tsx) must win over
+          // this app-wide default, however this async call happens to
+          // resolve relative to that page's own effect.
+          setActiveJobId((prev) => prev ?? job.id);
           setBackendReady(true);
         }
       })
@@ -147,7 +151,7 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
     ]);
 
     try {
-      const res = await uploadResumesToBackend(incoming);
+      const res = await uploadResumesToBackend(incoming, activeJobId);
       setFiles((prev) =>
         prev.map((row) => {
           const idx = localIds.indexOf(row.id);
@@ -175,7 +179,7 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
       );
       toast.error(`Upload failed: ${message}`);
     }
-  }, []);
+  }, [activeJobId]);
 
   /** Polls the backend for files it is still processing. */
   useEffect(() => {

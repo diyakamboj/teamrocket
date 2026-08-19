@@ -2,7 +2,7 @@ import asyncio
 import uuid
 from pathlib import Path
 
-from fastapi import APIRouter, BackgroundTasks, File, UploadFile
+from fastapi import APIRouter, BackgroundTasks, File, Form, UploadFile
 
 from app.config import settings
 from app.dependencies import AppStore, RecruiterEmail
@@ -31,7 +31,7 @@ def _log_audit(active_store: Store, **fields) -> None:
         logger.warning("Failed to persist audit log %s: %s", fields.get("action"), exc)
 
 
-def _process_resume(upload_id: uuid.UUID) -> None:
+def _process_resume(upload_id: uuid.UUID, job_id: str | None = None) -> None:
     # Background tasks run outside the request/response cycle (and outside
     # FastAPI's dependency-injection scope), so this uses the module-level
     # `store` singleton directly rather than the per-request `AppStore` —
@@ -54,7 +54,7 @@ def _process_resume(upload_id: uuid.UUID) -> None:
 
         parsed = asyncio.run(resume_parser.parse_resume(text))
 
-        candidate = upsert_candidate_from_parsed(store, parsed, text, upload.blob_path)
+        candidate = upsert_candidate_from_parsed(store, parsed, text, upload.blob_path, job_id=job_id)
 
         upload.candidate_id = candidate.id
         upload.status = "complete"
@@ -76,6 +76,7 @@ async def upload_resumes(
     store: AppStore,
     recruiter_email: RecruiterEmail,
     files: list[UploadFile] = File(...),
+    job_id: str | None = Form(None),
 ):
     if not files:
         raise ValidationAppError("No files provided")
@@ -153,7 +154,7 @@ async def upload_resumes(
             upload.status = "uploading"
             upload.progress = 25
             store.resume_uploads.save(upload)
-            background_tasks.add_task(_process_resume, upload.id)
+            background_tasks.add_task(_process_resume, upload.id, job_id)
 
         items.append(
             ResumeUploadItem(

@@ -20,47 +20,10 @@ import {
 import { toast } from "sonner";
 import { analyzeJob, createJob, generateJobDescription } from "@/lib/api";
 
-function getDynamicBenchmark(title: string) {
-  const t = (title || "").toLowerCase();
-  if (t.includes("cto") || t.includes("chief") || t.includes("vp") || t.includes("director") || t.includes("head") || t.includes("executive")) {
-    return {
-      roleTitle: title || "Chief Technology Officer",
-      applicants: 42,
-      topMatchScore: "94%",
-      timeToHire: "28 Days",
-      cycles: "14 Executive Cycles",
-      insight: `Historical benchmarks for executive & ${title || "CTO"} roles show 48% higher offer acceptance when Strategic Planning, Team Leadership, and System Architecture are explicitly balanced.`,
-    };
-  }
-  if (t.includes("data") || t.includes("ml") || t.includes("ai") || t.includes("scientist") || t.includes("machine learning")) {
-    return {
-      roleTitle: title || "Data / Machine Learning Engineer",
-      applicants: 94,
-      topMatchScore: "88%",
-      timeToHire: "21 Days",
-      cycles: "18 Data Cycles",
-      insight: `Data & ML engineering roles benchmarked across past cycles show 38% higher match precision when Python, SQL, and Cloud Data Platforms are explicitly specified.`,
-    };
-  }
-  if (t.includes("manager") || t.includes("lead") || t.includes("product")) {
-    return {
-      roleTitle: title || "Engineering / Product Leadership",
-      applicants: 76,
-      topMatchScore: "90%",
-      timeToHire: "22 Days",
-      cycles: "15 Management Cycles",
-      insight: `Leadership and management roles achieve faster candidate convergence when Team Management, Stakeholder Communication, and Roadmap Execution are tagged.`,
-    };
-  }
-  return {
-    roleTitle: title || "Software Engineer",
-    applicants: 118,
-    topMatchScore: "87%",
-    timeToHire: "16 Days",
-    cycles: "24 Hiring Cycles",
-    insight: `Software Engineering roles benchmarked against past hiring cycles show top talent is secured fastest when mandatory coding skills and system architecture are balanced with clear preferred skills.`,
-  };
-}
+type CreateJobModalProps = {
+  isOpen: boolean;
+  onClose: () => void;
+};
 
 export function CreateJobModal({ isOpen, onClose }: CreateJobModalProps) {
 

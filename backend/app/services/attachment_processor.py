@@ -60,11 +60,16 @@ def upsert_candidate_from_parsed(
     parsed: dict[str, Any],
     text: str,
     blob_path: Optional[str],
+    job_id: Optional[str] = None,
 ) -> Candidate:
     """Create-or-update a `Candidate` from a parsed resume (email-dedup
     upsert). Extracted from `resumes.py::_process_resume`'s original
     upsert body so resume upload and chat-attached resumes share one
     implementation instead of two.
+
+    `job_id`, when given, records the job this resume was uploaded against
+    (see `Candidate.sourced_job_ids`) so that job's Candidates tab can show
+    only what was actually uploaded to it.
     """
     email = parsed.get("email")
     if not email or not is_valid_email(email):
@@ -106,6 +111,8 @@ def upsert_candidate_from_parsed(
             linkedin_url=parsed.get("linkedin_url"),
             portfolio_url=parsed.get("portfolio_url"),
         )
+    if job_id and job_id not in candidate.sourced_job_ids:
+        candidate.sourced_job_ids = [*candidate.sourced_job_ids, job_id]
     active_store.candidates.save(candidate)
     return candidate
 

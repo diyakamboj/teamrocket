@@ -29,6 +29,12 @@ class Candidate(BaseModel):
     hackerrank_url: Optional[str] = None
     enriched_profile: Optional[dict[str, Any]] = Field(default_factory=dict)
 
+    # Job postings this candidate's resume was actually uploaded against —
+    # scopes a job's Candidates tab to its own uploads instead of every
+    # candidate ever added to the system. A candidate can carry more than
+    # one job id if the same resume gets uploaded to several roles.
+    sourced_job_ids: list[str] = Field(default_factory=list)
+
     # "internal" (existing employee applying/referred) vs "external" (outside applicant).
     source: str = "external"
     employment_status: Optional[str] = None   # "bench" | "assigned" | None — only meaningful when source == "internal"

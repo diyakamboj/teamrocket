@@ -1200,11 +1200,15 @@ export async function reparseResume(resumeId: string): Promise<ResumeDetail> {
   });
 }
 
-export async function uploadResumesToBackend(files: File[]): Promise<BackendResumeUploadResponse> {
+export async function uploadResumesToBackend(
+  files: File[],
+  jobId?: string | null,
+): Promise<BackendResumeUploadResponse> {
   const formData = new FormData();
   for (const f of files) {
     formData.append("files", f);
   }
+  if (jobId) formData.append("job_id", jobId);
 
   const email =
     (import.meta.env["VITE_RECRUITER_EMAIL"] as string | undefined) || "recruiter@example.com";

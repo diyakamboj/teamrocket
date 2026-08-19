@@ -12,6 +12,7 @@ RESUME_SYSTEM_PROMPT = """You are a resume parsing engine for a recruiting platf
 Extract structured data from the resume text exactly as written — never invent, infer or embellish facts.
 Rules:
 - Use "" or omit a field when the resume does not state it. Do not guess.
+- contact_info.name is ONLY the candidate's personal name (typically 2-4 words), never anything else. Resume headers are frequently extracted as one run-on line with no separators, e.g. "Jane Doe 555-123-4567 | jane@example.com | LinkedIn | Austin, TX Software Engineer" — in that case contact_info.name is "Jane Doe" alone. Stop at the first token that looks like a phone number, email, URL, pipe "|", or job title, and put those in their own fields (phone, email, etc.) instead. Never include a phone number, email, link, location, or job title inside contact_info.name.
 - totalYearsExperience is the summed duration of professional roles (exclude internships shorter than 6 months and education). Round to one decimal.
 - skills must be concrete technologies, tools, languages, methodologies or domain skills. No soft-skill filler like "team player".
 - For every skill, evidence should quote or tightly paraphrase where in the resume it is demonstrated, when such a mention exists.
@@ -204,6 +205,35 @@ class ResumeParser:
             resume_text,
         )
 
+    # Matches where a run-on contact line stops being a name: a phone
+    # number, an email, a URL/handle, or a "|" separator. Belt-and-suspenders
+    # for the LLM prompt instruction — resumes whose header has no
+    # whitespace/line break between name and phone number occasionally slip
+    # past it.
+    _NAME_CUTOFF_RE = re.compile(
+        r"""(?:
+            \+?\d[\d().\-\s]{7,}\d      # phone number
+            | \S+@\S+\.\S+              # email
+            | https?://\S+              # URL
+            | \bwww\.\S+
+            | \|
+        )""",
+        re.VERBOSE,
+    )
+
+    def _clean_name(self, name: str) -> str:
+        name = name.strip()
+        match = self._NAME_CUTOFF_RE.search(name)
+        if match:
+            name = name[: match.start()].strip(" |,-")
+        # A run-on line with no delimiter at all still packs a job title
+        # after the name — cap at a handful of words so "Jane Doe Software
+        # Engineer" doesn't become the stored name.
+        words = name.split()
+        if len(words) > 5:
+            name = " ".join(words[:5])
+        return name.strip()
+
     def _normalize_parsed(self, parsed: dict[str, Any], resume_text: str) -> dict[str, Any]:
         contact = parsed.get("contact_info") or {}
         if not isinstance(contact, dict):
@@ -233,7 +263,7 @@ class ResumeParser:
             certifications = [certifications]
 
         email = contact.get("email") or f"unknown.{abs(hash(resume_text)) % 10_000_000}@example.com"
-        name = contact.get("name") or "Unknown Candidate"
+        name = self._clean_name(str(contact.get("name") or "")) or "Unknown Candidate"
 
         return {
             "name": name,
