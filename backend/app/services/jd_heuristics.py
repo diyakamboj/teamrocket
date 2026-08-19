@@ -112,6 +112,19 @@ ROLE_PACKS: list[dict[str, Any]] = [
         "summary": "Data role emphasizing pipelines, SQL, and analytical engineering.",
     },
     {
+        "id": "cto",
+        "match": re.compile(
+            r"\bcto\b|\bchief\s+technology\s+officer\b|\bvp\s+of\s+engineering\b|\bhead\s+of\s+engineering\b|\bengineering\s+director\b",
+            re.I,
+        ),
+        "title": "Chief Technology Officer / VP of Engineering",
+        "must": ["Technology Strategy & Roadmap", "Engineering Leadership", "System Architecture", "Strategic Planning"],
+        "nice": ["Executive Presence", "Budget & Resource Allocation", "Cross-functional Collaboration", "Talent Acquisition & Mentorship", "Stakeholder Management"],
+        "years": 8,
+        "education": "Master's or Bachelor's in CS / Engineering or equivalent executive experience",
+        "summary": "Executive technology role focusing on technical vision, leadership, and organization scaling.",
+    },
+    {
         "id": "software",
         "match": re.compile(
             r"\bsoftware\s+engineer\b|\bbackend\b|\bfull[\s-]?stack\b|\bdeveloper\b|\bprogrammer\b",
@@ -119,7 +132,7 @@ ROLE_PACKS: list[dict[str, Any]] = [
         ),
         "title": "Software Engineer",
         "must": ["Python or Java or TypeScript", "APIs / REST", "SQL / databases", "Git / code review"],
-        "nice": ["Docker", "Cloud (AWS/Azure/GCP)", "Kubernetes"],
+        "nice": ["Docker", "Cloud (AWS/Azure/GCP)", "Kubernetes", "Problem Solving", "Team Collaboration"],
         "years": 3,
         "education": "Bachelor's in Computer Science or equivalent experience",
         "summary": "Software engineering role emphasizing coding, APIs, and production delivery.",
@@ -129,19 +142,66 @@ ROLE_PACKS: list[dict[str, Any]] = [
 SKILL_ALIASES: list[tuple[re.Pattern[str], str]] = [
     (re.compile(r"\bpython\b", re.I), "Python"),
     (re.compile(r"\bjava\b(?!script)", re.I), "Java"),
-    (re.compile(r"\btypescript\b", re.I), "TypeScript"),
-    (re.compile(r"\breact\b", re.I), "React"),
-    (re.compile(r"\bsql\b|\bpostgres\b", re.I), "SQL"),
+    (re.compile(r"\bjavascript\b|\bjs\b", re.I), "JavaScript"),
+    (re.compile(r"\btypescript\b|\bts\b", re.I), "TypeScript"),
+    (re.compile(r"\breact\b|\breactjs\b", re.I), "React"),
+    (re.compile(r"\bnext\.?js\b", re.I), "Next.js"),
+    (re.compile(r"\bvue\b|\bvuejs\b", re.I), "Vue.js"),
+    (re.compile(r"\bangular\b", re.I), "Angular"),
+    (re.compile(r"\bnode\.?js\b|\bnode\b", re.I), "Node.js"),
+    (re.compile(r"\bfastapi\b", re.I), "FastAPI"),
+    (re.compile(r"\bdjango\b", re.I), "Django"),
+    (re.compile(r"\bflask\b", re.I), "Flask"),
+    (re.compile(r"\bspring\s*boot\b|\bspring\b", re.I), "Spring Boot"),
+    (re.compile(r"\bexpress\.?js\b|\bexpress\b", re.I), "Express.js"),
+    (re.compile(r"\bgraphql\b", re.I), "GraphQL"),
+    (re.compile(r"\brest\b|\brestful\b|\bapis?\b", re.I), "REST APIs"),
+    (re.compile(r"\bsql\b|\bpostgresql\b|\bpostgres\b", re.I), "PostgreSQL / SQL"),
+    (re.compile(r"\bmysql\b", re.I), "MySQL"),
+    (re.compile(r"\bmongodb\b|\bmongo\b", re.I), "MongoDB"),
+    (re.compile(r"\bredis\b", re.I), "Redis"),
+    (re.compile(r"\bkafka\b", re.I), "Apache Kafka"),
     (re.compile(r"\bdocker\b", re.I), "Docker"),
     (re.compile(r"\bkubernetes\b|\bk8s\b", re.I), "Kubernetes"),
-    (re.compile(r"\baws\b", re.I), "AWS"),
+    (re.compile(r"\bterraform\b", re.I), "Terraform"),
+    (re.compile(r"\bci/cd\b|\bjenkins\b|\bgithub\s*actions\b", re.I), "CI/CD"),
+    (re.compile(r"\baws\b|\bamazon\s*web\s*services\b", re.I), "AWS"),
     (re.compile(r"\bazure\b", re.I), "Azure"),
-    (re.compile(r"\bpvc\b|\bcopper\s*pipe\b|\bpipe\s*fitting\b", re.I), "Pipe fitting (PVC/copper)"),
-    (re.compile(r"\bwater\s*heater\b", re.I), "Water heater installation"),
-    (re.compile(r"\bdrain\b", re.I), "Drain cleaning"),
-    (re.compile(r"\bsoldering\b", re.I), "Soldering"),
-    (re.compile(r"\bcdl\b", re.I), "CDL"),
+    (re.compile(r"\bgcp\b|\bgoogle\s*cloud\b", re.I), "GCP"),
+    (re.compile(r"\blinux\b", re.I), "Linux"),
+    (re.compile(r"\bgit\b", re.I), "Git"),
+    (re.compile(r"\bmicroservices\b", re.I), "Microservices"),
+    (re.compile(r"\bsystem\s*design\b|\barchitecture\b", re.I), "System Architecture"),
+    (re.compile(r"\bmachine\s*learning\b|\bml\b", re.I), "Machine Learning"),
+    (re.compile(r"\bpytorch\b", re.I), "PyTorch"),
+    (re.compile(r"\btensorflow\b", re.I), "TensorFlow"),
+    (re.compile(r"\bpandas\b", re.I), "Pandas"),
+    (re.compile(r"\bspark\b", re.I), "Apache Spark"),
+    (re.compile(r"\bairflow\b", re.I), "Apache Airflow"),
+    (re.compile(r"\bdbt\b", re.I), "dbt"),
+    (re.compile(r"\bc\+\+\b", re.I), "C++"),
+    (re.compile(r"\bc#\b|\b\.net\b", re.I), ".NET / C#"),
+    (re.compile(r"\bgo\b|\bgolang\b", re.I), "Go"),
+    (re.compile(r"\brust\b", re.I), "Rust"),
+    (re.compile(r"\bruby\b|\brails\b", re.I), "Ruby on Rails"),
+    (re.compile(r"\bphp\b", re.I), "PHP"),
+    (re.compile(r"\bswift\b", re.I), "Swift"),
+    (re.compile(r"\bkotlin\b", re.I), "Kotlin"),
+
+    # Soft Skills & Leadership Qualities
+    (re.compile(r"\bleadership\b|\blead\s+teams?\b", re.I), "Leadership"),
+    (re.compile(r"\bteam\s+management\b|\bmanage\s+engineers?\b|\bpeople\s+management\b", re.I), "Team Management"),
+    (re.compile(r"\bstrategic\s+planning\b|\bstrategy\b|\broadmap\b", re.I), "Strategic Planning"),
+    (re.compile(r"\bexecutive\s+presence\b|\bexecutive\b|\bboard\b", re.I), "Executive Presence"),
+    (re.compile(r"\bcommunication\b|\bwritten\s+and\s+verbal\b", re.I), "Communication"),
+    (re.compile(r"\bmentorship\b|\bmentor\b|\bcoaching\b", re.I), "Mentorship"),
+    (re.compile(r"\bcross[\s-]?functional\b|\bcollaboration\b", re.I), "Cross-functional Collaboration"),
+    (re.compile(r"\bstakeholder\b", re.I), "Stakeholder Management"),
+    (re.compile(r"\bproduct\s+strategy\b|\bvision\b", re.I), "Product Strategy"),
+    (re.compile(r"\bagile\b|\bscrum\b", re.I), "Agile / Scrum"),
+    (re.compile(r"\bproblem\s*solving\b|\banalytical\b", re.I), "Problem Solving"),
 ]
+
 
 
 def _detect_role(text: str) -> dict[str, Any]:
@@ -172,18 +232,17 @@ def analyze_job_text(title: str, description: str) -> dict[str, Any]:
     years = _extract_years(text)
     mentioned = _mentioned_skills(text)
 
-    if len(mentioned) >= 2:
-        required = mentioned[:6]
-    else:
-        required = list(dict.fromkeys([*mentioned, *role["must"]]))[:6]
-
-    nice = [s for s in role["nice"] if s.lower() not in {x.lower() for x in required}]
+    # Extract all mentioned skills from text or fallback to role defaults
+    combined = list(dict.fromkeys([*mentioned, *role["must"]]))
+    required = combined[:8]
+    nice = [s for s in [*role["nice"], *combined[8:]] if s.lower() not in {x.lower() for x in required}]
 
     return {
         "title": role["title"],
         "required_skills": required,
-        "nice_to_have_skills": nice,
+        "nice_to_have_skills": nice[:6],
         "required_experience_years": years if years is not None else role["years"],
         "education_requirements": role["education"],
-        "summary": role["summary"],
+        "summary": f"Extracted {len(required)} mandatory skills and {len(nice[:6])} preferred skills tailored to '{title or role['title']}'.",
     }
+

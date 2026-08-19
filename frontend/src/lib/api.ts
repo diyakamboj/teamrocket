@@ -168,10 +168,15 @@ export type JobResponse = {
   title: string;
   description: string;
   required_skills?: string[];
+  nice_to_have_skills?: string[];
   required_experience_years?: number | null;
+  education_requirements?: string | null;
   status?: JobStatus;
   sourcing_mode?: string;
+  location?: string | null;
+  department?: string | null;
 };
+
 
 function recruiterHeaders(): HeadersInit {
   const email =
@@ -270,14 +275,34 @@ export async function listJobs(): Promise<JobResponse[]> {
   return request<JobResponse[]>("/api/jobs");
 }
 
+export async function getJob(jobId: string): Promise<JobResponse> {
+  return request<JobResponse>(`/api/jobs/${encodeURIComponent(jobId)}`);
+}
+
+
 export async function createJob(input: {
   title: string;
   description: string;
   required_skills?: string[];
   nice_to_have_skills?: string[];
   required_experience_years?: number;
+  sourcing_mode?: string;
+  location?: string;
+  department?: string;
 }): Promise<JobResponse> {
   return request<JobResponse>("/api/jobs", {
+    method: "POST",
+    body: JSON.stringify(input),
+  });
+}
+
+export async function generateJobDescription(input: {
+  title: string;
+  department?: string;
+  location?: string;
+  employment_type?: string;
+}): Promise<{ description: string }> {
+  return request<{ description: string }>("/api/jobs/generate-description", {
     method: "POST",
     body: JSON.stringify(input),
   });
@@ -663,7 +688,9 @@ export type JobPipelineSummary = {
   job_id: string;
   title: string;
   status: JobStatus;
+  sourcing_mode?: string;
   created_at: string;
+
   total_candidates: number;
   internal_candidates: number;
   external_candidates: number;

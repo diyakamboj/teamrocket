@@ -73,3 +73,4 @@ def get_job_pipeline(
     if not job:
         raise NotFoundError("Job posting not found", {"job_id": str(job_id)})
     return job_pipeline_service.get_job_pipeline_candidates(store, job, source)
+

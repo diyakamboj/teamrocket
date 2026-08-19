@@ -73,6 +73,7 @@ async def rank_candidates(
     return ranked
 
 
+
 @router.get("/{candidate_id}", response_model=CandidateResponse)
 def get_candidate(candidate_id: uuid.UUID, store: AppStore):
     candidate = store.candidates.get(candidate_id)

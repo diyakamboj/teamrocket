@@ -17,6 +17,7 @@ class JobPosting(BaseModel):
     required_experience_years: Optional[int] = None
     education_requirements: Optional[str] = None
     nice_to_have_skills: list[Any] = Field(default_factory=list)
+    location: Optional[str] = None
     # "open" | "paused" | "closed" — drives the "active job listings" dashboard filter.
     status: str = "open"
     # "internal" | "external" | "both" — advisory/display only, never gates matching.

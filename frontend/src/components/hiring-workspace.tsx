@@ -42,7 +42,16 @@ export function useJobWorkspace(source: "internal" | "external") {
       )
       .then((rows) => {
         if (cancelled) return;
-        setJobs(rows.filter((j) => j.pipeline.length > 0));
+        setJobs(
+          rows.filter((j) => {
+            const mode = j.sourcing_mode || "both";
+            if (source === "internal") {
+              return mode === "internal" || mode === "both";
+            }
+            return mode === "external" || mode === "both";
+          }),
+        );
+
         setLoading(false);
       })
       .catch((err: unknown) => {
@@ -50,6 +59,7 @@ export function useJobWorkspace(source: "internal" | "external") {
         setError(err instanceof Error ? err.message : "Could not reach the screening API");
         setLoading(false);
       });
+
 
     return () => {
       cancelled = true;
@@ -125,11 +135,12 @@ export function JobGrid({
               ))}
             </div>
 
-            <Link to="/jobs/$jobId" params={{ jobId: job.job_id }}>
+            <Link to="/jobs/$jobId" params={{ jobId: String((job as any).job_id || (job as any).id || "") }}>
               <Button variant="outline" className="w-full rounded-lg text-xs font-semibold">
                 Open job workspace →
               </Button>
             </Link>
+
           </CardContent>
         </Card>
       ))}
