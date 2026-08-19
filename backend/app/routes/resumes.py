@@ -83,7 +83,14 @@ async def upload_resumes(
     Path(settings.UPLOAD_DIR).mkdir(parents=True, exist_ok=True)
     batch_id = str(uuid.uuid4())
     items: list[ResumeUploadItem] = []
-    seen_names = {row.filename.lower() for row in store.resume_uploads.list_all()}
+    # Only filenames that already produced a candidate count as duplicates —
+    # a prior failed/unprocessed attempt with the same name must not block a
+    # retry from ever being processed.
+    seen_names = {
+        row.filename.lower()
+        for row in store.resume_uploads.list_all()
+        if row.candidate_id is not None
+    }
 
     for file in files:
         filename = file.filename or "resume.pdf"

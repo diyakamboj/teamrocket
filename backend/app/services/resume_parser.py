@@ -114,6 +114,12 @@ class ResumeParser:
         if not skills_block:
             return []
 
+        # Sub-category labels ("Languages:", "Tools:", "Core Areas:") often
+        # sit at the start of a line inside the skills section rather than
+        # being their own heading \u2014 without this they'd glue onto the first
+        # item as a single "skill" like "Languages:Python".
+        skills_block = re.sub(r"(?m)^\s*[A-Za-z][A-Za-z /&]{1,24}:\s*", "", skills_block)
+
         candidates: list[str] = []
         for part in re.split(r"[,;|\u2022\u00b7\n\t]+", skills_block):
             item = part.strip(" .-–—\t")

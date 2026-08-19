@@ -567,6 +567,30 @@ class AzureDocumentIntelligenceService:
                 self._client = None
                 self.mock = True
 
+    @staticmethod
+    def _looks_like_readable_text(text: str) -> bool:
+        """Rejects glyph soup before it can be mistaken for real resume text.
+
+        pypdf frequently mis-decodes PDFs with custom/subsetted font
+        encodings (common in Canva, LinkedIn, and some Word/Docs exports) and
+        returns scrambled characters instead of raising — output that is
+        long enough to pass a naive length check but is not actual content.
+        Same risk applies to the raw-bytes-regex fallback below, which reads
+        literal-string tokens straight out of the PDF content stream: those
+        are only real text when the stream is uncompressed, otherwise it's
+        compressed binary that happens to contain parenthesized-looking
+        matches. Either way, unreadable output must be treated as a failed
+        extraction, not surfaced as the candidate's actual name/resume text.
+        """
+        stripped = text.strip()
+        if not stripped:
+            return False
+        printable = sum(1 for ch in stripped if ch.isspace() or (ch.isascii() and ch.isprintable()))
+        if printable / len(stripped) < 0.85:
+            return False
+        word_chars = sum(len(w) for w in re.findall(r"[A-Za-z]{2,}", stripped))
+        return word_chars / len(stripped) >= 0.4
+
     def _extract_pdf_or_docx_fallback(self, file_bytes: bytes, filename: str) -> str:
         ext = filename.lower().rsplit(".", 1)[-1] if "." in filename else ""
         if ext == "pdf":
@@ -575,15 +599,33 @@ class AzureDocumentIntelligenceService:
                 from pypdf import PdfReader
                 reader = PdfReader(io.BytesIO(file_bytes))
                 text_parts = [page.extract_text() for page in reader.pages if page.extract_text()]
-                if text_parts:
-                    return "\n".join(text_parts)
+                joined = "\n".join(text_parts)
+                if text_parts and self._looks_like_readable_text(joined):
+                    return joined
             except Exception:
                 pass
             try:
                 text = file_bytes.decode("latin1", errors="ignore")
                 matches = re.findall(r"\(([^()]{3,})\)", text)
-                if len(matches) > 5:
-                    return "\n".join(matches)
+                joined = "\n".join(matches)
+                if len(matches) > 5 and self._looks_like_readable_text(joined):
+                    return joined
+            except Exception:
+                pass
+        elif ext == "docx":
+            try:
+                import io
+                from docx import Document
+                document = Document(io.BytesIO(file_bytes))
+                parts = [p.text for p in document.paragraphs if p.text.strip()]
+                for table in document.tables:
+                    for row in table.rows:
+                        for cell in row.cells:
+                            if cell.text.strip():
+                                parts.append(cell.text)
+                joined = "\n".join(parts)
+                if parts and self._looks_like_readable_text(joined):
+                    return joined
             except Exception:
                 pass
         return ""

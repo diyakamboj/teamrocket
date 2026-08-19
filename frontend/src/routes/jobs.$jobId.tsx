@@ -3,6 +3,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import {
   getAtsBenchmark,
   getJobPipeline,
+  getResumeStatus,
   listJobs,
   uploadResumesToBackend,
   type AtsBenchmark,
@@ -10,6 +11,10 @@ import {
 } from "@/lib/api";
 import { rankCandidates, type Candidate } from "@/lib/candidates";
 import { useCandidatePool } from "@/lib/use-candidate-pool";
+import { useAppState } from "@/lib/app-state";
+
+/** Stages the backend is still actively working through — mirrors app-state.tsx. */
+const IN_FLIGHT_STAGES = ["queued", "uploading", "ocr", "parsing"];
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -89,6 +94,13 @@ function JobWorkspacePage() {
   const { jobId } = Route.useParams();
   const navigate = useNavigate();
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const { refreshPool, setActiveJobId } = useAppState();
+
+  // This workspace is scoped to `jobId` from the URL — keep the shared
+  // candidate pool (which ranks against `activeJobId`) pointed at it too.
+  useEffect(() => {
+    setActiveJobId(jobId);
+  }, [jobId, setActiveJobId]);
 
   const [activeTab, setActiveTab] = useState<"overview" | "candidates" | "upload" | "pipeline" | "insights">("candidates");
   const [searchQuery, setSearchQuery] = useState("");
@@ -120,14 +132,55 @@ function JobWorkspacePage() {
 
     try {
       const res = await uploadResumesToBackend(fileArray);
-      setUploadedFiles((prev) =>
-        prev.map((item) =>
-          fileArray.some((f) => f.name === item.name)
-            ? { ...item, status: "✓ Parsed & Saved to Candidates Store", color: "text-emerald-700" }
-            : item
-        )
+      toast.success(`Uploaded ${res.files.length} resume(s) — parsing in the background…`);
+
+      // Parsing runs as a background job on the server, so the upload
+      // response alone doesn't mean a candidate exists yet — poll each
+      // file's real status (same approach as the main /upload page) before
+      // marking it done and refreshing the candidate pool.
+      await Promise.all(
+        res.files.map(async (item) => {
+          let status = item.status;
+          let error = item.error ?? undefined;
+
+          if (!item.duplicate) {
+            while (IN_FLIGHT_STAGES.includes(status)) {
+              await new Promise((resolve) => window.setTimeout(resolve, 1200));
+              try {
+                const detail = await getResumeStatus(item.resume_id);
+                status = detail.status;
+                error = detail.error ?? undefined;
+              } catch {
+                break;
+              }
+            }
+          }
+
+          const label =
+            status === "duplicate"
+              ? "⚠ Duplicate — use the main Upload page to replace"
+              : status === "complete"
+                ? "✓ Parsed & Saved to Candidates Store"
+                : status === "failed"
+                  ? `✗ ${error || "Parsing failed"}`
+                  : "⟳ Processing OCR & AI Parsing...";
+          const color =
+            status === "complete"
+              ? "text-emerald-700"
+              : status === "failed"
+                ? "text-rose-600"
+                : status === "duplicate"
+                  ? "text-amber-600"
+                  : "text-blue-600";
+
+          setUploadedFiles((prev) =>
+            prev.map((row) => (row.name === item.filename ? { ...row, status: label, color } : row)),
+          );
+        }),
       );
-      toast.success(`Uploaded & parsed ${res.files.length} resume(s) into candidates database!`);
+
+      // Newly parsed candidates are now in the store — refetch the ranked pool.
+      refreshPool();
     } catch (err: any) {
       toast.error(`Upload error: ${err.message || "Failed to parse resume files"}`);
     }
