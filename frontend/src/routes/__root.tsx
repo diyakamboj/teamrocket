@@ -5,11 +5,9 @@ import {
   createRootRouteWithContext,
   useRouter,
   HeadContent,
-  Scripts,
 } from "@tanstack/react-router";
-import { useEffect, type ReactNode } from "react";
+import { useEffect } from "react";
 
-import appCss from "../styles.css?url";
 import { reportLovableError } from "../lib/lovable-error-reporting";
 import { ThemeProvider } from "@/lib/theme";
 import { AppStateProvider } from "@/lib/app-state";
@@ -79,56 +77,33 @@ function ErrorComponent({ error, reset }: { error: Error; reset: () => void }) {
 }
 
 export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()({
+  // Default title/description/og:title — routes with their own head() (see
+  // src/routes/*.tsx) override these; index.html only owns the tags no
+  // route ever overrides (charset, viewport, favicon, fonts, og:type,
+  // twitter:card), so HeadContent isn't fighting a static duplicate.
   head: () => ({
     meta: [
-      { charSet: "utf-8" },
-      { name: "viewport", content: "width=device-width, initial-scale=1" },
       { title: "ResumeIQ — AI Resume Screening for Recruiters" },
       {
         name: "description",
         content:
           "Screen resumes at scale with AI: bulk parsing, job-description matching, ranked candidates and side-by-side comparison.",
       },
-      { name: "author", content: "ResumeIQ" },
-      { property: "og:type", content: "website" },
-      { name: "twitter:card", content: "summary_large_image" },
-    ],
-    links: [
-      { rel: "stylesheet", href: appCss },
-      { rel: "preconnect", href: "https://fonts.googleapis.com" },
-      { rel: "preconnect", href: "https://fonts.gstatic.com", crossOrigin: "anonymous" },
-      {
-        rel: "stylesheet",
-        href: "https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap",
-      },
-      { rel: "icon", href: "/favicon.ico", type: "image/x-icon" },
+      { property: "og:title", content: "ResumeIQ — AI Resume Screening for Recruiters" },
     ],
   }),
-  shellComponent: RootShell,
   component: RootComponent,
   notFoundComponent: NotFoundComponent,
   errorComponent: ErrorComponent,
 });
-
-function RootShell({ children }: { children: ReactNode }) {
-  return (
-    <html lang="en">
-      <head>
-        <HeadContent />
-      </head>
-      <body>
-        {children}
-        <Scripts />
-      </body>
-    </html>
-  );
-}
 
 function RootComponent() {
   const { queryClient } = Route.useRouteContext();
 
   return (
     <QueryClientProvider client={queryClient}>
+      {/* Applies each matched route's head() (title, meta, OG tags) to document.head client-side. */}
+      <HeadContent />
       <ThemeProvider>
         <AppStateProvider>
           <CopilotProvider>

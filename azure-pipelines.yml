@@ -110,9 +110,7 @@ stages:
         steps:
           - task: NodeTool@0
             inputs:
-              # 22.x, not 20.x — @tanstack/start-storage-context requires
-              # node >=22.12.0 (npm warns EBADENGINE on 20.x; not fatal on
-              # its own, but bumping this removes one variable).
+              # 22.x: current LTS, matches what's used locally.
               versionSpec: "22.x"
 
           # npm install, not npm ci — confirmed npm (not bun) is the real
