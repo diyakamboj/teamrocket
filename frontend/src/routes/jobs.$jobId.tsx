@@ -106,13 +106,27 @@ function toRow(
   };
 }
 
+function extractLocation(job: JobResponse | null): string {
+  if (!job) return "Flexible / Remote";
+  const desc = job.description || "";
+  const match = desc.match(/(?:location|based in|city|office):\s*([^\n,]+(?:,\s*[^\n]+)?)/i);
+  if (match && match[1]) return match[1].trim();
+  if (desc.toLowerCase().includes("remote")) return "Remote";
+  if (desc.toLowerCase().includes("hybrid")) return "Hybrid / Flexible";
+  if (desc.toLowerCase().includes("seattle")) return "Seattle, WA";
+  if (desc.toLowerCase().includes("san francisco")) return "San Francisco, CA";
+  if (desc.toLowerCase().includes("new york")) return "New York, NY";
+  if (desc.toLowerCase().includes("austin")) return "Austin, TX";
+  return "Flexible / Remote";
+}
+
 function JobWorkspacePage() {
   const { jobId } = Route.useParams();
   const navigate = useNavigate();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { setActiveJobId, addFiles, refreshPool } = useAppState();
 
-  const [activeTab, setActiveTab] = useState<"overview" | "candidates" | "upload" | "pipeline" | "insights">("candidates");
+  const [activeTab, setActiveTab] = useState<"overview" | "candidates" | "jd" | "upload" | "pipeline" | "insights">("candidates");
   const [searchQuery, setSearchQuery] = useState("");
   const [job, setJob] = useState<JobResponse | null>(null);
   const [stages, setStages] = useState<Record<string, string>>({});
@@ -154,7 +168,12 @@ function JobWorkspacePage() {
             : item
         )
       );
-      toast.success(`Uploaded & parsed ${fileArray.length} resume(s) into job candidates database!`);
+      toast.success(`Uploaded & parsed ${fileArray.length} resume(s) into job candidates database!`, {
+        action: {
+          label: "View Candidates",
+          onClick: () => setActiveTab("candidates"),
+        },
+      });
     } catch (err: any) {
       toast.error(`Upload error: ${err.message || "Failed to parse resume files"}`);
     }
@@ -176,7 +195,6 @@ function JobWorkspacePage() {
               setJob(matched);
             }
           })
-
           .catch(() => {
             if (!cancelled) setJob(null);
           });
@@ -246,7 +264,6 @@ function JobWorkspacePage() {
     });
   }, [candidates, searchQuery]);
 
-
   const toggleCompare = (id: string) => {
     setSelectedForCompare((prev) =>
       prev.includes(id) ? prev.filter((i) => i !== id) : [...prev, id]
@@ -279,10 +296,10 @@ function JobWorkspacePage() {
               {job?.sourcing_mode === "internal" ? "Internal Hiring" : "External Hiring"}
             </Badge>
             <Badge variant="outline" className="text-slate-600 border-slate-200 bg-white text-xs">
-              {job?.education_requirements || "Seattle, WA (Hybrid)"}
+              📍 {extractLocation(job)}
             </Badge>
             <Badge className="bg-emerald-50 text-emerald-700 border-emerald-200 text-xs font-bold">
-              {job?.status ? job.status.toUpperCase() : "Active Hiring"}
+              {job?.status ? job.status.toUpperCase() : "ACTIVE HIRING"}
             </Badge>
           </div>
           <h1 className="text-2xl font-bold tracking-tight text-slate-900 flex items-center gap-3 mt-1">
@@ -292,7 +309,6 @@ function JobWorkspacePage() {
             Central Hiring Workspace • {candidates.length} Candidate{candidates.length === 1 ? "" : "s"} • {topMatchesCount} Top Match{topMatchesCount === 1 ? "" : "es"} • {readyCount} Ready for Review
           </p>
         </div>
-
 
         <div className="flex items-center gap-2">
           <Button
@@ -319,6 +335,7 @@ function JobWorkspacePage() {
         <div className="flex items-center gap-2">
           {[
             { id: "candidates", label: `Candidates (${candidates.length})` },
+            { id: "jd", label: "Original JD & Requirements" },
             { id: "overview", label: "Pipeline Overview" },
             { id: "upload", label: "Bulk Resume Upload" },
             { id: "pipeline", label: "Stage Kanban Board" },
@@ -363,6 +380,7 @@ function JobWorkspacePage() {
       </div>
 
       {/* WEIGHT SLIDERS DRAWER IF OPEN */}
+
       {showWeightSliders && (
         <Card className="bg-white border-blue-200 p-5 space-y-4 shadow-sm rounded-xl">
           <div className="flex items-center justify-between">
@@ -398,8 +416,86 @@ function JobWorkspacePage() {
         </Card>
       )}
 
+      {/* TAB: ORIGINAL JD & REQUIREMENTS */}
+      {activeTab === "jd" && (
+        <div className="space-y-6">
+          <Card className="bg-white border-slate-200 p-6 space-y-6 rounded-xl shadow-xs">
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-slate-100 pb-4">
+              <div>
+                <h3 className="text-base font-bold text-slate-900 flex items-center gap-2">
+                  <FileText className="w-4 h-4 text-blue-600" /> Original Job Description & Requirements Spec
+                </h3>
+                <p className="text-xs text-slate-500 mt-0.5">
+                  Verbatim text and extracted technical/soft skill criteria powering candidate evaluation.
+                </p>
+              </div>
+              <Badge className="bg-blue-50 text-blue-700 border-blue-200 text-xs px-3 py-1 font-semibold">
+                {job?.sourcing_mode === "internal" ? "Internal Bench Workspace" : "External Sourcing Workspace"}
+              </Badge>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+              <div className="md:col-span-2 space-y-3">
+                <h4 className="text-xs font-bold text-slate-700 uppercase tracking-wider">Job Description Text</h4>
+                <div className="p-4 rounded-xl bg-slate-50 border border-slate-200 text-xs text-slate-800 font-sans leading-relaxed whitespace-pre-wrap max-h-96 overflow-y-auto">
+                  {job?.description || "No job description text recorded for this role."}
+                </div>
+              </div>
+
+              <div className="space-y-5">
+                <div className="space-y-2">
+                  <h4 className="text-xs font-bold text-slate-700 uppercase tracking-wider">Required Mandatory Skills</h4>
+                  <div className="flex flex-wrap gap-1.5">
+                    {(job?.required_skills || []).length === 0 ? (
+                      <span className="text-xs text-slate-400 italic">None specified</span>
+                    ) : (
+                      (job?.required_skills || []).map((sk) => (
+                        <Badge key={String(sk)} className="bg-blue-50 text-blue-700 border-blue-200 text-xs px-2.5 py-1">
+                          ✓ {String(sk)}
+                        </Badge>
+                      ))
+                    )}
+                  </div>
+                </div>
+
+                <div className="space-y-2">
+                  <h4 className="text-xs font-bold text-slate-700 uppercase tracking-wider">Preferred Nice-to-Have Skills</h4>
+                  <div className="flex flex-wrap gap-1.5">
+                    {(job?.nice_to_have_skills || []).length === 0 ? (
+                      <span className="text-xs text-slate-400 italic">None specified</span>
+                    ) : (
+                      (job?.nice_to_have_skills || []).map((sk) => (
+                        <Badge key={String(sk)} variant="outline" className="bg-white text-slate-700 border-slate-200 text-xs px-2.5 py-1">
+                          + {String(sk)}
+                        </Badge>
+                      ))
+                    )}
+                  </div>
+                </div>
+
+                <div className="p-4 rounded-xl bg-slate-50 border border-slate-200 space-y-2 text-xs">
+                  <div className="flex justify-between">
+                    <span className="text-slate-500 font-medium">Required Experience:</span>
+                    <span className="font-bold text-slate-900">{job?.required_experience_years ? `${job.required_experience_years}+ Years` : "Not specified"}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-slate-500 font-medium">Education Requirement:</span>
+                    <span className="font-bold text-slate-900">{job?.education_requirements || "Flexible"}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-slate-500 font-medium">Target Location:</span>
+                    <span className="font-bold text-slate-900">{extractLocation(job)}</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </Card>
+        </div>
+      )}
+
       {/* TAB 2: CANDIDATES SPREADSHEET TABLE */}
       {activeTab === "candidates" && (
+
         <div className="space-y-4">
           <div className="flex items-center justify-between gap-4">
             <div className="relative max-w-md w-full">

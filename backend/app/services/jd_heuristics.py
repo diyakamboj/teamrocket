@@ -112,6 +112,19 @@ ROLE_PACKS: list[dict[str, Any]] = [
         "summary": "Data role emphasizing pipelines, SQL, and analytical engineering.",
     },
     {
+        "id": "cto",
+        "match": re.compile(
+            r"\bcto\b|\bchief\s+technology\s+officer\b|\bvp\s+of\s+engineering\b|\bhead\s+of\s+engineering\b|\bengineering\s+director\b",
+            re.I,
+        ),
+        "title": "Chief Technology Officer / VP of Engineering",
+        "must": ["Technology Strategy & Roadmap", "Engineering Leadership", "System Architecture", "Strategic Planning"],
+        "nice": ["Executive Presence", "Budget & Resource Allocation", "Cross-functional Collaboration", "Talent Acquisition & Mentorship", "Stakeholder Management"],
+        "years": 8,
+        "education": "Master's or Bachelor's in CS / Engineering or equivalent executive experience",
+        "summary": "Executive technology role focusing on technical vision, leadership, and organization scaling.",
+    },
+    {
         "id": "software",
         "match": re.compile(
             r"\bsoftware\s+engineer\b|\bbackend\b|\bfull[\s-]?stack\b|\bdeveloper\b|\bprogrammer\b",
@@ -119,7 +132,7 @@ ROLE_PACKS: list[dict[str, Any]] = [
         ),
         "title": "Software Engineer",
         "must": ["Python or Java or TypeScript", "APIs / REST", "SQL / databases", "Git / code review"],
-        "nice": ["Docker", "Cloud (AWS/Azure/GCP)", "Kubernetes"],
+        "nice": ["Docker", "Cloud (AWS/Azure/GCP)", "Kubernetes", "Problem Solving", "Team Collaboration"],
         "years": 3,
         "education": "Bachelor's in Computer Science or equivalent experience",
         "summary": "Software engineering role emphasizing coding, APIs, and production delivery.",
@@ -158,7 +171,7 @@ SKILL_ALIASES: list[tuple[re.Pattern[str], str]] = [
     (re.compile(r"\blinux\b", re.I), "Linux"),
     (re.compile(r"\bgit\b", re.I), "Git"),
     (re.compile(r"\bmicroservices\b", re.I), "Microservices"),
-    (re.compile(r"\bsystem\s*design\b", re.I), "System Design"),
+    (re.compile(r"\bsystem\s*design\b|\barchitecture\b", re.I), "System Architecture"),
     (re.compile(r"\bmachine\s*learning\b|\bml\b", re.I), "Machine Learning"),
     (re.compile(r"\bpytorch\b", re.I), "PyTorch"),
     (re.compile(r"\btensorflow\b", re.I), "TensorFlow"),
@@ -174,12 +187,21 @@ SKILL_ALIASES: list[tuple[re.Pattern[str], str]] = [
     (re.compile(r"\bphp\b", re.I), "PHP"),
     (re.compile(r"\bswift\b", re.I), "Swift"),
     (re.compile(r"\bkotlin\b", re.I), "Kotlin"),
-    (re.compile(r"\bpvc\b|\bcopper\s*pipe\b|\bpipe\s*fitting\b", re.I), "Pipe fitting (PVC/copper)"),
-    (re.compile(r"\bwater\s*heater\b", re.I), "Water heater installation"),
-    (re.compile(r"\bdrain\b", re.I), "Drain cleaning"),
-    (re.compile(r"\bsoldering\b", re.I), "Soldering"),
-    (re.compile(r"\bcdl\b", re.I), "CDL"),
+
+    # Soft Skills & Leadership Qualities
+    (re.compile(r"\bleadership\b|\blead\s+teams?\b", re.I), "Leadership"),
+    (re.compile(r"\bteam\s+management\b|\bmanage\s+engineers?\b|\bpeople\s+management\b", re.I), "Team Management"),
+    (re.compile(r"\bstrategic\s+planning\b|\bstrategy\b|\broadmap\b", re.I), "Strategic Planning"),
+    (re.compile(r"\bexecutive\s+presence\b|\bexecutive\b|\bboard\b", re.I), "Executive Presence"),
+    (re.compile(r"\bcommunication\b|\bwritten\s+and\s+verbal\b", re.I), "Communication"),
+    (re.compile(r"\bmentorship\b|\bmentor\b|\bcoaching\b", re.I), "Mentorship"),
+    (re.compile(r"\bcross[\s-]?functional\b|\bcollaboration\b", re.I), "Cross-functional Collaboration"),
+    (re.compile(r"\bstakeholder\b", re.I), "Stakeholder Management"),
+    (re.compile(r"\bproduct\s+strategy\b|\bvision\b", re.I), "Product Strategy"),
+    (re.compile(r"\bagile\b|\bscrum\b", re.I), "Agile / Scrum"),
+    (re.compile(r"\bproblem\s*solving\b|\banalytical\b", re.I), "Problem Solving"),
 ]
+
 
 
 def _detect_role(text: str) -> dict[str, Any]:

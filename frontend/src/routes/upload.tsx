@@ -359,12 +359,18 @@ export function UploadPage() {
                           variant="outline"
                           className="rounded-xl text-xs flex items-center gap-1"
                           onClick={() => {
-                            window.location.href = `/candidates?candidate=${f.candidateId}`;
+                            const targetId = jobParam || job?.id || (job as any)?.job_id;
+                            if (targetId) {
+                              void navigate({ to: "/jobs/$jobId", params: { jobId: String(targetId) } });
+                            } else {
+                              window.location.href = `/candidates?candidate=${f.candidateId}`;
+                            }
                           }}
                         >
                           View Candidate →
                         </Button>
                       )}
+
                     </div>
                   )}
 

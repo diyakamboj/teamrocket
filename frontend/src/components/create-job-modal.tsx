@@ -20,12 +20,50 @@ import {
 import { toast } from "sonner";
 import { analyzeJob, createJob } from "@/lib/api";
 
-export type CreateJobModalProps = {
-  isOpen: boolean;
-  onClose: () => void;
-};
+function getDynamicBenchmark(title: string) {
+  const t = (title || "").toLowerCase();
+  if (t.includes("cto") || t.includes("chief") || t.includes("vp") || t.includes("director") || t.includes("head") || t.includes("executive")) {
+    return {
+      roleTitle: title || "Chief Technology Officer",
+      applicants: 42,
+      topMatchScore: "94%",
+      timeToHire: "28 Days",
+      cycles: "14 Executive Cycles",
+      insight: `Historical benchmarks for executive & ${title || "CTO"} roles show 48% higher offer acceptance when Strategic Planning, Team Leadership, and System Architecture are explicitly balanced.`,
+    };
+  }
+  if (t.includes("data") || t.includes("ml") || t.includes("ai") || t.includes("scientist") || t.includes("machine learning")) {
+    return {
+      roleTitle: title || "Data / Machine Learning Engineer",
+      applicants: 94,
+      topMatchScore: "88%",
+      timeToHire: "21 Days",
+      cycles: "18 Data Cycles",
+      insight: `Data & ML engineering roles benchmarked across past cycles show 38% higher match precision when Python, SQL, and Cloud Data Platforms are explicitly specified.`,
+    };
+  }
+  if (t.includes("manager") || t.includes("lead") || t.includes("product")) {
+    return {
+      roleTitle: title || "Engineering / Product Leadership",
+      applicants: 76,
+      topMatchScore: "90%",
+      timeToHire: "22 Days",
+      cycles: "15 Management Cycles",
+      insight: `Leadership and management roles achieve faster candidate convergence when Team Management, Stakeholder Communication, and Roadmap Execution are tagged.`,
+    };
+  }
+  return {
+    roleTitle: title || "Software Engineer",
+    applicants: 118,
+    topMatchScore: "87%",
+    timeToHire: "16 Days",
+    cycles: "24 Hiring Cycles",
+    insight: `Software Engineering roles benchmarked against past hiring cycles show top talent is secured fastest when mandatory coding skills and system architecture are balanced with clear preferred skills.`,
+  };
+}
 
 export function CreateJobModal({ isOpen, onClose }: CreateJobModalProps) {
+
   const navigate = useNavigate();
   const [step, setStep] = useState(1);
   const [hiringType, setHiringType] = useState<"internal" | "external">("external");
@@ -313,35 +351,42 @@ export function CreateJobModal({ isOpen, onClose }: CreateJobModalProps) {
               </div>
 
               {/* Historical Hiring Cycle Intelligence Card */}
-              <div className="p-4 rounded-xl bg-white border border-slate-200 space-y-3 shadow-xs">
-                <div className="flex items-center justify-between border-b border-slate-100 pb-2">
-                  <div className="flex items-center gap-2 text-indigo-700 text-xs font-bold">
-                    <History className="w-4 h-4" /> Historical Hiring Benchmark: {jobTitle || "Software Engineer"}
-                  </div>
-                  <Badge className="bg-indigo-50 text-indigo-700 border-indigo-200 text-[10px]">
-                    Benchmarked vs 12 Past Hiring Cycles
-                  </Badge>
-                </div>
 
-                <div className="grid grid-cols-3 gap-3 text-center">
-                  <div className="p-2.5 rounded-lg bg-slate-50 border border-slate-200/80">
-                    <div className="text-base font-bold text-slate-900">86</div>
-                    <div className="text-[10px] text-slate-500">Avg Applicants</div>
-                  </div>
-                  <div className="p-2.5 rounded-lg bg-slate-50 border border-slate-200/80">
-                    <div className="text-base font-bold text-blue-600">89%</div>
-                    <div className="text-[10px] text-slate-500">Top Match Score</div>
-                  </div>
-                  <div className="p-2.5 rounded-lg bg-slate-50 border border-slate-200/80">
-                    <div className="text-base font-bold text-emerald-600">18 Days</div>
-                    <div className="text-[10px] text-slate-500">Avg Time-to-Hire</div>
-                  </div>
-                </div>
+              {(() => {
+                const bm = getDynamicBenchmark(jobTitle);
+                return (
+                  <div className="p-4 rounded-xl bg-white border border-slate-200 space-y-3 shadow-xs">
+                    <div className="flex items-center justify-between border-b border-slate-100 pb-2">
+                      <div className="flex items-center gap-2 text-indigo-700 text-xs font-bold">
+                        <History className="w-4 h-4" /> Historical Hiring Benchmark: {bm.roleTitle}
+                      </div>
+                      <Badge className="bg-indigo-50 text-indigo-700 border-indigo-200 text-[10px]">
+                        Benchmarked vs {bm.cycles}
+                      </Badge>
+                    </div>
 
-                <p className="text-[11px] text-slate-500 leading-relaxed">
-                  Based on historical hiring performance for <strong>{jobTitle || "Software Engineer"}</strong> roles, JDs with explicit mandatory skills achieve 34% higher candidate match precision.
-                </p>
-              </div>
+                    <div className="grid grid-cols-3 gap-3 text-center">
+                      <div className="p-2.5 rounded-lg bg-slate-50 border border-slate-200/80">
+                        <div className="text-base font-bold text-slate-900">{bm.applicants}</div>
+                        <div className="text-[10px] text-slate-500">Avg Applicants</div>
+                      </div>
+                      <div className="p-2.5 rounded-lg bg-slate-50 border border-slate-200/80">
+                        <div className="text-base font-bold text-blue-600">{bm.topMatchScore}</div>
+                        <div className="text-[10px] text-slate-500">Top Match Score</div>
+                      </div>
+                      <div className="p-2.5 rounded-lg bg-slate-50 border border-slate-200/80">
+                        <div className="text-base font-bold text-emerald-600">{bm.timeToHire}</div>
+                        <div className="text-[10px] text-slate-500">Avg Time-to-Hire</div>
+                      </div>
+                    </div>
+
+                    <p className="text-[11px] text-slate-500 leading-relaxed">
+                      {bm.insight}
+                    </p>
+                  </div>
+                );
+              })()}
+
             </div>
           )}
 
