@@ -55,6 +55,11 @@ class CandidatePlacement(BaseModel):
     #: A plain string for the same reason `CandidateDecision.candidate_id` is
     #: — the ranking page can move candidates that exist only client-side.
     candidate_id: str
+    #: Captured at move time so the board can still render this row if the
+    #: candidate record cannot be resolved — a placement that silently
+    #: disappears from the pipeline reads to the recruiter as "the move did
+    #: nothing", which is worse than a row with a stale name.
+    candidate_name: Optional[str] = None
     stage: str = "screened"
     #: Which round of the job's loop, when the stage is "interviewing".
     #: Cleared on every other stage so the two can never disagree.

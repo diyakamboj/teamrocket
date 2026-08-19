@@ -108,6 +108,7 @@ def move_candidate(
     placement = CandidatePlacement.create(
         job_id=job.id,
         candidate_id=str(candidate_id),
+        candidate_name=candidate_name,
         stage=stage,
         round_id=resolved_round_id,
         round_sequence=resolved_sequence,

@@ -225,3 +225,43 @@ def test_move_endpoint_404s_for_an_unknown_job(client, candidate):
     )
 
     assert response.status_code == 404
+
+
+def test_a_move_survives_a_missing_candidate_record(store, looped_job):
+    """A placement whose candidate record cannot be resolved used to be
+    dropped from the pipeline, so the board re-read the old position and the
+    move looked like it had done nothing at all."""
+    ghost_id = str(uuid.uuid4())  # never saved to store.candidates
+    placement_service.move_candidate(
+        store,
+        job=looped_job,
+        candidate_id=ghost_id,
+        candidate_name="Ghost Candidate",
+        stage="interviewing",
+        round_id="r2",
+        actor_email=RECRUITER,
+    )
+
+    rows = job_pipeline_service.get_job_pipeline_candidates(store, looped_job)
+    row = next(r for r in rows if str(r["candidate_id"]) == ghost_id)
+
+    assert row["stage"] == "interviewing"
+    assert row["round_name"] == "Technical interview"
+    # The name captured at move time stands in for the missing record.
+    assert row["candidate_name"] == "Ghost Candidate"
+
+
+def test_a_placed_candidate_is_counted_without_a_record(store, looped_job):
+    ghost_id = str(uuid.uuid4())
+    placement_service.move_candidate(
+        store,
+        job=looped_job,
+        candidate_id=ghost_id,
+        candidate_name="Ghost Candidate",
+        stage="selected",
+        actor_email=RECRUITER,
+    )
+
+    counts = job_pipeline_service.job_pipeline_progression(store, looped_job.id)
+
+    assert counts["selected"] == 1

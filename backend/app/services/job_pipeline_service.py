@@ -118,10 +118,11 @@ def get_job_pipeline_summaries(
         counted = 0
         for candidate_id in set(by_candidate_id) | set(placements_by_candidate):
             candidate = store.candidates.get(candidate_id)
-            if candidate is None:
+            placement = placements_by_candidate.get(candidate_id)
+            if candidate is None and placement is None:
                 continue
             counted += 1
-            if candidate.source == "internal":
+            if candidate is not None and candidate.source == "internal":
                 internal += 1
             else:
                 external += 1
@@ -174,12 +175,21 @@ def get_job_pipeline_candidates(
     results: list[dict[str, Any]] = []
     for candidate_id in candidate_ids:
         candidate = store.candidates.get(candidate_id)
-        if candidate is None:
+        placement = placements_by_candidate.get(candidate_id)
+        # A placement outlives the candidate record it points at (deleted,
+        # re-imported under a new id, or never persisted). Dropping the row
+        # made the board silently revert the move instead of showing it, so
+        # an explicitly placed candidate is rendered from the placement.
+        if candidate is None and placement is None:
             continue
-        if source and source != "all" and candidate.source != source:
+        if (
+            source
+            and source != "all"
+            and candidate is not None
+            and candidate.source != source
+        ):
             continue
         evaluation = by_candidate_id.get(candidate_id)
-        placement = placements_by_candidate.get(candidate_id)
         stage = _stage_for(
             decisions_by_candidate.get(candidate_id),
             handoffs_by_candidate.get(candidate_id, []),
@@ -187,11 +197,15 @@ def get_job_pipeline_candidates(
         )
         results.append(
             {
-                "candidate_id": candidate.id,
-                "candidate_name": candidate.name,
-                "candidate_email": candidate.email,
-                "source": candidate.source,
-                "employment_status": candidate.employment_status,
+                "candidate_id": candidate.id if candidate else candidate_id,
+                "candidate_name": (
+                    candidate.name
+                    if candidate
+                    else (placement.candidate_name if placement else None) or "Unknown candidate"
+                ),
+                "candidate_email": candidate.email if candidate else None,
+                "source": candidate.source if candidate else "external",
+                "employment_status": candidate.employment_status if candidate else None,
                 "overall_score": float(evaluation.overall_score)
                 if evaluation is not None and evaluation.overall_score is not None
                 else None,
@@ -227,7 +241,7 @@ def job_pipeline_progression(store: Store, job_id: UUID) -> dict[str, int]:
     evaluated_ids = {str(e.candidate_id) for e in evaluations}
     for candidate_id in evaluated_ids | set(placements_by_candidate):
         candidate = store.candidates.get(candidate_id)
-        if candidate is None:
+        if candidate is None and candidate_id not in placements_by_candidate:
             continue
         stage = _stage_for(
             decisions_by_candidate.get(candidate_id),
