@@ -16,7 +16,14 @@ class Settings(BaseSettings):
     )
 
     # Azure Blob Storage
+    # Either supply the full connection string, or the account name plus a key
+    # (AZURE_STORAGE_ACCOUNT_KEY, or the account key in
+    # AZURE_STORAGE_CONNECTION_STRING). The portal's "Access keys" blade shows
+    # both forms; people routinely paste the bare key, which is not usable on
+    # its own because it carries no account name.
     AZURE_STORAGE_CONNECTION_STRING: Optional[str] = None
+    AZURE_STORAGE_ACCOUNT_NAME: Optional[str] = None
+    AZURE_STORAGE_ACCOUNT_KEY: Optional[str] = None
     AZURE_BLOB_CONTAINER_NAME: str = "resumes"
 
     # Azure AI Document Intelligence

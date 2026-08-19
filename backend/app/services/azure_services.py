@@ -1,5 +1,6 @@
 import hashlib
 import json
+from concurrent.futures import ThreadPoolExecutor, as_completed
 import math
 import re
 import time
@@ -18,26 +19,64 @@ from app.utils.logger import get_logger
 logger = get_logger(__name__)
 
 
+def _looks_like_connection_string(value: str) -> bool:
+    return "AccountName=" in value and "AccountKey=" in value
+
+
+def _build_blob_client() -> Optional[BlobServiceClient]:
+    """Builds a BlobServiceClient from either supported credential form.
+
+    Accepts a full connection string, or an account name plus an account key
+    (the key may be given as AZURE_STORAGE_ACCOUNT_KEY or pasted into
+    AZURE_STORAGE_CONNECTION_STRING, which is the common mistake). Returns
+    None when nothing usable is configured.
+    """
+    conn = (settings.AZURE_STORAGE_CONNECTION_STRING or "").strip()
+    account = (settings.AZURE_STORAGE_ACCOUNT_NAME or "").strip()
+    key = (settings.AZURE_STORAGE_ACCOUNT_KEY or "").strip()
+
+    if conn and _looks_like_connection_string(conn):
+        return BlobServiceClient.from_connection_string(conn)
+
+    # A bare key was supplied; pair it with the account name to form a URL.
+    if not key and conn:
+        key = conn
+    if account and key:
+        return BlobServiceClient(
+            account_url=f"https://{account}.blob.core.windows.net", credential=key
+        )
+
+    if key and not account:
+        raise ValueError(
+            "an account key was supplied without an account name — set "
+            "AZURE_STORAGE_ACCOUNT_NAME, or use the full connection string"
+        )
+    return None
+
+
 class AzureBlobService:
     def __init__(self) -> None:
         self.container = settings.AZURE_BLOB_CONTAINER_NAME
         self._client: Optional[BlobServiceClient] = None
-        self.mock = settings.USE_MOCK_AZURE or not settings.AZURE_STORAGE_CONNECTION_STRING
+        self.mock = settings.USE_MOCK_AZURE or not (
+            settings.AZURE_STORAGE_CONNECTION_STRING
+            or (settings.AZURE_STORAGE_ACCOUNT_NAME and settings.AZURE_STORAGE_ACCOUNT_KEY)
+        )
         if not self.mock:
             # This runs at import (module-level singleton), so a malformed
             # connection string used to abort the whole process before the app
             # could serve a single request. Fall back to local-disk storage and
             # say so loudly instead.
             try:
-                self._client = BlobServiceClient.from_connection_string(
-                    settings.AZURE_STORAGE_CONNECTION_STRING
-                )
+                self._client = _build_blob_client()
+                if self._client is None:
+                    raise ValueError("no usable Azure Storage credentials configured")
             except Exception as exc:
                 logger.error(
-                    "Azure Blob Storage credentials are invalid (%s) — falling back to local "
-                    "disk at %s. AZURE_STORAGE_CONNECTION_STRING must be the full connection "
-                    "string (DefaultEndpointsProtocol=...;AccountName=...;AccountKey=...), "
-                    "not just the account key.",
+                    "Azure Blob Storage not configured correctly (%s) — falling back to local "
+                    "disk at %s. Set AZURE_STORAGE_CONNECTION_STRING to the full connection "
+                    "string, or set AZURE_STORAGE_ACCOUNT_NAME together with "
+                    "AZURE_STORAGE_ACCOUNT_KEY.",
                     exc,
                     settings.UPLOAD_DIR,
                 )
@@ -95,6 +134,8 @@ class JsonBlobStore:
     by name prefix.
     """
 
+    MAX_FETCH_WORKERS = 32
+
     def __init__(self, blob_service: AzureBlobService, prefix: str = "documents") -> None:
         self._blob_service = blob_service
         self.prefix = prefix.strip("/")
@@ -143,6 +184,31 @@ class JsonBlobStore:
             return None
         return json.loads(data.decode("utf-8"))
 
+    def get_many(self, keys: list[str]) -> list[Optional[dict]]:
+        """Fetches many documents, preserving input order.
+
+        Against real Blob Storage each `get` is a network round-trip, so
+        reading a 200-document collection one key at a time took ~11s. Local
+        mock mode is plain file reads and stays sequential — a thread pool
+        there would only add overhead.
+        """
+        if not keys:
+            return []
+        if self._blob_service.mock:
+            return [self.get(key) for key in keys]
+
+        results: list[Optional[dict]] = [None] * len(keys)
+        workers = min(self.MAX_FETCH_WORKERS, len(keys))
+        with ThreadPoolExecutor(max_workers=workers) as pool:
+            futures = {pool.submit(self.get, key): i for i, key in enumerate(keys)}
+            for future in as_completed(futures):
+                index = futures[future]
+                try:
+                    results[index] = future.result()
+                except Exception as exc:
+                    logger.warning("Failed to read blob %s: %s", keys[index], exc)
+        return results
+
     def delete(self, key: str) -> None:
         if self._blob_service.mock:
             path = self._local_path(key)
@@ -157,6 +223,37 @@ class JsonBlobStore:
             blob.delete_blob()
         except Exception:
             pass
+
+    def put_many(self, items: list[tuple[str, dict]]) -> None:
+        """Writes many documents concurrently (see `get_many` for why)."""
+        if not items:
+            return
+        if self._blob_service.mock:
+            for key, doc in items:
+                self.put(key, doc)
+            return
+
+        workers = min(self.MAX_FETCH_WORKERS, len(items))
+        with ThreadPoolExecutor(max_workers=workers) as pool:
+            futures = {pool.submit(self.put, key, doc): key for key, doc in items}
+            for future in as_completed(futures):
+                try:
+                    future.result()
+                except Exception as exc:
+                    logger.warning("Failed to write blob %s: %s", futures[future], exc)
+
+    def delete_many(self, keys: list[str]) -> None:
+        """Deletes many documents concurrently (see `get_many` for why)."""
+        if not keys:
+            return
+        if self._blob_service.mock:
+            for key in keys:
+                self.delete(key)
+            return
+
+        workers = min(self.MAX_FETCH_WORKERS, len(keys))
+        with ThreadPoolExecutor(max_workers=workers) as pool:
+            list(pool.map(self.delete, keys))
 
     def exists(self, key: str) -> bool:
         if self._blob_service.mock:

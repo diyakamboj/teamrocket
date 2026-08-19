@@ -86,9 +86,8 @@ class EvidenceTracker:
         return evidence
 
     def persist(self, store: Store, evaluation_id, evidence_items: list[dict[str, Any]]) -> list[Evidence]:
-        rows: list[Evidence] = []
-        for item in evidence_items:
-            row = Evidence(
+        rows = [
+            Evidence(
                 evaluation_id=evaluation_id,
                 skill_name=item.get("skill_name"),
                 resume_text_snippet=item.get("resume_text_snippet"),
@@ -96,8 +95,9 @@ class EvidenceTracker:
                 confidence_score=item.get("confidence_score"),
                 dimension=item.get("dimension"),
             )
-            store.evidence.save(row)
-            rows.append(row)
+            for item in evidence_items
+        ]
+        store.evidence.save_many(rows)
         return rows
 
 

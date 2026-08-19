@@ -24,7 +24,7 @@ from app.storage.store import Store, get_store
 
 class InMemoryJsonBlobStore:
     """Dict-backed stand-in for `JsonBlobStore`, same interface (put/get/
-    delete/exists/list_prefix). Gives each test a trivially-reset,
+    get_many/delete/exists/list_prefix). Gives each test a trivially-reset,
     fully-isolated backing store — no real disk I/O, no shared state between
     tests, no need for the old drop-all/create-all SQLAlchemy dance.
     """
@@ -38,6 +38,17 @@ class InMemoryJsonBlobStore:
     def get(self, key: str) -> Optional[dict]:
         doc = self._data.get(key)
         return copy.deepcopy(doc) if doc is not None else None
+
+    def get_many(self, keys: list[str]) -> list[Optional[dict]]:
+        return [self.get(key) for key in keys]
+
+    def put_many(self, items: list[tuple[str, dict]]) -> None:
+        for key, doc in items:
+            self.put(key, doc)
+
+    def delete_many(self, keys: list[str]) -> None:
+        for key in keys:
+            self.delete(key)
 
     def delete(self, key: str) -> None:
         self._data.pop(key, None)

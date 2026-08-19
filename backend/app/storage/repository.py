@@ -48,12 +48,11 @@ class Repository(Generic[T]):
 
     def list_all(self) -> list[T]:
         keys = self._store.list_prefix(self.collection)
-        results: list[T] = []
-        for key in keys:
-            doc = self._store.get(key)
-            if doc is not None:
-                results.append(self._model.model_validate(doc))
-        return results
+        return [
+            self._model.model_validate(doc)
+            for doc in self._store.get_many(keys)
+            if doc is not None
+        ]
 
     def query(self, predicate: Callable[[T], bool]) -> list[T]:
         return [obj for obj in self.list_all() if predicate(obj)]
@@ -127,24 +126,22 @@ class EvaluationRepository(Repository[Evaluation]):
 
     def list_for_job(self, job_id) -> list[Evaluation]:
         keys = self._store.list_prefix(f"{self.collection}/{job_id}")
-        results: list[Evaluation] = []
-        for key in keys:
-            doc = self._store.get(key)
-            if doc is not None:
-                results.append(Evaluation.model_validate(doc))
-        return results
+        return [
+            Evaluation.model_validate(doc)
+            for doc in self._store.get_many(keys)
+            if doc is not None
+        ]
 
     def list_all(self) -> list[Evaluation]:
-        keys = self._store.list_prefix(self.collection)
         pointer_dir = f"{self.collection}/{self._POINTER_PREFIX}/"
-        results: list[Evaluation] = []
-        for key in keys:
-            if key.startswith(pointer_dir):
-                continue
-            doc = self._store.get(key)
-            if doc is not None:
-                results.append(Evaluation.model_validate(doc))
-        return results
+        keys = [
+            k for k in self._store.list_prefix(self.collection) if not k.startswith(pointer_dir)
+        ]
+        return [
+            Evaluation.model_validate(doc)
+            for doc in self._store.get_many(keys)
+            if doc is not None
+        ]
 
 
 class EvidenceRepository(Repository[Evidence]):
@@ -169,17 +166,29 @@ class EvidenceRepository(Repository[Evidence]):
 
     def list_for_evaluation(self, evaluation_id) -> list[Evidence]:
         keys = self._store.list_prefix(f"{self.collection}/{evaluation_id}")
-        results: list[Evidence] = []
-        for key in keys:
-            doc = self._store.get(key)
-            if doc is not None:
-                results.append(Evidence.model_validate(doc))
-        return results
+        return [
+            Evidence.model_validate(doc)
+            for doc in self._store.get_many(keys)
+            if doc is not None
+        ]
+
+    def save_many(self, objs: list[Evidence]) -> list[Evidence]:
+        """Re-scoring writes every evidence row for an evaluation at once;
+        doing that one blob PUT at a time dominated the ranking endpoint."""
+        self._store.put_many(
+            [
+                (
+                    f"{self.collection}/{obj.evaluation_id}/{new_sortable_id()}.json",
+                    obj.model_dump(mode="json"),
+                )
+                for obj in objs
+            ]
+        )
+        return objs
 
     def delete_for_evaluation(self, evaluation_id) -> None:
         keys = self._store.list_prefix(f"{self.collection}/{evaluation_id}")
-        for key in keys:
-            self._store.delete(key)
+        self._store.delete_many(keys)
 
 
 class AtsBenchmarkRepository(Repository[AtsBenchmarkScore]):
