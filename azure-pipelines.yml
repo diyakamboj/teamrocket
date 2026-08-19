@@ -16,11 +16,9 @@
 # role assignments or touches Key Vault RBAC (see KNOWN-ISSUES.md #12/#13
 # for why that distinction matters).
 #
-# BRANCH: triggers on `main`. NOTE — per KNOWN-ISSUES.md #9, `phase-2`
-# (backend, authoritative) and `testing` (frontend polish) are not yet
-# merged; this pipeline won't have real code to build/deploy against `main`
-# until that merge happens. Update the trigger below if the merge plan ends
-# up targeting a different branch name.
+# BRANCH: triggers on `main`. `phase-2` merged into `main` 2026-08-18 (per
+# a live check, KNOWN-ISSUES.md #9) — this pipeline has real code to build
+# now.
 #
 # CONFIRMED against frontend/.env.example: the backend URL env var is
 # VITE_API_BASE_URL (default there is http://localhost:8000 for local dev;
@@ -28,10 +26,12 @@
 # That file also defines VITE_RECRUITER_EMAIL (audit-trail header, defaults
 # to recruiter@example.com) — not infra-derived, left at its default here.
 #
-# STILL UNCONFIRMED — verify against actual repo contents before relying on
-# this:
-#   - frontend's build script is `npm run build` (standard Vite scaffold;
-#     package.json's scripts block wasn't inspected directly)
+# FRONTEND BUILD TOOL: npm — confirmed directly (2026-08-19) via root
+# package.json's own build script (`npm --prefix frontend run build`) and
+# frontend/README.md's documented `npm i`/`npm run dev`. An earlier guess
+# that bun.lock's presence meant the team used bun instead was wrong —
+# corrected after actually checking, see "Install frontend dependencies"
+# step's comment.
 #
 # SCM_DO_BUILD_DURING_DEPLOYMENT=true (Oryx build-on-deploy, so
 # `pip install -r requirements.txt` runs server-side) is now tracked as a
@@ -110,11 +110,27 @@ stages:
         steps:
           - task: NodeTool@0
             inputs:
-              versionSpec: "20.x"
+              # 22.x, not 20.x — @tanstack/start-storage-context requires
+              # node >=22.12.0 (npm warns EBADENGINE on 20.x; not fatal on
+              # its own, but bumping this removes one variable).
+              versionSpec: "22.x"
 
+          # npm install, not npm ci — confirmed npm (not bun) is the real
+          # tool: root package.json's own build script is
+          # `npm --prefix frontend run build`, and frontend/README.md
+          # documents `npm i`/`npm run dev` directly. bun.lock's presence
+          # was a red herring (an earlier guess based on it existing plus
+          # the devcontainer listing Bun as an installed tool — wrong,
+          # corrected 2026-08-19). `npm ci` failed because
+          # package-lock.json is out of sync with package.json (real gap in
+          # the app repo, not this pipeline); `npm install` tolerates that
+          # instead of hard-failing. Ideally someone regenerates and commits
+          # an up-to-date package-lock.json in the app repo and this goes
+          # back to `npm ci` for full reproducibility — not blocking either
+          # way.
           - script: |
               cd frontend
-              npm ci
+              npm install
             displayName: "Install frontend dependencies"
 
           - script: |
