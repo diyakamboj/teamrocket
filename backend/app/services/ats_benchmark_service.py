@@ -35,14 +35,54 @@ NICE_TO_HAVE_WEIGHT = 1
 STRONG_DELTA_THRESHOLD = 15.0
 
 
+def _keyword_pattern(kw: str) -> str:
+    """Regex for one keyword, anchored so it cannot match inside a word.
+
+    Boundaries are applied only at the keyword's alphanumeric edges, so
+    punctuation-carrying skills still match: "C++" and "C#" end in symbols
+    and take no trailing boundary, ".NET" takes no leading one.
+
+    Internal punctuation is treated as optional separator, so "Node.js"
+    matches "node.js", "nodejs" and "node js" — the same string written
+    three ways, which is spelling rather than semantics. Genuine synonyms
+    remain the semantic layer's job, not this one's.
+    """
+    parts = re.split(r"[^a-z0-9]+", kw)
+    core = r"[\s._/\-]*".join(re.escape(p) for p in parts if p)
+    if not core:
+        return re.escape(kw)
+    left = r"(?<![a-z0-9])" if kw[:1].isalnum() else ""
+    # "+" and "#" are excluded on the right so a requirement for "C" is not
+    # satisfied by "C++" or "C#" — different languages that merely share a
+    # prefix. Other punctuation ("C," "C.") still terminates the token.
+    right = r"(?![a-z0-9+#])" if kw[-1:].isalnum() else ""
+    # Trailing symbols ("c++", "c#") are part of the token and must be present.
+    trailing = re.escape(re.sub(r"^.*?([^a-z0-9]*)$", r"\1", kw)) if not kw[-1:].isalnum() else ""
+    return left + core + trailing + right
+
+
 def _keyword_present(keyword: str, haystack_lower: str) -> bool:
+    """Whether a job keyword literally appears in the résumé.
+
+    This used to fall back to a bare substring check when the anchored regex
+    missed, which matched any keyword hiding inside a longer word: "react"
+    satisfied "R", "django" satisfied "Go", "javascript" satisfied "Java"
+    and "cloud" satisfied "C". Short language names are among the most
+    common required skills, so that fallback inflated the baseline for
+    résumés that never mentioned the skill at all.
+    """
     kw = keyword.strip().lower()
     if not kw:
         return False
-    pattern = r"(?<![a-z0-9])" + re.escape(kw) + r"(?![a-z0-9])"
-    if re.search(pattern, haystack_lower):
+    if re.search(_keyword_pattern(kw), haystack_lower):
         return True
-    return kw in haystack_lower
+    # Try again with separator punctuation collapsed on both sides, so the
+    # match is symmetric: "NodeJS" finds "node.js" as well as the reverse.
+    flat_kw = re.sub(r"[._\-\s]+", "", kw)
+    flat_haystack = re.sub(r"(?<=[a-z0-9])[._\-]+(?=[a-z0-9])", "", haystack_lower)
+    if flat_kw == kw and flat_haystack == haystack_lower:
+        return False
+    return re.search(_keyword_pattern(flat_kw), flat_haystack) is not None
 
 
 def compute_keyword_baseline(candidate: Candidate, job: JobPosting) -> dict[str, Any]:
@@ -52,6 +92,8 @@ def compute_keyword_baseline(candidate: Candidate, job: JobPosting) -> dict[str,
 
     matched: list[str] = []
     missing: list[str] = []
+    missing_required: list[str] = []
+    missing_nice: list[str] = []
     weighted_matched = 0
     weighted_total = 0
 
@@ -62,6 +104,7 @@ def compute_keyword_baseline(candidate: Candidate, job: JobPosting) -> dict[str,
             weighted_matched += REQUIRED_WEIGHT
         else:
             missing.append(keyword)
+            missing_required.append(keyword)
 
     for keyword in nice_to_have:
         weighted_total += NICE_TO_HAVE_WEIGHT
@@ -70,6 +113,7 @@ def compute_keyword_baseline(candidate: Candidate, job: JobPosting) -> dict[str,
             weighted_matched += NICE_TO_HAVE_WEIGHT
         else:
             missing.append(keyword)
+            missing_nice.append(keyword)
 
     # A job with no required or nice-to-have skills gives the keyword scan
     # nothing to look for. That is not a perfect match -- it is *no baseline*.
@@ -77,10 +121,24 @@ def compute_keyword_baseline(candidate: Candidate, job: JobPosting) -> dict[str,
     # matched keywords, which is worse than useless: it looks authoritative.
     score = round((weighted_matched / weighted_total) * 100, 2) if weighted_total else None
 
+    # Required coverage is reported separately because the weighted score
+    # alone hides it: a candidate with every nice-to-have and no must-have
+    # can still land mid-range, which reads as "decent" when the honest
+    # answer is that they miss the bar for the role.
+    required_coverage = (
+        round((len(required) - len(missing_required)) / len(required) * 100, 2)
+        if required
+        else None
+    )
+
     return {
         "keyword_score": score,
         "matched_keywords": matched,
         "missing_keywords": missing,
+        "missing_required": missing_required,
+        "missing_nice_to_have": missing_nice,
+        "required_coverage_pct": required_coverage,
+        "meets_required": bool(required) and not missing_required,
     }
 
 
@@ -204,6 +262,10 @@ def upsert_benchmark(
         keyword_score=_as_decimal(result["keyword_score"]),
         matched_keywords=result["matched_keywords"],
         missing_keywords=result["missing_keywords"],
+        missing_required=result.get("missing_required", []),
+        missing_nice_to_have=result.get("missing_nice_to_have", []),
+        required_coverage_pct=_as_decimal(result.get("required_coverage_pct")),
+        meets_required=bool(result.get("meets_required", False)),
         semantic_score=_as_decimal(result["semantic_score"]),
         semantic_rationale=result["semantic_rationale"],
         equivalent_terms=result["equivalent_terms"],

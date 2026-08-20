@@ -28,6 +28,14 @@ class AtsBenchmarkScore(BaseModel):
     keyword_score: Decimal | None = None
     matched_keywords: list[Any] = Field(default_factory=list)
     missing_keywords: list[Any] = Field(default_factory=list)
+    #: Missing keywords split by tier, so the UI can say which gaps are
+    #: disqualifying rather than listing every gap at equal weight.
+    missing_required: list[Any] = Field(default_factory=list)
+    missing_nice_to_have: list[Any] = Field(default_factory=list)
+    #: Share of the job's *required* skills found, independent of the
+    #: weighted score. None when the job lists no required skills.
+    required_coverage_pct: Decimal | None = None
+    meets_required: bool = False
 
     semantic_score: Decimal | None = None  # None when the model gave no usable score
     semantic_rationale: str | None = None

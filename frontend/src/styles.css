@@ -1015,3 +1015,92 @@ button:active:not(:disabled),
     transform: none;
   }
 }
+
+/* ---------------------------------------------------------------------------
+   Pointer-reactive surfaces
+   Driven by the custom properties PointerFX publishes. Purely decorative:
+   with no pointer (touch, reduced motion) the vars are never set and the
+   fallbacks below render a plain surface.
+--------------------------------------------------------------------------- */
+
+/* A highlight that follows the cursor across a card. */
+.spotlight {
+  position: relative;
+  isolation: isolate;
+}
+.spotlight::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  border-radius: inherit;
+  opacity: 0;
+  transition: opacity 0.3s ease;
+  background: radial-gradient(
+    22rem circle at var(--mx, 50%) var(--my, 50%),
+    color-mix(in oklch, var(--color-primary) 14%, transparent),
+    transparent 60%
+  );
+}
+.spotlight:hover::before {
+  opacity: 1;
+}
+
+/* Press feedback. Buttons already nudge down a pixel; this adds a quick
+   settle so a click feels answered even when the action is async. */
+button:active:not(:disabled),
+[role="button"]:active,
+.press-fx:active {
+  transform: translate3d(0, 1px, 0) scale(0.985);
+}
+
+.press-fx {
+  transition:
+    transform 0.16s cubic-bezier(0.22, 1, 0.36, 1),
+    box-shadow 0.2s cubic-bezier(0.22, 1, 0.36, 1),
+    background-color 0.2s ease;
+}
+.press-fx:hover {
+  transform: translate3d(0, -1px, 0);
+}
+
+/* Ripple that expands from the centre of a pressed control. */
+.ripple {
+  position: relative;
+  overflow: hidden;
+}
+.ripple::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  height: 6rem;
+  width: 6rem;
+  margin: -3rem 0 0 -3rem;
+  border-radius: 9999px;
+  background: currentColor;
+  opacity: 0;
+  transform: scale(0.2);
+  pointer-events: none;
+}
+.ripple:active::after {
+  animation: ripple-out 0.5s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+@keyframes ripple-out {
+  0% { opacity: 0.18; transform: scale(0.2); }
+  100% { opacity: 0; transform: scale(1.6); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .spotlight::before,
+  .ripple::after {
+    display: none;
+  }
+  button:active:not(:disabled),
+  [role="button"]:active,
+  .press-fx:active,
+  .press-fx:hover {
+    transform: none;
+  }
+}

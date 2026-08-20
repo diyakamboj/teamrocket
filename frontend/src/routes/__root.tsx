@@ -15,6 +15,7 @@ import { ThemeProvider } from "@/lib/theme";
 import { AppStateProvider } from "@/lib/app-state";
 import { CopilotProvider } from "@/lib/copilot-state";
 import { AppShell } from "@/components/app-shell";
+import { PointerFX } from "@/components/pointer-fx";
 import { isSignedIn, verifySession } from "@/lib/auth";
 import { CopilotLauncher } from "@/components/copilot/copilot-launcher";
 import { Toaster } from "@/components/ui/sonner";
@@ -144,6 +145,10 @@ function RootComponent() {
       {/* Applies each matched route's head() (title, meta, OG tags) to document.head client-side. */}
       <HeadContent />
       <ThemeProvider>
+        {/* Publishes cursor position as CSS vars for pointer-reactive
+            surfaces. Outside the auth gate: the public pages have cards
+            too. Renders nothing. */}
+        <PointerFX />
         {isPublic ? (
           <>
             {/* No shell, no app state: these pages must render for someone

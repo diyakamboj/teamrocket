@@ -27,7 +27,8 @@ import { Button } from "@/components/ui/button";
 import { getSession, logoutSession } from "@/lib/auth";
 import { CreateJobModal } from "@/components/create-job-modal";
 import { GlobalSearch } from "@/components/global-search";
-import { CommandPalette, openCommandPalette } from "@/components/command-palette";
+import { CommandPalette } from "@/components/command-palette";
+import { OPEN_CREATE_JOB, openCommandPalette } from "@/lib/app-events";
 import { listJobPipelines, type JobPipelineSummary } from "@/lib/api";
 
 /**
@@ -95,10 +96,14 @@ export function AppShell({ children }: { children: ReactNode }) {
     fetchJobs();
 
     const handleJobCreated = () => fetchJobs();
+    // Dashboard cards and the palette open this modal without owning it.
+    const handleOpenCreateJob = () => setIsCreateModalOpen(true);
     window.addEventListener("job-created", handleJobCreated);
+    window.addEventListener(OPEN_CREATE_JOB, handleOpenCreateJob);
     return () => {
       cancelled = true;
       window.removeEventListener("job-created", handleJobCreated);
+      window.removeEventListener(OPEN_CREATE_JOB, handleOpenCreateJob);
     };
   }, []);
 
@@ -269,7 +274,7 @@ export function AppShell({ children }: { children: ReactNode }) {
           <div className="flex shrink-0 items-center gap-3">
             <Button
               onClick={() => setIsCreateModalOpen(true)}
-              className="group flex items-center gap-1.5 rounded-md bg-gradient-to-r from-chart-1 to-chart-2 px-3 py-1.5 text-xs font-medium text-white shadow-[0_4px_14px_-6px_var(--color-primary)] transition-all duration-200 hover:shadow-[0_8px_22px_-6px_var(--color-primary)] active:scale-95"
+              className="press-fx ripple group flex items-center gap-1.5 rounded-md bg-gradient-to-r from-chart-1 to-chart-2 px-3 py-1.5 text-xs font-medium text-white shadow-[0_4px_14px_-6px_var(--color-primary)] transition-all duration-200 hover:shadow-[0_8px_22px_-6px_var(--color-primary)] active:scale-95"
             >
               <PlusCircle className="w-3.5 h-3.5" />
               Create New Job

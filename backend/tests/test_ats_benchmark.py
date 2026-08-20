@@ -122,3 +122,66 @@ async def test_delta_is_absent_when_the_job_lists_no_skills(
     assert result["score_delta"] is None
     assert result["verdict"] == "no_keyword_baseline"
     assert result["semantic_score"] == 82.0  # the half that exists still reports
+
+
+# --- keyword matching accuracy ------------------------------------------------
+
+
+def test_a_skill_hiding_inside_a_longer_word_is_not_a_match():
+    """The matcher fell back to a bare substring check, so "react" satisfied
+    a requirement for "R", "django" satisfied "Go", "javascript" satisfied
+    "Java" and "cloud" satisfied "C" — inflating the baseline for résumés
+    that never mentioned the skill."""
+    resume = "built django services, a react frontend, javascript tooling, google cloud"
+
+    for skill in ("R", "Go", "Java", "C"):
+        assert not ats_benchmark_service._keyword_present(skill, resume), skill
+
+
+def test_the_skills_that_are_really_there_still_match():
+    resume = "built django services, a react frontend, javascript tooling"
+
+    for skill in ("React", "Django", "JavaScript"):
+        assert ats_benchmark_service._keyword_present(skill, resume), skill
+
+
+def test_punctuated_skill_names_match():
+    resume = "c++ modules, c# services, asp.net legacy, node.js apis"
+
+    for skill in ("C++", "C#", ".NET", "Node.js"):
+        assert ats_benchmark_service._keyword_present(skill, resume), skill
+
+
+def test_separator_spelling_matches_in_both_directions():
+    assert ats_benchmark_service._keyword_present("NodeJS", "built node.js apis")
+    assert ats_benchmark_service._keyword_present("Node.js", "built nodejs apis")
+
+
+def test_c_is_not_satisfied_by_cpp_or_csharp():
+    """Different languages that merely share a prefix."""
+    assert not ats_benchmark_service._keyword_present("C", "c++ and c# work")
+    assert ats_benchmark_service._keyword_present("C", "wrote c and assembly")
+
+
+def test_missing_required_is_reported_apart_from_nice_to_have(sample_candidate, sample_job):
+    sample_job.required_skills = ["Python", "Kubernetes"]
+    sample_job.nice_to_have_skills = ["Terraform"]
+
+    result = ats_benchmark_service.compute_keyword_baseline(sample_candidate, sample_job)
+
+    # The weighted score alone cannot say whether a must-have is the gap.
+    assert "Kubernetes" in result["missing_required"]
+    assert "Kubernetes" not in result["missing_nice_to_have"]
+    assert result["meets_required"] is False
+    assert result["required_coverage_pct"] == 50.0
+
+
+def test_meeting_every_required_skill_is_reported(sample_candidate, sample_job):
+    sample_job.required_skills = ["Python"]
+    sample_job.nice_to_have_skills = ["Kubernetes"]
+
+    result = ats_benchmark_service.compute_keyword_baseline(sample_candidate, sample_job)
+
+    assert result["missing_required"] == []
+    assert result["meets_required"] is True
+    assert result["required_coverage_pct"] == 100.0

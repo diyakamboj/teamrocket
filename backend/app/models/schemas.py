@@ -260,6 +260,10 @@ class AtsBenchmarkResponse(ORMModel):
     keyword_score: Optional[Decimal] = None
     matched_keywords: list[Any] = Field(default_factory=list)
     missing_keywords: list[Any] = Field(default_factory=list)
+    missing_required: list[Any] = Field(default_factory=list)
+    missing_nice_to_have: list[Any] = Field(default_factory=list)
+    required_coverage_pct: Optional[Decimal] = None
+    meets_required: bool = False
     semantic_score: Optional[Decimal] = None
     semantic_rationale: Optional[str] = None
     equivalent_terms: list[EquivalentTerm] = Field(default_factory=list)

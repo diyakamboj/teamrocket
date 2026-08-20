@@ -7,6 +7,7 @@ import {
   LayoutDashboard,
   Moon,
   Network,
+  PlusCircle,
   Search,
   Settings,
   Sun,
@@ -26,6 +27,7 @@ import {
 } from "@/components/ui/command";
 import { listJobPipelines, type JobPipelineSummary } from "@/lib/api";
 import { useTheme } from "@/lib/theme";
+import { OPEN_COMMAND_PALETTE, openCreateJob } from "@/lib/app-events";
 
 /**
  * Jump-to-anything, on Cmd/Ctrl-K.
@@ -48,17 +50,6 @@ const DESTINATIONS = [
   { to: "/upload", label: "Upload Résumés", icon: Upload, keywords: "import parse" },
   { to: "/settings", label: "Settings & Context", icon: Settings, keywords: "preferences" },
 ];
-
-/**
- * Opens the palette from anywhere — the header button dispatches this rather
- * than the shell owning palette state, matching how the app already signals
- * across the tree (see the "job-created" listener in the shell).
- */
-export const OPEN_COMMAND_PALETTE = "open-command-palette";
-
-export function openCommandPalette() {
-  window.dispatchEvent(new CustomEvent(OPEN_COMMAND_PALETTE));
-}
 
 export function CommandPalette() {
   const [open, setOpen] = useState(false);
@@ -138,6 +129,21 @@ export function CommandPalette() {
             </CommandGroup>
           </>
         )}
+
+        <CommandSeparator />
+        <CommandGroup heading="Actions">
+          <CommandItem
+            value="create new job role posting"
+            className="group"
+            onSelect={() => {
+              setOpen(false);
+              openCreateJob();
+            }}
+          >
+            <PlusCircle className="icon-nudge mr-2 h-4 w-4 text-muted-foreground group-hover:text-primary" />
+            Create a job
+          </CommandItem>
+        </CommandGroup>
 
         <CommandSeparator />
         <CommandGroup heading="Preferences">
