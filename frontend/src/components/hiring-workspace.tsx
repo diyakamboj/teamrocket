@@ -25,6 +25,9 @@ export function useJobWorkspace(source: "internal" | "external") {
   const [jobs, setJobs] = useState<JobWithPipeline[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  //: Bumped by `refresh` so adding someone to a role re-reads the counts
+  //: rather than leaving the list showing what was true on mount.
+  const [version, setVersion] = useState(0);
 
   useEffect(() => {
     let cancelled = false;
@@ -63,9 +66,11 @@ export function useJobWorkspace(source: "internal" | "external") {
     return () => {
       cancelled = true;
     };
-  }, [source]);
+  }, [source, version]);
 
-  return { jobs, loading, error };
+  const refresh = useCallback(() => setVersion((v) => v + 1), []);
+
+  return { jobs, loading, error, refresh };
 }
 
 /**

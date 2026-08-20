@@ -1,22 +1,6 @@
-import { createFileRoute, Link } from "@tanstack/react-router";
-import { ArrowRight, Briefcase, Gauge, Globe, PlusCircle, Upload, Users } from "lucide-react";
-import { Button } from "@/components/ui/button";
-import { UnclassifiedRoles } from "@/components/unclassified-roles";
-import {
-  HiringSections,
-  SectionActions,
-  type HiringSection,
-} from "@/components/hiring-sections";
-import {
-  JobGrid,
-  StatTile,
-  countInStage,
-  countTopMatches,
-  useJobWorkspace,
-  useWorkspaceTotals,
-  useUnclassifiedJobs,
-} from "@/components/hiring-workspace";
-import { openCreateJob } from "@/lib/app-events";
+import { createFileRoute } from "@tanstack/react-router";
+import { Globe } from "lucide-react";
+import { HiringWorkspaceFlow } from "@/components/hiring-workspace-flow";
 
 export const Route = createFileRoute("/external-hiring")({
   head: () => ({
@@ -24,7 +8,7 @@ export const Route = createFileRoute("/external-hiring")({
       { title: "Hiring from outside — ResumeIQ" },
       {
         name: "description",
-        content: "Post a role, collect applicants, and review who fits — one step at a time.",
+        content: "Pick a role, then add outside applicants to it.",
       },
     ],
   }),
@@ -32,137 +16,6 @@ export const Route = createFileRoute("/external-hiring")({
 });
 
 function ExternalHiringPage() {
-  const { jobs, loading, error } = useJobWorkspace("external");
-  const totals = useWorkspaceTotals(jobs);
-  const unclassified = useUnclassifiedJobs();
-
-  const applicants = jobs.reduce((sum, job) => sum + job.pipeline.length, 0);
-  const scored = jobs.reduce(
-    (sum, job) => sum + job.pipeline.filter((p) => p.overall_score != null).length,
-    0,
-  );
-  const advanced = jobs.reduce(
-    (sum, job) => sum + countInStage(job, ["interviewing", "interviewed", "selected", "hired"]),
-    0,
-  );
-
-  /**
-   * Only a genuinely empty workspace gets the first-run bar. Once there is a
-   * role with people on it, the work is under way and a progress meter over
-   * a process you re-enter constantly is just noise.
-   */
-  const isNewAccount = jobs.length === 0 || applicants === 0;
-
-  const sections: HiringSection[] = [
-    {
-      id: "role",
-      icon: Briefcase,
-      title: "Post the role",
-      blurb: "Paste a job description — the skills and questions are pulled out for you.",
-      summary: jobs.length > 0 ? `${jobs.length} open` : undefined,
-      body: (
-        <>
-          <UnclassifiedRoles jobs={unclassified.jobs} onClassified={unclassified.refresh} />
-          <JobGrid
-            jobs={jobs}
-            loading={loading}
-            error={error}
-            emptyMessage="No outside roles yet. Create one to start collecting applicants."
-            metrics={(job) => [
-              { label: "Applicants", value: job.pipeline.length },
-              { label: "Strong matches", value: countTopMatches(job), tone: "text-primary" },
-              {
-                label: "Interviewing",
-                value: countInStage(job, ["interviewing", "interviewed"]),
-                tone: "text-success",
-              },
-            ]}
-          />
-          <SectionActions>
-            <Button onClick={openCreateJob} className="press-fx ripple">
-              <PlusCircle className="mr-1.5 h-3.5 w-3.5" /> Create a role
-            </Button>
-          </SectionActions>
-        </>
-      ),
-    },
-    {
-      id: "applicants",
-      icon: Users,
-      title: "Add applicants",
-      blurb: "Drop in résumés. Each one is read and scored against the role automatically.",
-      summary: applicants > 0 ? `${applicants} added` : undefined,
-      body: (
-        <>
-          <p className="text-sm text-muted-foreground">
-            {applicants > 0
-              ? `${applicants} applicant${applicants === 1 ? "" : "s"} across your outside roles.`
-              : "Upload as many résumés as you have — they are parsed and scored as they arrive."}
-          </p>
-          <SectionActions>
-            <Link to="/upload" search={{ source: "external" }}>
-              <Button variant={applicants > 0 ? "outline" : "default"} className="press-fx">
-                <Upload className="mr-1.5 h-3.5 w-3.5" /> Upload résumés
-              </Button>
-            </Link>
-          </SectionActions>
-        </>
-      ),
-    },
-    {
-      id: "review",
-      icon: Gauge,
-      title: "Review who fits",
-      blurb: "One score per applicant, with the line from the résumé behind it.",
-      summary: scored > 0 ? `${totals.topMatches} strong` : undefined,
-      body: (
-        <>
-          <div className="grid gap-3 sm:grid-cols-3">
-            <StatTile label="Applicants" value={String(totals.candidates)} hint="Across your outside roles." />
-            <StatTile label="Scored" value={String(scored)} hint="Read and rated against a role." />
-            <StatTile
-              label="Strong matches"
-              value={String(totals.topMatches)}
-              hint="Scoring 85 or higher."
-            />
-          </div>
-          <SectionActions>
-            <Link to="/candidates">
-              <Button variant="outline" className="press-fx">
-                Review applicants
-              </Button>
-            </Link>
-          </SectionActions>
-        </>
-      ),
-    },
-    {
-      id: "advance",
-      icon: ArrowRight,
-      title: "Move them forward",
-      blurb: "Advance the ones who pass through your interview rounds.",
-      summary: advanced > 0 ? `${advanced} in progress` : undefined,
-      body: (
-        <>
-          <p className="text-sm text-muted-foreground">
-            {advanced > 0
-              ? `${advanced} applicant${advanced === 1 ? "" : "s"} are in or past an interview.`
-              : "Open a role to drag applicants through its interview rounds on the board."}
-          </p>
-          <SectionActions>
-            {jobs[0] && (
-              <Link to="/jobs/$jobId" params={{ jobId: String(jobs[0].job_id) }}>
-                <Button variant="outline" className="press-fx">
-                  Open the board
-                </Button>
-              </Link>
-            )}
-          </SectionActions>
-        </>
-      ),
-    },
-  ];
-
   return (
     <div className="mx-auto max-w-4xl space-y-6 pb-12">
       <header className="border-b border-border pb-5">
@@ -171,24 +24,22 @@ function ExternalHiringPage() {
         </div>
         <h1 className="mt-1 text-2xl font-bold tracking-tight">Fill a role from outside</h1>
         <p className="mt-1 max-w-2xl text-sm text-muted-foreground">
-          Everything for this kind of hiring, in one place. Jump between sections in any order —
-          you will move back and forth as you go.
+          Choose the role you are filling, then add applicants to it.
         </p>
       </header>
 
-      <HiringSections
-        sections={sections}
-        {...(isNewAccount
-          ? {
-              gettingStarted: {
-                steps: [
-                  { label: "Create a role", done: jobs.length > 0 },
-                  { label: "Add people to it", done: applicants > 0 },
-                  { label: "Review their scores", done: scored > 0 },
-                ],
-              },
-            }
-          : {})}
+      <HiringWorkspaceFlow
+        source="external"
+        copy={{
+          population: "applicants",
+          rolesTitle: "Which role are you filling?",
+          rolesBlurb: "Pick one to see who you can put forward for it.",
+          peopleTitle: "Applicants you can add",
+          peopleBlurb: "People in your pool who are not yet on this role.",
+          emptyRoles: "Create a role open to outside applicants, then add people to it.",
+          emptyPeople:
+            "Everyone in your pool is already on this role. Add more by uploading their résumés.",
+        }}
       />
     </div>
   );
