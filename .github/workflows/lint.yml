@@ -22,6 +22,7 @@ on:
     paths:
       - ".github/workflows/**"
       - "azure-pipelines.yml"
+      - "azure-pipelines-pr-validation.yml"
 
 jobs:
   actionlint:
@@ -38,20 +39,32 @@ jobs:
           filter_mode: added
 
   yaml-syntax-check:
-    name: Validate azure-pipelines.yml syntax
+    name: Validate Azure Pipelines YAML syntax
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
 
-      - name: Parse azure-pipelines.yml with PyYAML
+      # Covers both pipeline files — azure-pipelines.yml (the real deploy
+      # pipeline, now Azure-Repos-triggered) and
+      # azure-pipelines-pr-validation.yml (pipeline 15's PR-only
+      # validation, added after disabling 15's push trigger silently
+      # stopped validating GitHub PRs). Same rationale as before: Azure
+      # DevOps can't self-report malformed YAML in either file, so this
+      # has to run here.
+      - name: Parse Azure Pipelines YAML files with PyYAML
         run: |
           python3 -c "
           import yaml, sys
-          try:
-              with open('azure-pipelines.yml') as f:
-                  yaml.safe_load(f)
-          except yaml.YAMLError as e:
-              print(f'::error file=azure-pipelines.yml::Invalid YAML syntax: {e}')
+          files = ['azure-pipelines.yml', 'azure-pipelines-pr-validation.yml']
+          failed = False
+          for path in files:
+              try:
+                  with open(path) as f:
+                      yaml.safe_load(f)
+                  print(f'{path}: valid YAML syntax')
+              except yaml.YAMLError as e:
+                  print(f'::error file={path}::Invalid YAML syntax: {e}')
+                  failed = True
+          if failed:
               sys.exit(1)
-          print('azure-pipelines.yml: valid YAML syntax')
           "
