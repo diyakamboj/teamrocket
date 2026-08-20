@@ -35,6 +35,14 @@ class Candidate(BaseModel):
     enriched_profile: Optional[dict[str, Any]] = Field(default_factory=dict)
 
     # "internal" (existing employee applying/referred) vs "external" (outside applicant).
+    #: The role this résumé was uploaded against.
+    #:
+    #: Without it a candidate belonged to no job in particular, and pipelines
+    #: were built purely from evaluations — so ranking a job, which scores the
+    #: whole pool, put every candidate on every board. None means the person
+    #: was added to the pool rather than to a specific opening; they stay
+    #: searchable and can be placed on any board by hand.
+    job_id: Optional[uuid.UUID] = None
     source: str = "external"
     employment_status: Optional[str] = None   # "bench" | "assigned" | None — only meaningful when source == "internal"
     current_assignment: Optional[str] = None  # free-text project/team; blank when on bench

@@ -6,13 +6,10 @@ import {
   StageBoardTab,
 } from "@/components/job-workspace-tabs";
 import {
-  getAtsBenchmark,
-  runAtsBenchmark,
   getJob,
   getJobPipeline,
   listJobs,
   uploadResumesToBackend,
-  type AtsBenchmark,
   type JobResponse,
   type PipelineCandidate,
 } from "@/lib/api";
@@ -28,6 +25,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Slider } from "@/components/ui/slider";
 import { CandidateDetailModal } from "@/components/candidate-detail-modal";
+import { atsTierLabel, atsToneClass, atsVerdictLabel } from "@/lib/ats-score";
 import { cn } from "@/lib/utils";
 import {
   Briefcase,
@@ -38,7 +36,6 @@ import {
   ArrowRight,
   TrendingUp,
   Sliders,
-  ShieldAlert,
   UploadCloud,
   Layers,
   Columns3,
@@ -58,13 +55,11 @@ type CandidateRow = {
   id: string;
   name: string;
   score: number;
-  atsScore: number | null;
-  deltaValue: number | null;
-  semanticScore: number | null;
-  delta: string | null;
   skillsScore: number;
   expScore: number;
-  statusBadge: "Top Match" | "Review Required" | "Low Match";
+  eduScore: number;
+  projectScore: number;
+  statusBadge: string;
   isBench?: boolean;
   skills: string[];
   stage: string;
@@ -73,58 +68,41 @@ type CandidateRow = {
 /** Rows are derived from the backend-scored pool joined with the job's
  * pipeline stages; nothing here is hand-authored. */
 
-function scoreOrNull(value: string | number | null | undefined): number | null {
-  if (value === null || value === undefined || value === "") return null;
-  const parsed = Number(value);
-  return Number.isFinite(parsed) ? parsed : null;
-}
-
 function toRow(
   candidate: Candidate,
   stage: string | undefined,
-  benchmark: AtsBenchmark | null,
 ): CandidateRow {
   if (!candidate) {
     return {
       id: "unknown",
       name: "Candidate",
       score: 0,
-      atsScore: null,
-      deltaValue: null,
-      semanticScore: null,
-      delta: null,
       skillsScore: 0,
       expScore: 0,
-      statusBadge: "Low Match",
+      eduScore: 0,
+      projectScore: 0,
+      statusBadge: "Poor",
       isBench: false,
       skills: [],
-      stage: "Applied",
+      stage: "Reviewed",
     };
   }
 
-  // Either half of the benchmark can legitimately be absent (a job with no
-  // skills listed, or a semantic run that returned nothing). `Number(null)`
-  // is 0 rather than NaN, so an isNaN guard alone let a missing score through
-  // as a real 0 and a missing delta as "+0.0%".
-  const semantic = scoreOrNull(benchmark?.semantic_score);
-  const keyword = scoreOrNull(benchmark?.keyword_score);
-  const delta = scoreOrNull(benchmark?.score_delta);
   const score = typeof candidate.score === "number" && !isNaN(candidate.score) ? candidate.score : 0;
+  const rawStage = stage ?? "screened";
 
   return {
     id: candidate.id || "c-id",
     name: candidate.name || "Candidate",
     score,
-    atsScore: keyword,
-    deltaValue: delta,
-    semanticScore: semantic,
-    delta: delta === null ? null : `${delta >= 0 ? "+" : ""}${delta.toFixed(1)}%`,
     skillsScore: candidate.categories?.skills ?? 0,
     expScore: candidate.categories?.experience ?? 0,
-    statusBadge: score >= 85 ? "Top Match" : score >= 65 ? "Review Required" : "Low Match",
+    eduScore: candidate.categories?.education ?? 0,
+    projectScore: candidate.categories?.projects ?? 0,
+    statusBadge: atsTierLabel(score),
     isBench: candidate.employmentStatus === "bench",
     skills: Array.isArray(candidate.skills) ? candidate.skills : [],
-    stage: stage ?? "Applied",
+    stage: rawStage === "screened" ? "Reviewed" : rawStage,
   };
 }
 
@@ -154,25 +132,6 @@ function JobWorkspacePage() {
   // Full pipeline rows, keyed by candidate — the board needs the round a
   // candidate sits in, not just their stage.
   const [placements, setPlacements] = useState<Record<string, PipelineCandidate>>({});
-  const [benchmarks, setBenchmarks] = useState<Record<string, AtsBenchmark | null>>({});
-  // A benchmark is computed on demand, so these columns start empty for every
-  // candidate nobody has run one for. Without a way to run it from here the
-  // ATS and DELTA columns just sat blank.
-  const [runningBenchmark, setRunningBenchmark] = useState<string | null>(null);
-
-  async function handleRunBenchmark(candidateId: string) {
-    setRunningBenchmark(candidateId);
-    try {
-      const result = await runAtsBenchmark(candidateId, jobId);
-      setBenchmarks((current) => ({ ...current, [candidateId]: result }));
-    } catch (error) {
-      toast.error(
-        error instanceof Error ? error.message : "Could not run the ATS benchmark",
-      );
-    } finally {
-      setRunningBenchmark(null);
-    }
-  }
   const [selectedCandidateId, setSelectedCandidateId] = useState<string | null>(null);
   const [selectedForCompare, setSelectedForCompare] = useState<string[]>([]);
   const [showWeightSliders, setShowWeightSliders] = useState(false);
@@ -200,7 +159,8 @@ function JobWorkspacePage() {
     setUploadedFiles((prev) => [...newItems, ...prev]);
 
     try {
-      await addFiles(fileArray);
+      // Uploading from a job workspace means "these are for this role".
+      await addFiles(fileArray, jobId);
       refreshPool();
       setUploadedFiles((prev) =>
         prev.map((item) =>
@@ -282,42 +242,18 @@ function JobWorkspacePage() {
     [ranked],
   );
 
-  useEffect(() => {
-    const visible = (ranked || []).slice(0, 25);
-    if (visible.length === 0) return;
-    let cancelled = false;
-    void Promise.all(
-      visible.map(async (c) => {
-        try {
-          const bm = await getAtsBenchmark(c.id, jobId);
-          return [c.id, bm] as const;
-        } catch {
-          return [c.id, null] as const;
-        }
-      }),
-    )
-      .then((entries) => {
-        if (!cancelled) setBenchmarks(Object.fromEntries(entries));
-      })
-      .catch(() => {});
-
-    return () => {
-      cancelled = true;
-    };
-  }, [ranked, jobId]);
-
   const candidates = useMemo(() => {
     if (!Array.isArray(ranked)) return [];
     return ranked
       .map((c) => {
         try {
-          return toRow(c, stages?.[c.id], benchmarks?.[c.id] ?? null);
+          return toRow(c, stages?.[c.id]);
         } catch {
           return null;
         }
       })
       .filter((r): r is CandidateRow => r !== null);
-  }, [ranked, stages, benchmarks]);
+  }, [ranked, stages]);
 
   // Filter candidates safely
   const filteredCandidates = useMemo(() => {
@@ -405,7 +341,7 @@ function JobWorkspacePage() {
             { id: "overview", label: "Pipeline Overview" },
             { id: "upload", label: "Bulk Resume Upload" },
             { id: "pipeline", label: "Stage Kanban Board" },
-            { id: "insights", label: "JD Insights & Skew Analysis" },
+            { id: "insights", label: "Job Description Insights" },
           ].map((tab) => (
             <button
               key={tab.id}
@@ -617,7 +553,7 @@ function JobWorkspacePage() {
               />
             </div>
             <span className="text-xs text-slate-500">
-              Showing {filteredCandidates.length} candidate scores sorted by Overall Fit %
+              Showing {filteredCandidates.length} candidates sorted by ATS score
             </span>
           </div>
 
@@ -627,10 +563,10 @@ function JobWorkspacePage() {
                 <tr className="bg-slate-50 border-b border-slate-200 text-slate-500 uppercase font-semibold">
                   <th className="p-3.5 w-10 text-center">Select</th>
                   <th className="p-3.5">Candidate</th>
-                  <th className="p-3.5">AI Fit Score</th>
-                  <th className="p-3.5">ATS Score</th>
-                  <th className="p-3.5">Delta</th>
+                  <th className="p-3.5">ATS score</th>
                   <th className="p-3.5">Skills</th>
+                  <th className="p-3.5">Experience</th>
+                  <th className="p-3.5">Education</th>
                   <th className="p-3.5">Stage</th>
                   <th className="p-3.5 text-right">Actions</th>
                 </tr>
@@ -659,11 +595,6 @@ function JobWorkspacePage() {
                             👥 Bench
                           </Badge>
                         )}
-                        {c.statusBadge === "Review Required" && (
-                          <Badge className="bg-rose-50 text-rose-700 border-rose-200 text-[10px] flex items-center gap-1 font-bold">
-                            <ShieldAlert className="w-3 h-3 text-rose-600" /> Review
-                          </Badge>
-                        )}
                       </div>
                       <div className="flex flex-wrap gap-1 mt-1">
                         {c.skills.slice(0, 3).map((sk) => (
@@ -674,40 +605,23 @@ function JobWorkspacePage() {
                       </div>
                     </td>
                     <td className="p-3.5">
-                      <span className="font-extrabold text-sm text-blue-600 bg-blue-50 px-2 py-0.5 rounded border border-blue-200">{c.score}%</span>
+                      <div className="flex flex-col gap-1">
+                        <span className="font-extrabold text-base text-blue-700 tabular-nums">
+                          {c.score}
+                        </span>
+                        <div className="flex flex-wrap gap-1">
+                          <Badge className={cn("text-[10px] font-bold", atsToneClass(c.score))}>
+                            {atsTierLabel(c.score)}
+                          </Badge>
+                          <Badge variant="outline" className="text-[10px] font-bold">
+                            {atsVerdictLabel(c.score)}
+                          </Badge>
+                        </div>
+                      </div>
                     </td>
-                    <td className="p-3.5 text-slate-500">
-                      {c.atsScore !== null ? (
-                        `${Math.round(c.atsScore)}%`
-                      ) : benchmarks[c.id] ? (
-                        // Computed, but this job lists no skills to scan for.
-                        <span title="This job lists no required or nice-to-have skills">—</span>
-                      ) : (
-                        <button
-                          type="button"
-                          onClick={() => void handleRunBenchmark(c.id)}
-                          disabled={runningBenchmark === c.id}
-                          className="rounded border border-slate-200 px-2 py-0.5 text-[11px] font-semibold text-slate-600 transition-colors hover:bg-slate-50 disabled:opacity-60"
-                        >
-                          {runningBenchmark === c.id ? "Running…" : "Run"}
-                        </button>
-                      )}
-                    </td>
-                    {/* A negative delta means the keyword baseline ran hotter
-                        than the semantic read -- the opposite of good news, so
-                        it must not be painted the same green as a positive one. */}
-                    <td
-                      className={cn(
-                        "p-3.5 font-semibold",
-                        c.deltaValue === null && "text-slate-400",
-                        c.deltaValue !== null && c.deltaValue > 0 && "text-emerald-600",
-                        c.deltaValue !== null && c.deltaValue < 0 && "text-rose-600",
-                        c.deltaValue === 0 && "text-slate-600",
-                      )}
-                    >
-                      {c.delta ?? "—"}
-                    </td>
-                    <td className="p-3.5 text-slate-700 font-mono">{c.skillsScore}%</td>
+                    <td className="p-3.5 text-slate-700 font-mono">{c.skillsScore}</td>
+                    <td className="p-3.5 text-slate-700 font-mono">{c.expScore}</td>
+                    <td className="p-3.5 text-slate-700 font-mono">{c.eduScore}</td>
                     <td className="p-3.5">
                       <Badge variant="outline" className="text-slate-700 bg-slate-50 border-slate-200 text-xs">
                         {c.stage}
@@ -719,7 +633,7 @@ function JobWorkspacePage() {
                         onClick={() => setSelectedCandidateId(c.id)}
                         className="bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200 text-xs font-semibold rounded-lg"
                       >
-                        View Profile & Evidence →
+                        View profile →
                       </Button>
                     </td>
                   </tr>

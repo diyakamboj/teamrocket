@@ -174,6 +174,8 @@ export type InterviewRound = {
   focus?: string | null;
   interview_type: string;
   duration_minutes: number;
+  interviewer_name?: string | null;
+  interviewer_email?: string | null;
 };
 
 export type JobResponse = {
@@ -334,13 +336,13 @@ export async function askAgentStreaming(
       } else if (event["type"] === "result") {
         result = event as unknown as AgentAskResponse;
       } else if (event["type"] === "error") {
-        failure = String(event["detail"] ?? "Copilot failed");
+        failure = String(event["detail"] ?? "AI failed");
       }
     }
   }
 
   if (result) return result;
-  throw new Error(failure ?? "Copilot stream ended without an answer");
+  throw new Error(failure ?? "AI stream ended without an answer");
 }
 
 export async function getAgentModels(): Promise<AgentModelsResponse> {
@@ -1704,11 +1706,21 @@ export async function reparseResume(resumeId: string): Promise<ResumeDetail> {
   });
 }
 
-export async function uploadResumesToBackend(files: File[]): Promise<BackendResumeUploadResponse> {
+export async function uploadResumesToBackend(
+  files: File[],
+  /** The role these résumés are for. Omit to add them to the pool without
+   *  attaching them to a job — they can then be ranked for any of them. */
+  jobId?: string | null,
+  /** Which population this résumé belongs to. Decided at intake so internal
+   *  employees and external applicants never mix by default. */
+  source: "internal" | "external" = "external",
+): Promise<BackendResumeUploadResponse> {
   const formData = new FormData();
   for (const f of files) {
     formData.append("files", f);
   }
+  if (jobId) formData.append("job_id", jobId);
+  formData.append("source", source);
 
   const email = recruiterEmail();
   const res = await fetch(`${API_BASE}/api/resumes/upload`, {
@@ -1753,6 +1765,8 @@ export type BackendCandidate = {
   employment_status?: string | null;
   current_assignment?: string | null;
   bench_since?: string | null;
+  /** The role this résumé was uploaded against; null means the general pool. */
+  job_id?: string | null;
   created_at: string;
 };
 
@@ -1846,3 +1860,96 @@ export { API_BASE };
 
 
 
+
+
+export type VectorEngineStatus = {
+  name: string;
+  role: string;
+  reachable: boolean;
+  documents_indexed: number | null;
+};
+
+export type VectorIndexStatus = {
+  backend: string;
+  backend_label: string;
+  is_external: boolean;
+  embedding_model: string;
+  dimensions: number;
+  reachable: boolean;
+  documents_indexed: number | null;
+  indexed_for_me: number;
+  my_candidates: number;
+  detail: string;
+  /** One entry per engine when more than one is in play. */
+  engines: VectorEngineStatus[];
+};
+
+/** Live state of the vector index behind semantic search. */
+export async function getVectorIndexStatus(): Promise<VectorIndexStatus> {
+  return request<VectorIndexStatus>("/api/candidates/index-status");
+}
+
+
+// ---------- Role assignment & internal employees ----------
+
+/** Move a candidate onto a role, or pass null to return them to the pool.
+ *  Removing from a role does not delete them — they stay rankable. */
+export async function moveCandidateToRole(
+  candidateId: string,
+  jobId: string | null,
+): Promise<BackendCandidate> {
+  return request<BackendCandidate>(`/api/candidates/${candidateId}/role`, {
+    method: "PUT",
+    body: JSON.stringify({ job_id: jobId }),
+  });
+}
+
+export type NewInternalEmployee = {
+  name: string;
+  email: string;
+  title?: string | null;
+  current_assignment?: string | null;
+  location?: string | null;
+  skills?: string[];
+  on_bench?: boolean;
+  job_id?: string | null;
+};
+
+/** Add an existing employee without a résumé upload. */
+export async function createInternalEmployee(
+  input: NewInternalEmployee,
+): Promise<BackendCandidate> {
+  return request<BackendCandidate>("/api/candidates/internal", {
+    method: "POST",
+    body: JSON.stringify(input),
+  });
+}
+
+/** Mark an existing candidate as an internal employee. */
+export async function markCandidateInternal(candidateId: string): Promise<BackendCandidate> {
+  return request<BackendCandidate>(`/api/candidates/${candidateId}`, {
+    method: "PUT",
+    body: JSON.stringify({ source: "internal" }),
+  });
+}
+
+
+/** An internal employee, benched or not. */
+export type InternalEmployee = {
+  candidate_id: string;
+  name: string;
+  title?: string | null;
+  email: string;
+  skills: string[];
+  /** What they are working on now; null means between assignments. */
+  current_assignment?: string | null;
+  on_bench: boolean;
+  days_on_bench?: number | null;
+  job_id?: string | null;
+};
+
+/** The whole internal roster — the bench list alone had no way to reach
+ *  people who were not already on it. */
+export async function listInternalEmployees(): Promise<InternalEmployee[]> {
+  return request<InternalEmployee[]>("/api/bench/employees");
+}

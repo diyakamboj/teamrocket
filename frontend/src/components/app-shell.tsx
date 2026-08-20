@@ -21,6 +21,7 @@ import { useEffect, useState, type ReactNode } from "react";
 import { useAppState } from "@/lib/app-state";
 import { useTheme } from "@/lib/theme";
 import { cn } from "@/lib/utils";
+import { ProductName } from "@/components/product-name";
 import { Button } from "@/components/ui/button";
 import { getSession, logoutSession } from "@/lib/auth";
 import { CreateJobModal } from "@/components/create-job-modal";
@@ -88,7 +89,9 @@ export function AppShell({ children }: { children: ReactNode }) {
           </span>
           {!collapsed && (
             <div className="min-w-0">
-              <p className="truncate text-sm font-bold tracking-tight text-foreground">ResumeIQ</p>
+              <p className="truncate text-sm tracking-tight text-foreground">
+                <ProductName />
+              </p>
               <p className="truncate text-[10px] font-medium text-muted-foreground">Recruiting Intelligence</p>
             </div>
           )}

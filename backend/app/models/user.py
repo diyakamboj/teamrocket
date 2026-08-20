@@ -13,7 +13,9 @@ import uuid
 from datetime import datetime, timezone
 from typing import Optional
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
+
+from app.models.roles import DEFAULT_ROLE, Role, normalise_role
 
 
 def _utcnow() -> datetime:
@@ -24,8 +26,18 @@ class User(BaseModel):
     id: uuid.UUID = Field(default_factory=uuid.uuid4)
     email: str
     name: str
-    role: str = "Recruiter"
+    role: Role = DEFAULT_ROLE
     department: str = "Talent Acquisition"
+
+    @field_validator("role", mode="before")
+    @classmethod
+    def _coerce_role(cls, value):
+        """Accounts stored before roles were constrained hold free text.
+
+        Reading one must not blow up, so anything unrecognised resolves to
+        the least-privileged role rather than failing validation.
+        """
+        return normalise_role(value)
     password_hash: str
     password_salt: str
     #: Active session tokens. A list so signing in on a second device does
@@ -41,7 +53,7 @@ class PublicUser(BaseModel):
     id: uuid.UUID
     email: str
     name: str
-    role: str
+    role: Role
     department: str
 
     @classmethod

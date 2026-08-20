@@ -30,6 +30,8 @@ from app.storage.store import Store
 
 __all__ = [
     "STAGE_ORDER",
+    "candidate_ids_for_job",
+    "rankable_candidate_ids_for_job",
     "get_job_pipeline_summaries",
     "get_job_pipeline_candidates",
     "job_pipeline_progression",
@@ -54,6 +56,65 @@ def _handoffs_by_candidate(store: Store, job_id: UUID) -> dict[str, list[Intervi
     for handoff in rows:
         grouped[handoff.candidate_id].append(handoff)
     return grouped
+
+
+def candidate_ids_for_job(store: Store, job: JobPosting) -> set[str]:
+    """Who belongs on this job's board.
+
+    Three ways in, and evaluation is deliberately not one of them:
+
+      * the résumé was uploaded against this role (`candidate.job_id`)
+      * a recruiter placed them here explicitly (a `CandidatePlacement`)
+      * they were scored here *and* belong to no other role, which keeps
+        candidates added before uploads carried a job from vanishing
+
+    Membership used to be "has an evaluation for this job", but ranking a job
+    scores the whole pool, so one click put every candidate on every board.
+    A candidate uploaded for Backend Engineer would appear under Platform
+    Engineer too, which is what made the boards meaningless.
+    """
+    owner = job.created_by
+    mine = store.candidates.query(
+        lambda c: c.owner_email == owner if owner else True
+    )
+
+    belongs: set[str] = set()
+    unassigned: set[str] = set()
+    for candidate in mine:
+        if candidate.job_id is not None and str(candidate.job_id) == str(job.id):
+            belongs.add(str(candidate.id))
+        elif candidate.job_id is None:
+            unassigned.add(str(candidate.id))
+
+    belongs.update(str(p.candidate_id) for p in store.candidate_placements.query(
+        lambda p: str(p.job_id) == str(job.id)
+    ))
+
+    # Pool candidates -- uploaded without a role, or added before uploads
+    # carried one -- join a board once they have been scored against it.
+    # A candidate owned by a *different* role never does, whatever their
+    # evaluations say.
+    scored = {str(e.candidate_id) for e in store.evaluations.list_for_job(job.id)}
+    belongs.update(scored & unassigned)
+    return belongs
+
+
+def rankable_candidate_ids_for_job(store: Store, job: JobPosting) -> set[str]:
+    """Who may be *scored* against this job.
+
+    Wider than board membership: the job's own candidates plus anyone in the
+    general pool who belongs to no role yet. Ranking has to include the
+    unassigned, because being scored is how they join a board in the first
+    place -- restricting ranking to existing members would mean a pool
+    candidate could never enter one.
+
+    Still excludes candidates uploaded for a different role, which is the
+    leak that put every candidate on every board.
+    """
+    owner = job.created_by
+    mine = store.candidates.query(lambda c: c.owner_email == owner if owner else True)
+    unassigned = {str(c.id) for c in mine if c.job_id is None}
+    return candidate_ids_for_job(store, job) | unassigned
 
 
 def _placements_by_candidate(store: Store, job_id: UUID) -> dict[str, CandidatePlacement]:
@@ -116,7 +177,7 @@ def get_job_pipeline_summaries(
         # board counts toward it even if they were never scored for the role.
         by_candidate_id = {str(e.candidate_id): e for e in evaluations}
         counted = 0
-        for candidate_id in set(by_candidate_id) | set(placements_by_candidate):
+        for candidate_id in candidate_ids_for_job(store, job):
             candidate = store.candidates.get(candidate_id)
             placement = placements_by_candidate.get(candidate_id)
             if candidate is None and placement is None:
@@ -168,9 +229,8 @@ def get_job_pipeline_candidates(
     # A recruiter can move a candidate who was never scored against the role;
     # leaving them out here would drop their placement and snap them back to
     # "screened" on the next read.
-    scored_ids = {str(e.candidate_id) for e in evaluations}
     by_candidate_id: dict[str, Any] = {str(e.candidate_id): e for e in evaluations}
-    candidate_ids = list(scored_ids | set(placements_by_candidate))
+    candidate_ids = list(candidate_ids_for_job(store, job))
 
     results: list[dict[str, Any]] = []
     for candidate_id in candidate_ids:
@@ -234,12 +294,10 @@ def job_pipeline_progression(store: Store, job_id: UUID) -> dict[str, int]:
     counts = {stage: 0 for stage in STAGE_ORDER}
     if not job:
         return counts
-    evaluations = store.evaluations.list_for_job(job_id)
     decisions_by_candidate = _latest_decisions_by_candidate(store, job.title)
     handoffs_by_candidate = _handoffs_by_candidate(store, job.id)
     placements_by_candidate = _placements_by_candidate(store, job.id)
-    evaluated_ids = {str(e.candidate_id) for e in evaluations}
-    for candidate_id in evaluated_ids | set(placements_by_candidate):
+    for candidate_id in candidate_ids_for_job(store, job):
         candidate = store.candidates.get(candidate_id)
         if candidate is None and candidate_id not in placements_by_candidate:
             continue

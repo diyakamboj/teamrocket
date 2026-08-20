@@ -560,12 +560,22 @@ class AzureOpenAIService:
         system: str = "You are a helpful recruiting assistant. Return valid JSON only.",
         temperature: float = 0.3,
         deployment: Optional[str] = None,
+        max_tokens: int = 1200,
     ) -> dict[str, Any]:
+        """`max_tokens` matters more than it looks on reasoning deployments.
+
+        On gpt-5 the budget covers reasoning *and* output, so a request that
+        needs a long JSON answer can spend the whole allowance thinking and
+        return an empty string — which reads downstream as "the model failed"
+        rather than "the answer did not fit". Callers asking for bulky JSON
+        should raise this.
+        """
         content = self.chat_text(
             prompt,
             system=system,
             temperature=temperature,
             deployment=deployment,
+            max_tokens=max_tokens,
             response_format={"type": "json_object"},
         )
         return self._safe_json(content)
@@ -577,6 +587,7 @@ class AzureOpenAIService:
         system: str = "You are a helpful recruiting assistant. Return valid JSON only.",
         temperature: float = 0.3,
         deployment: Optional[str] = None,
+        max_tokens: int = 1200,
     ) -> dict[str, Any]:
         """`chat_json`, but returns {} instead of raising when Azure is
         unreachable or errors.
@@ -590,7 +601,11 @@ class AzureOpenAIService:
         """
         try:
             return self.chat_json(
-                prompt, system=system, temperature=temperature, deployment=deployment
+                prompt,
+                system=system,
+                temperature=temperature,
+                deployment=deployment,
+                max_tokens=max_tokens,
             )
         except AzureServiceError as exc:
             logger.warning(
@@ -848,10 +863,19 @@ class AzureOpenAIService:
             "matched skills" in lower or "matched_skills" in lower or "format as json" in lower
         ):
             return json.dumps(self._mock_evaluation_narrative(prompt))
-        if "semantic fit review" in lower:
+        if "proper ats score" in lower or "semantic fit review" in lower:
             return json.dumps(
                 {
+                    "ats_score": 78,
                     "semantic_score": 78,
+                    "category_scores": {
+                        "skills": 82,
+                        "experience": 74,
+                        "education": 80,
+                        "certifications": 60,
+                        "projects": 76,
+                    },
+                    "tier": "good",
                     "rationale": (
                         "Resume shows hands-on delivery in the required stack with production "
                         "ownership; some required keywords appear as adjacent tools rather than "
@@ -1093,6 +1117,37 @@ class AzureSearchService:
             return found
         except Exception as exc:
             logger.warning("Could not list Azure Search document ids: %s", exc)
+            return None
+
+    def lexical_search(
+        self,
+        query_text: str,
+        *,
+        limit: int = 10,
+        filter_expression: Optional[str] = None,
+    ) -> Optional[list[dict[str, Any]]]:
+        """Keyword (BM25) search, no vector involved.
+
+        The lexical half of a fused query. Used when Qdrant owns the vector
+        side: this contributes the exact-term matching that embeddings are
+        weakest at -- a candidate's name, a specific tool, a certification
+        number.
+
+        Returns None when the service could not be reached, so the caller can
+        fuse with whatever it did get rather than treating an outage as "no
+        keyword matches".
+        """
+        if self.mock or not self._client:
+            return None
+        try:
+            results = self._client.search(
+                search_text=query_text,
+                filter=filter_expression,
+                top=limit,
+            )
+            return [dict(hit) for hit in results]
+        except Exception as exc:
+            logger.warning("Azure Search lexical query failed: %s", exc)
             return None
 
     def vector_search(

@@ -6,6 +6,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.config import settings
 from app.routes import (
+    interview_questions,
     agent,
     auth,
     bench,
@@ -72,6 +73,9 @@ setup_exception_handlers(app)
 
 app.include_router(resumes.router, prefix="/api/resumes", tags=["Resumes"])
 app.include_router(jobs.router, prefix="/api/jobs", tags=["Jobs"])
+app.include_router(
+    interview_questions.router, prefix="/api/jobs", tags=["Interview Questions"]
+)
 app.include_router(candidates.router, prefix="/api/candidates", tags=["Candidates"])
 app.include_router(evaluation.router, prefix="/api/evaluation", tags=["Evaluation"])
 app.include_router(dashboard.router, prefix="/api/dashboard", tags=["Dashboard"])

@@ -25,6 +25,10 @@ class InterviewRound(BaseModel):
     focus: Optional[str] = None
     interview_type: str = "Technical Interview"
     duration_minutes: int = 45
+    #: Who runs this round. A hiring manager looking at the board needs to
+    #: see what is queued for *them* without opening every candidate.
+    interviewer_name: Optional[str] = None
+    interviewer_email: Optional[str] = None
 
 
 #: Used when a job is created without its own loop, so the board is never

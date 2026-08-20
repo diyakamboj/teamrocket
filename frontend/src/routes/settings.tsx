@@ -1,20 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import {
-  Bot,
-  Building2,
-  CheckCircle2,
-  FileText,
-  Info,
-  Loader2,
-  Lock,
-  ShieldCheck,
-  Sliders,
-  Sparkles,
-  Trash2,
-  Upload,
-  User,
-} from "lucide-react";
+import { Bot, Building2, CheckCircle2, Database, FileText, Info, Loader2, Lock, ShieldCheck, Sliders, Sparkles, Trash2, Upload, User } from "lucide-react";
 import { toast } from "sonner";
 import {
   getRecruiterSettings,
@@ -28,6 +14,7 @@ import {
   uploadCompanyDocument,
   type CompanyDocument,
 } from "@/lib/api";
+import { VectorIndexCard } from "@/components/vector-index-card";
 import { useAppState } from "@/lib/app-state";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -67,7 +54,7 @@ const WEIGHT_FIELDS = [
 const SECTIONS = [
   { id: "profile", label: "Recruiter identity", icon: User },
   { id: "context", label: "Company context", icon: Building2 },
-  { id: "copilot", label: "Copilot grounding", icon: Bot },
+  { id: "copilot", label: "AI grounding", icon: Bot },
   { id: "scoring", label: "Scoring defaults", icon: Sliders },
 ] as const;
 
@@ -159,7 +146,7 @@ function DocumentRow({
           )}
           {doc.status === "processed" && (
             <span className="inline-flex items-center gap-1 text-[11px] font-medium text-emerald-600 dark:text-emerald-400">
-              <CheckCircle2 className="h-3 w-3" /> Ready for Copilot
+              <CheckCircle2 className="h-3 w-3" /> Ready for AI
             </span>
           )}
           {doc.status === "failed" && (
@@ -297,7 +284,7 @@ function SettingsPage() {
           <div>
             <h1 className="text-xl font-bold tracking-tight sm:text-2xl">Settings &amp; context</h1>
             <p className="mt-0.5 text-xs text-muted-foreground">
-              Your profile, the company context Copilot reasons from, and how candidates are scored.
+              Your profile, the company context AI reasons from, and how candidates are scored.
             </p>
           </div>
           <Button onClick={handleSave} className="rounded-xl">
@@ -382,7 +369,7 @@ function SettingsPage() {
             id="context"
             eyebrow="Organizational context"
             title="Company vision & culture documents"
-            description="Upload vision, values, culture or hiring-guideline documents. Each one is stored, its text extracted, and summarized so Copilot can answer from how your company actually hires."
+            description="Upload vision, values, culture or hiring-guideline documents. Each one is stored, its text extracted, and summarized so AI can answer from how your company actually hires."
             icon={Building2}
           >
             <div className="space-y-5">
@@ -464,7 +451,7 @@ function SettingsPage() {
                 </p>
               ) : docs.length === 0 ? (
                 <p className="rounded-xl border border-dashed px-4 py-6 text-center text-xs text-muted-foreground">
-                  No company documents yet. Copilot will answer from evaluation data alone.
+                  No company documents yet. AI will answer from evaluation data alone.
                 </p>
               ) : (
                 <ul className="space-y-2.5">
@@ -490,9 +477,9 @@ function SettingsPage() {
           {/* ---------- Copilot grounding ---------- */}
           <SectionCard
             id="copilot"
-            eyebrow="Copilot"
-            title="What Copilot reasons from"
-            description="Copilot answers from your stored evaluation data and the context you upload — never from guesswork. There is no model to choose: answers run on the GPT-5 deployment configured for this environment."
+            eyebrow="AI"
+            title="What AI reasons from"
+            description="AI answers from your stored evaluation data and the context you upload — never from guesswork. There is no model to choose: answers run on the GPT-5 deployment configured for this environment."
             icon={Bot}
           >
             <div className="space-y-4">
@@ -533,7 +520,7 @@ function SettingsPage() {
               <div className="flex items-start gap-2.5 rounded-xl border bg-secondary/40 p-3.5">
                 <Lock className="mt-0.5 h-4 w-4 shrink-0 text-primary" />
                 <p className="text-[11px] leading-relaxed text-muted-foreground">
-                  Blind review is toggled per session on the ranking page, and applies to Copilot
+                  Blind review is toggled per session on the ranking page, and applies to AI
                   too — names and contact details are withheld from prompts while it is on.
                 </p>
               </div>
@@ -541,6 +528,16 @@ function SettingsPage() {
           </SectionCard>
 
           {/* ---------- Scoring defaults ---------- */}
+          <SectionCard
+            id="search-index"
+            eyebrow="Semantic search"
+            title="Vector index"
+            description="Which engine answers semantic candidate search, read live rather than asserted."
+            icon={Database}
+          >
+            <VectorIndexCard />
+          </SectionCard>
+
           <SectionCard
             id="scoring"
             eyebrow="Ranking"

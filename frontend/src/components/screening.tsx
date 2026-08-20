@@ -61,10 +61,10 @@ export function CandidateScreeningSection({ candidateId, candidateName, jobId }:
       setCreating(true);
       const res = await createScreeningSession(candidateId, jobId);
       setActiveSession(res);
-      toast.success("Initiated L1 preliminary screening Q&A session!");
+      toast.success("Started an AI-guided review session");
       void fetchSessions();
     } catch (err: any) {
-      toast.error(err.message || "Failed to start screening session");
+      toast.error(err.message || "Failed to start review");
     } finally {
       setCreating(false);
     }
@@ -100,10 +100,10 @@ export function CandidateScreeningSection({ candidateId, candidateName, jobId }:
         <div>
           <CardTitle className="flex items-center gap-2 text-base font-semibold">
             <MessageSquare className="h-4 w-4 text-primary" />
-            L1 Preliminary Screening Q&A
+            L1 AI review Q&A
           </CardTitle>
           <CardDescription className="text-xs">
-            AI-guided preliminary technical screening and pre-interview summary pack generation
+            AI writes the questions. You capture answers. The score and briefing write themselves.
           </CardDescription>
         </div>
         <Button
@@ -118,7 +118,7 @@ export function CandidateScreeningSection({ candidateId, candidateName, jobId }:
             </>
           ) : (
             <>
-              <Sparkles className="h-3.5 w-3.5" /> Start Screening
+              <Sparkles className="h-3.5 w-3.5" /> Start review
             </>
           )}
         </Button>
@@ -127,11 +127,11 @@ export function CandidateScreeningSection({ candidateId, candidateName, jobId }:
       <CardContent className="space-y-4 text-sm">
         {loading ? (
           <div className="flex items-center justify-center py-6 text-xs text-muted-foreground">
-            <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Loading screening data…
+            <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Loading review…
           </div>
         ) : !activeSession ? (
           <div className="rounded-xl border border-dashed p-6 text-center text-xs text-muted-foreground">
-            No active preliminary screening session. Click "Start Screening" to generate customized Q&A.
+            No review session yet. Click “Start review” and AI will generate the questions.
           </div>
         ) : (
           <div className="space-y-4">
@@ -139,7 +139,7 @@ export function CandidateScreeningSection({ candidateId, candidateName, jobId }:
             <div className="flex items-center justify-between rounded-xl bg-secondary/50 p-3 border border-border">
               <div>
                 <p className="font-semibold text-xs text-foreground">
-                  Screening for {activeSession.candidate_name} ({activeSession.job_title || "General Role"})
+                  Review for {activeSession.candidate_name} ({activeSession.job_title || "General Role"})
                 </p>
                 <p className="text-[11px] text-muted-foreground">
                   Progress: {activeSession.answers.length} of {activeSession.questions.length} questions answered
@@ -153,7 +153,7 @@ export function CandidateScreeningSection({ candidateId, candidateName, jobId }:
                     : "bg-blue-500/10 text-blue-600 dark:text-blue-400 border-blue-500/30"
                 }`}
               >
-                {activeSession.status.toUpperCase()}
+                {activeSession.status === "completed" ? "REVIEWED" : activeSession.status.toUpperCase()}
               </Badge>
             </div>
 

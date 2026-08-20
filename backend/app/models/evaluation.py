@@ -116,6 +116,12 @@ class ResumeUpload(BaseModel):
     #: Who uploaded it — the background task needs this to file the resulting
     #: candidate under the right recruiter.
     recruiter_email: Optional[str] = None
+    #: The role this batch was uploaded against, carried through to the
+    #: candidate so the résumé lands on that job's board and no other.
+    job_id: Optional[uuid.UUID] = None
+    #: 'internal' (existing employee) or 'external' (outside applicant),
+    #: chosen at intake so the two populations never mix by default.
+    source: str = "external"
     filename: str
     blob_path: Optional[str] = None
     status: str = "queued"

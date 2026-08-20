@@ -12,6 +12,7 @@ import {
 } from "lucide-react";
 import { useAppState, type UploadStage } from "@/lib/app-state";
 import { Button } from "@/components/ui/button";
+import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { listJobs, type JobResponse } from "@/lib/api";
 
@@ -79,6 +80,22 @@ function UploadPage() {
   const { job: jobParam } = Route.useSearch();
   const navigate = Route.useNavigate();
   const [job, setJob] = useState<JobResponse | null>(null);
+  const [allJobs, setAllJobs] = useState<JobResponse[]>([]);
+  //: Role chosen on this page when none came in via ?job=. Empty means the
+  //: general pool: those candidates can then be ranked for any role.
+  const [chosenJobId, setChosenJobId] = useState<string>("");
+  const [intakeSource, setIntakeSource] = useState<"internal" | "external">("external");
+  const targetJobId = jobParam || chosenJobId || null;
+
+  useEffect(() => {
+    let cancelled = false;
+    listJobs()
+      .then((jobs) => !cancelled && setAllJobs(jobs))
+      .catch(() => !cancelled && setAllJobs([]));
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   useEffect(() => {
     if (!jobParam) {
@@ -111,7 +128,21 @@ function UploadPage() {
   // the OCR + AI parsing pipeline advances it.
   function ingest(list: FileList | null) {
     if (!list || list.length === 0) return;
-    void addFiles(Array.from(list));
+    // The page already knew which role it was uploading for and said so in
+    // the banner; it just never told the backend, so every résumé landed in
+    // the general pool regardless.
+    if (!targetJobId) {
+      toast.error("Choose which role these résumés are for first");
+      return;
+    }
+    void addFiles(Array.from(list), targetJobId, intakeSource);
+  }
+
+  /** The role must be picked before files can be dropped — a résumé with no
+   *  role has nowhere to appear, which is how candidates used to end up
+   *  invisible or on every board at once. */
+  function readyToUpload() {
+    return Boolean(targetJobId);
   }
 
 
@@ -137,6 +168,76 @@ function UploadPage() {
           Drop entire folders of PDFs — scanned documents are routed through OCR automatically.
         </p>
       </header>
+
+      <div className="rounded-2xl border bg-card p-5 shadow-sm">
+        <h2 className="text-sm font-bold">Before you upload</h2>
+        <p className="mt-1 text-xs text-muted-foreground">
+          Two things decide where these people end up. Both are set here so nobody lands in the
+          wrong pool or on the wrong board.
+        </p>
+
+        <div className="mt-4 grid gap-4 sm:grid-cols-2">
+          <div>
+            <span className="text-[11px] font-semibold">1 · Who are they?</span>
+            <div className="mt-1.5 grid grid-cols-2 gap-2">
+              {(
+                [
+                  {
+                    value: "external" as const,
+                    label: "External applicant",
+                    hint: "Applying from outside",
+                  },
+                  {
+                    value: "internal" as const,
+                    label: "Internal employee",
+                    hint: "Already works here",
+                  },
+                ]
+              ).map((option) => (
+                <button
+                  key={option.value}
+                  type="button"
+                  onClick={() => setIntakeSource(option.value)}
+                  className={cn(
+                    "rounded-xl border px-3 py-2.5 text-left transition-colors",
+                    intakeSource === option.value
+                      ? "border-primary bg-primary/5 ring-1 ring-primary"
+                      : "hover:border-muted-foreground/40",
+                  )}
+                >
+                  <span className="block text-xs font-semibold">{option.label}</span>
+                  <span className="block text-[10px] text-muted-foreground">{option.hint}</span>
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div>
+            <label htmlFor="upload-job" className="text-[11px] font-semibold">
+              2 · Which role are they for?
+            </label>
+            <select
+              id="upload-job"
+              value={jobParam || chosenJobId}
+              disabled={Boolean(jobParam)}
+              onChange={(e) => setChosenJobId(e.target.value)}
+              className="mt-1.5 w-full rounded-xl border border-input bg-background px-3 py-2.5 text-xs disabled:opacity-60"
+            >
+              <option value="">Choose a role…</option>
+              {allJobs.map((j) => (
+                <option key={j.id} value={j.id}>
+                  {j.title}
+                </option>
+              ))}
+            </select>
+            <p className="mt-1.5 text-[10px] text-muted-foreground">
+              {targetJobId
+                ? "They will appear on this role's board and no other."
+                : "Required — a résumé with no role has nowhere to appear."}
+            </p>
+          </div>
+        </div>
+      </div>
 
       {job && (
         <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl bg-primary-soft px-4 py-2.5 text-sm text-primary-soft-foreground">
@@ -166,24 +267,42 @@ function UploadPage() {
         className={cn(
           "card-surface flex flex-col items-center justify-center gap-4 border-2 border-dashed px-6 py-14 text-center transition-colors",
           dragging ? "border-primary bg-primary-soft/50" : "border-border",
+          !readyToUpload() && "opacity-60",
         )}
       >
         <span className="grid h-14 w-14 place-items-center rounded-2xl bg-primary-soft text-primary-soft-foreground">
           <UploadCloud className="h-7 w-7" />
         </span>
         <div>
-          <p className="text-lg font-bold">Drop resumes here</p>
+          <p className="text-lg font-bold">
+            {readyToUpload() ? "Drop resumes here" : "Choose a role first"}
+          </p>
           <p className="mt-1 text-sm text-muted-foreground">
-            PDF, DOCX or scanned images · up to 500 files per batch
+            {readyToUpload() ? (
+              <>
+                {intakeSource === "internal" ? "Internal employees" : "External applicants"} for{" "}
+                <strong>
+                  {allJobs.find((j) => j.id === targetJobId)?.title ?? "the selected role"}
+                </strong>{" "}
+                · PDF, DOCX or scanned images
+              </>
+            ) : (
+              "Pick who these people are and which role they are for, above."
+            )}
           </p>
         </div>
         <div className="flex flex-wrap justify-center gap-2">
-          <Button className="rounded-xl" onClick={() => fileRef.current?.click()}>
+          <Button
+            className="rounded-xl"
+            disabled={!readyToUpload()}
+            onClick={() => fileRef.current?.click()}
+          >
             Select files
           </Button>
           <Button
             variant="outline"
             className="rounded-xl"
+            disabled={!readyToUpload()}
             onClick={() => folderRef.current?.click()}
           >
             <FolderUp className="mr-2 h-4 w-4" /> Select folder

@@ -8,6 +8,7 @@ from fastapi import APIRouter, Query
 from fastapi.concurrency import run_in_threadpool
 
 from app.dependencies import AppStore, RecruiterEmail
+from app.models.candidate import Candidate
 from app.models.evaluation import AuditLog, CandidateDecision
 from app.models.schemas import (
     CandidateDecisionRequest,
@@ -117,6 +118,142 @@ def semantic_candidate_search(
     return results
 
 
+class VectorIndexStatus(BaseModel):
+    """What is actually answering semantic search right now.
+
+    Exists so the answer to "are you really using a vector database?" is
+    something the product shows rather than something a person claims.
+    """
+
+    backend: str
+    backend_label: str
+    is_external: bool
+    embedding_model: str
+    dimensions: int
+    reachable: bool
+    documents_indexed: Optional[int] = None
+    indexed_for_me: int
+    my_candidates: int
+    detail: str
+    #: One entry per engine when more than one is in play, so a half-down
+    #: pair is visible rather than averaged into a single "connected".
+    engines: list["VectorEngineStatus"] = Field(default_factory=list)
+
+
+class VectorEngineStatus(BaseModel):
+    name: str
+    role: str  # what this engine contributes to a query
+    reachable: bool
+    documents_indexed: Optional[int] = None
+
+
+@router.get("/index-status", response_model=VectorIndexStatus)
+def vector_index_status(store: AppStore, recruiter_email: RecruiterEmail):
+    """Live state of the vector index backing semantic search."""
+    from app.config import settings
+    from app.services.azure_services import search_service
+    from app.services.qdrant_store import candidate_qdrant
+
+    backend = settings.VECTOR_BACKEND
+    mine = store.candidates.query(lambda c: c.owner_email == recruiter_email)
+    indexed_for_me = candidate_vectors.count(
+        lambda metadata: metadata.get("owner_email") == recruiter_email
+    )
+
+    if backend == "dual":
+        remote_ids = search_service.list_document_ids()
+        azure_up = remote_ids is not None
+        qdrant_up = candidate_qdrant.available
+        engines = [
+            VectorEngineStatus(
+                name="Qdrant",
+                role="Vector search (HNSW, cosine)",
+                reachable=qdrant_up,
+                documents_indexed=candidate_qdrant.count() if qdrant_up else None,
+            ),
+            VectorEngineStatus(
+                name="Azure AI Search",
+                role="Keyword search (BM25)",
+                reachable=azure_up,
+                documents_indexed=len(remote_ids) if remote_ids is not None else None,
+            ),
+        ]
+        both = azure_up and qdrant_up
+        return VectorIndexStatus(
+            backend=backend,
+            backend_label="Qdrant + Azure AI Search",
+            is_external=True,
+            embedding_model=settings.AZURE_OPENAI_EMBEDDING_DEPLOYMENT_NAME or "unset",
+            dimensions=1536,
+            # Either engine alone still answers, so this is only false when
+            # both are down and search has fallen back to the local index.
+            reachable=azure_up or qdrant_up,
+            documents_indexed=candidate_qdrant.count() if qdrant_up else (
+                len(remote_ids) if remote_ids is not None else None
+            ),
+            indexed_for_me=indexed_for_me,
+            my_candidates=len(mine),
+            engines=engines,
+            detail=(
+                "Vector and keyword results are fused, so meaning and exact terms both rank."
+                if both
+                else "One engine is unreachable — results come from the other alone."
+            ),
+        )
+
+    if backend == "search":
+        remote_ids = search_service.list_document_ids()
+        reachable = remote_ids is not None
+        return VectorIndexStatus(
+            backend=backend,
+            backend_label="Azure AI Search (vector index)",
+            is_external=True,
+            embedding_model=settings.AZURE_OPENAI_EMBEDDING_DEPLOYMENT_NAME or "unset",
+            dimensions=1536,
+            reachable=reachable,
+            documents_indexed=len(remote_ids) if remote_ids is not None else None,
+            indexed_for_me=indexed_for_me,
+            my_candidates=len(mine),
+            detail=(
+                f"HNSW index '{settings.AZURE_SEARCH_INDEX_NAME}', cosine similarity."
+                if reachable
+                else "Index unreachable — semantic search is falling back to the local index."
+            ),
+        )
+
+    if backend == "qdrant":
+        reachable = candidate_qdrant.available
+        return VectorIndexStatus(
+            backend=backend,
+            backend_label="Qdrant (vector database)",
+            is_external=True,
+            embedding_model=settings.AZURE_OPENAI_EMBEDDING_DEPLOYMENT_NAME or "unset",
+            dimensions=1536,
+            reachable=reachable,
+            documents_indexed=candidate_qdrant.count() if reachable else None,
+            indexed_for_me=indexed_for_me,
+            my_candidates=len(mine),
+            detail=(
+                f"Collection '{settings.QDRANT_COLLECTION}', HNSW, cosine distance."
+                if reachable
+                else "Qdrant unreachable — semantic search is falling back to the local index."
+            ),
+        )
+
+    return VectorIndexStatus(
+        backend=backend,
+        backend_label="Local vector index (blob-backed)",
+        is_external=False,
+        embedding_model=settings.AZURE_OPENAI_EMBEDDING_DEPLOYMENT_NAME or "unset",
+        dimensions=1536,
+        reachable=True,
+        documents_indexed=candidate_vectors.count(),
+        indexed_for_me=indexed_for_me,
+        my_candidates=len(mine),
+        detail="Exact cosine search over vectors stored in blob storage.",
+    )
+
+
 @router.post("/reindex")
 def reindex_candidates(store: AppStore, recruiter_email: RecruiterEmail):
     """Re-embed this recruiter's candidates.
@@ -169,6 +306,139 @@ async def rank_candidates(
     )
     return ranked
 
+
+
+class MoveToRoleRequest(BaseModel):
+    """Move a candidate to a role, or back to the pool.
+
+    `job_id: null` removes them from whatever role they are on. They stay in
+    the recruiter's pool and can be ranked for any opening again -- removing
+    someone from a role is not the same as deleting them.
+    """
+
+    job_id: Optional[uuid.UUID] = None
+
+
+@router.put("/{candidate_id}/role", response_model=CandidateResponse)
+def move_candidate_to_role(
+    candidate_id: uuid.UUID,
+    payload: MoveToRoleRequest,
+    store: AppStore,
+    recruiter_email: RecruiterEmail,
+):
+    """Move a candidate between roles, or off a role entirely."""
+    candidate = store.candidates.get(candidate_id)
+    if not candidate or candidate.owner_email != recruiter_email:
+        raise NotFoundError("Candidate not found", {"candidate_id": str(candidate_id)})
+
+    previous_job_id = candidate.job_id
+
+    if payload.job_id is not None:
+        job = store.jobs.get(payload.job_id)
+        if not job or (job.created_by and job.created_by != recruiter_email):
+            raise NotFoundError("Job posting not found", {"job_id": str(payload.job_id)})
+
+    candidate.job_id = payload.job_id
+    store.candidates.save(candidate)
+
+    # A placement is stage state on a board the candidate has just left. Left
+    # behind it would keep pulling them back onto that board, because an
+    # explicit placement is itself a membership route.
+    if previous_job_id is not None and str(previous_job_id) != str(payload.job_id or ""):
+        for placement in store.candidate_placements.query(
+            lambda p: str(p.job_id) == str(previous_job_id)
+            and str(p.candidate_id) == str(candidate_id)
+        ):
+            store.candidate_placements.delete(placement.id)
+
+    _log_audit(
+        store,
+        recruiter_email=recruiter_email,
+        action="move_candidate_role",
+        resource_type="candidate",
+        resource_id=candidate.id,
+        details={
+            "from_job_id": str(previous_job_id) if previous_job_id else None,
+            "to_job_id": str(payload.job_id) if payload.job_id else None,
+        },
+    )
+    return candidate
+
+
+class InternalEmployeeRequest(BaseModel):
+    """An existing employee, added without a résumé upload."""
+
+    name: str
+    email: str
+    title: Optional[str] = None
+    #: What they are working on now. Blank means they are between assignments.
+    current_assignment: Optional[str] = None
+    location: Optional[str] = None
+    skills: list[str] = Field(default_factory=list)
+    #: Put them straight on the bench — the common case for someone rolling
+    #: off a project.
+    on_bench: bool = False
+    job_id: Optional[uuid.UUID] = None
+
+
+@router.post("/internal", response_model=CandidateResponse, status_code=201)
+def create_internal_employee(
+    payload: InternalEmployeeRequest,
+    store: AppStore,
+    recruiter_email: RecruiterEmail,
+):
+    """Add an internal employee directly.
+
+    Internal people are already known to the company, so requiring a résumé
+    upload to get them into the system was busywork -- and it was the only
+    way in, which is why the bench stayed empty.
+    """
+    email = payload.email.strip().lower()
+    if not email or "@" not in email:
+        raise ValidationAppError("A valid email is required", {"email": payload.email})
+    if not payload.name.strip():
+        raise ValidationAppError("A name is required")
+
+    existing = store.candidates.query(
+        lambda c: c.owner_email == recruiter_email and (c.email or "").lower() == email
+    )
+    if existing:
+        raise ValidationAppError(
+            "Someone with that email is already in your pool",
+            {"email": email, "candidate_id": str(existing[0].id)},
+        )
+
+    if payload.job_id is not None:
+        job = store.jobs.get(payload.job_id)
+        if not job or (job.created_by and job.created_by != recruiter_email):
+            raise NotFoundError("Job posting not found", {"job_id": str(payload.job_id)})
+
+    candidate = Candidate(
+        owner_email=recruiter_email,
+        name=payload.name.strip(),
+        email=email,
+        title=payload.title,
+        location=payload.location,
+        skills=[s for s in payload.skills if str(s).strip()],
+        source="internal",
+        job_id=payload.job_id,
+        employment_status="bench" if payload.on_bench else "assigned",
+        current_assignment=None if payload.on_bench else payload.current_assignment,
+        bench_since=datetime.now(timezone.utc).replace(tzinfo=None) if payload.on_bench else None,
+    )
+    store.candidates.save(candidate)
+    # Without this they are invisible to semantic search and bench matching.
+    index_candidate(candidate)
+
+    _log_audit(
+        store,
+        recruiter_email=recruiter_email,
+        action="create_internal_employee",
+        resource_type="candidate",
+        resource_id=candidate.id,
+        details={"on_bench": payload.on_bench},
+    )
+    return candidate
 
 
 @router.get("/{candidate_id}", response_model=CandidateResponse)
@@ -389,3 +659,6 @@ async def submit_candidate_decision(
             for s in outcome.slots
         ],
     )
+
+
+VectorIndexStatus.model_rebuild()

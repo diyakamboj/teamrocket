@@ -18,6 +18,7 @@ from pydantic import BaseModel, Field
 
 from app.dependencies import AppStore
 from app.models.evaluation import AuditLog
+from app.models.roles import ROLE_DESCRIPTIONS, ROLE_LABELS, Role, normalise_role
 from app.models.user import PublicUser, User
 from app.services import auth_service
 from app.utils.error_handlers import AppError, ValidationAppError
@@ -32,7 +33,7 @@ class RegisterRequest(BaseModel):
     email: str
     password: str
     name: str
-    role: str = "Recruiter"
+    role: str = "recruiter"
     department: str = "Talent Acquisition"
 
 
@@ -84,7 +85,8 @@ def register(payload: RegisterRequest, store: AppStore):
     user = User(
         email=normalize_email(payload.email),
         name=payload.name.strip(),
-        role=payload.role.strip() or "Recruiter",
+        # Whatever the form sent, it lands on one of the three roles.
+        role=normalise_role(payload.role),
         department=payload.department.strip() or "Talent Acquisition",
         password_hash=password_hash,
         password_salt=salt,
@@ -149,3 +151,16 @@ def logout(store: AppStore, authorization: Optional[str] = Header(None)):
         user.session_tokens = [t for t in user.session_tokens if t != token]
         store.users.save(user)
     return None
+
+
+@router.get("/roles")
+def list_roles():
+    """The roles an account may hold, for the registration and admin UIs.
+
+    Served from the backend so the picker cannot drift from what the API
+    will actually accept.
+    """
+    return [
+        {"value": role.value, "label": ROLE_LABELS[role], "description": ROLE_DESCRIPTIONS[role]}
+        for role in Role
+    ]

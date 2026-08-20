@@ -62,6 +62,8 @@ def upsert_candidate_from_parsed(
     text: str,
     blob_path: Optional[str],
     owner_email: Optional[str] = None,
+    job_id: Optional[uuid.UUID] = None,
+    source: str = "external",
 ) -> Candidate:
     """Create-or-update a `Candidate` from a parsed resume (email-dedup
     upsert). Extracted from `resumes.py::_process_resume`'s original
@@ -99,9 +101,19 @@ def upsert_candidate_from_parsed(
         candidate.github_url = parsed.get("github_url") or candidate.github_url
         candidate.linkedin_url = parsed.get("linkedin_url") or candidate.linkedin_url
         candidate.portfolio_url = parsed.get("portfolio_url") or candidate.portfolio_url
+        # Re-uploading someone's résumé against a role is how a recruiter
+        # says "consider them for this too". Their original job is kept if
+        # this upload named none.
+        if job_id is not None:
+            candidate.job_id = job_id
     else:
         candidate = Candidate(
             owner_email=owner_email,
+            job_id=job_id,
+            source=source,
+            # An internal hire is an employee, so they start assigned rather
+            # than with no employment state at all.
+            employment_status="assigned" if source == "internal" else None,
             name=parsed.get("name") or "Unknown",
             email=email,
             phone=parsed.get("phone"),

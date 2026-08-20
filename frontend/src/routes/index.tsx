@@ -21,6 +21,8 @@ import {
   type JobPipelineSummary,
   type PipelineCandidate,
 } from "@/lib/api";
+import { GuidedFlow } from "@/components/guided-flow";
+import { ProductName } from "@/components/product-name";
 
 export const Route = createFileRoute("/")({
   head: () => ({
@@ -81,7 +83,7 @@ function DashboardPage() {
       })
       .catch((err: unknown) => {
         if (cancelled) return;
-        setError(err instanceof Error ? err.message : "Could not reach the screening API");
+        setError(err instanceof Error ? err.message : "Could not load hiring data");
         setLoading(false);
       });
 
@@ -189,7 +191,7 @@ function DashboardPage() {
       <header className="flex flex-col justify-between gap-4 border-b border-border pb-6 md:flex-row md:items-center">
         <div>
           <div className="mb-1 flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-primary">
-            <Sparkles className="h-4 w-4" /> ResumeIQ Executive Control Center
+            <Sparkles className="h-4 w-4" /> <ProductName /> hiring dashboard
           </div>
           <h1 className="text-2xl font-extrabold tracking-tight sm:text-3xl">
             {greeting()}, {session?.name?.split(" ")[0] ?? "there"} 👋
@@ -199,10 +201,12 @@ function DashboardPage() {
               ? "Loading your live hiring pipelines…"
               : error
                 ? `Could not load pipelines: ${error}`
-                : "Here's what is happening across your internal and external hiring pipelines right now."}
+                : "Three steps: add a role, upload résumés, review ATS scores. AI handles the rest."}
           </p>
         </div>
       </header>
+
+      <GuidedFlow />
 
       <div className="stagger grid grid-cols-2 gap-4 md:grid-cols-4">
         {metrics.map((m) => (
@@ -417,7 +421,7 @@ function DashboardPage() {
             <div className="flex items-center gap-2">
               <Zap className="h-4 w-4 text-warning" />
               <div>
-                <CardTitle className="text-base font-bold">Recruiter Copilot Action Feed</CardTitle>
+                <CardTitle className="text-base font-bold">AI action feed</CardTitle>
                 <CardDescription className="text-xs">
                   Background intelligence and recommendations that need a recruiter decision.
                 </CardDescription>

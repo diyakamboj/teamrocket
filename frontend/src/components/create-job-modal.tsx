@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useNavigate } from "@tanstack/react-router";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
@@ -20,7 +20,14 @@ import {
   Wand2,
 } from "lucide-react";
 import { toast } from "sonner";
-import { analyzeJob, createJob, polishJobDescription } from "@/lib/api";
+import {
+  analyzeJob,
+  createJob,
+  listInternalEmployees,
+  moveCandidateToRole,
+  polishJobDescription,
+  type InternalEmployee,
+} from "@/lib/api";
 
 function getDynamicBenchmark(title: string) {
   const t = (title || "").toLowerCase();
@@ -94,6 +101,22 @@ export function CreateJobModal({ isOpen, onClose }: CreateJobModalProps) {
     { name: "Hiring manager", focus: "Ownership, collaboration, fit", interview_type: "Hiring Manager", duration_minutes: 45 },
   ]);
   const [hiringType, setHiringType] = useState<"internal" | "external">("external");
+  //: Internal people to put on this role's board at creation. Internal
+  //: hiring starts from named employees you already have in mind, so the
+  //: board should not start empty and wait for a résumé upload.
+  const [internalPool, setInternalPool] = useState<InternalEmployee[]>([]);
+  const [chosenEmployees, setChosenEmployees] = useState<string[]>([]);
+
+  useEffect(() => {
+    if (hiringType !== "internal") return;
+    let cancelled = false;
+    listInternalEmployees()
+      .then((all) => !cancelled && setInternalPool(all))
+      .catch(() => !cancelled && setInternalPool([]));
+    return () => {
+      cancelled = true;
+    };
+  }, [hiringType]);
   const [jobTitle, setJobTitle] = useState("");
   const [department, setDepartment] = useState("");
   const [location, setLocation] = useState("");
@@ -149,7 +172,7 @@ export function CreateJobModal({ isOpen, onClose }: CreateJobModalProps) {
           `Extracted ${analysis.required_skills?.length ?? 0} required and ${analysis.nice_to_have_skills?.length ?? 0} nice-to-have skills.`,
       );
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Copilot analysis failed");
+      toast.error(err instanceof Error ? err.message : "AI analysis failed");
     } finally {
       setAnalyzing(false);
     }
@@ -197,6 +220,25 @@ export function CreateJobModal({ isOpen, onClose }: CreateJobModalProps) {
           .filter((r) => r.name.trim())
           .map((r, i) => ({ ...r, name: r.name.trim(), sequence: i + 1 })),
       });
+      const newJobId = String(job.id || (job as any).job_id || "");
+      if (hiringType === "internal" && chosenEmployees.length > 0 && newJobId) {
+        // Sequential rather than parallel: a partial failure should leave a
+        // clear count, not an unknown mix of moved and unmoved people.
+        let moved = 0;
+        for (const candidateId of chosenEmployees) {
+          try {
+            await moveCandidateToRole(candidateId, newJobId);
+            moved += 1;
+          } catch {
+            // Reported in aggregate below.
+          }
+        }
+        if (moved < chosenEmployees.length) {
+          toast.warning(
+            `Added ${moved} of ${chosenEmployees.length} employees to this role — you can add the rest from the candidate list.`,
+          );
+        }
+      }
       window.dispatchEvent(new CustomEvent("job-created", { detail: job }));
       onClose();
       setStep(1);
@@ -291,6 +333,89 @@ export function CreateJobModal({ isOpen, onClose }: CreateJobModalProps) {
                   </p>
                 </button>
               </div>
+
+              {/* Internal hiring usually starts from people you already have
+                  in mind, so the role's board can be populated here rather
+                  than starting empty and waiting for a résumé upload. */}
+              {hiringType === "internal" && (
+                <div className="rounded-xl border border-slate-200 bg-white p-5">
+                  <h4 className="text-sm font-semibold text-slate-900">
+Pick from the bench
+                  </h4>
+                  <p className="mt-1 text-xs text-slate-500">
+                    People on the bench are available now, so they are listed first. Anyone you
+                    pick is added to this role&apos;s pipeline.
+                  </p>
+
+                  {internalPool.length === 0 ? (
+                    <p className="mt-4 rounded-lg border border-dashed px-3 py-6 text-center text-xs text-slate-500">
+                      No internal employees yet. Add them on the Bench Employees page — they do not
+                      need a résumé — and they will appear here.
+                    </p>
+                  ) : (
+                    <ul className="mt-4 max-h-56 space-y-1.5 overflow-y-auto pr-1">
+                      {internalPool.map((person) => {
+                        const checked = chosenEmployees.includes(person.candidate_id);
+                        const onBench = person.on_bench;
+                        return (
+                          <li key={person.candidate_id}>
+                            <label
+                              className={`flex cursor-pointer items-center gap-3 rounded-lg border px-3 py-2 transition-colors ${
+                                checked
+                                  ? "border-blue-500 bg-blue-50"
+                                  : "border-slate-200 hover:border-slate-300"
+                              }`}
+                            >
+                              <input
+                                type="checkbox"
+                                checked={checked}
+                                onChange={(e) =>
+                                  setChosenEmployees((prev) =>
+                                    e.target.checked
+                                      ? [...prev, person.candidate_id]
+                                      : prev.filter((id) => id !== person.candidate_id),
+                                  )
+                                }
+                                className="h-3.5 w-3.5"
+                              />
+                              <span className="min-w-0 flex-1">
+                                <span className="block truncate text-xs font-semibold text-slate-900">
+                                  {person.name}
+                                </span>
+                                <span className="block truncate text-[11px] text-slate-500">
+                                  {person.title || "No title"}
+                                  {" · "}
+                                  {onBench
+                                    ? `On the bench${
+                                        typeof person.days_on_bench === "number"
+                                          ? ` · ${person.days_on_bench}d`
+                                          : ""
+                                      }`
+                                    : person.current_assignment
+                                      ? `Currently on ${person.current_assignment}`
+                                      : "Currently assigned"}
+                                </span>
+                              </span>
+                              {onBench && (
+                                <span className="shrink-0 rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-semibold text-emerald-700">
+                                  Available
+                                </span>
+                              )}
+                            </label>
+                          </li>
+                        );
+                      })}
+                    </ul>
+                  )}
+
+                  {chosenEmployees.length > 0 && (
+                    <p className="mt-3 text-[11px] font-medium text-blue-700">
+                      {chosenEmployees.length} employee
+                      {chosenEmployees.length === 1 ? "" : "s"} will be added to this role.
+                    </p>
+                  )}
+                </div>
+              )}
             </div>
           )}
 
@@ -361,7 +486,7 @@ export function CreateJobModal({ isOpen, onClose }: CreateJobModalProps) {
             <div className="space-y-5">
               <div>
                 <h3 className="text-base font-semibold text-slate-900">Step 3 — Job Description & AI Historical Intelligence</h3>
-                <p className="text-xs text-slate-500 mt-1">Paste your job description text below. Copilot will extract requirements and benchmark against historical hiring cycles.</p>
+                <p className="text-xs text-slate-500 mt-1">Paste your job description. AI extracts requirements and scores them against past hiring cycles.</p>
               </div>
 
               <div className="space-y-2">
@@ -433,7 +558,7 @@ export function CreateJobModal({ isOpen, onClose }: CreateJobModalProps) {
               <div className="p-4 rounded-xl bg-blue-50/70 border border-blue-200 space-y-3">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2 text-blue-700 text-xs font-bold">
-                    <Bot className="w-4 h-4" /> Copilot Requirement Extraction & Alignment
+                    <Bot className="w-4 h-4" /> AI requirement extraction
                   </div>
                   <Button
                     type="button"

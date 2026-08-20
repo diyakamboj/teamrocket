@@ -41,7 +41,7 @@ function AskCopilotAboutComparison({ count }: { count: number }) {
         }
       }}
     >
-      <Sparkles className="mr-2 h-4 w-4" /> Ask Copilot about this comparison
+      <Sparkles className="mr-2 h-4 w-4" /> Ask AI about this comparison
     </Button>
   );
 }
@@ -182,9 +182,9 @@ function Compare() {
           <strong className="text-foreground">
             {blindMode ? `Candidate #${best.rank}` : best.name}
           </strong>{" "}
-          is the strongest overall fit at {best.score}, driven by a {best.categories.skills} skills
+          is the strongest ATS score at {best.score}, driven by a {best.categories.skills} skills
           match and {best.years} years of relevant delivery. The main trade-off is{" "}
-          {best.gaps[0]!.toLowerCase()} — ask Copilot for interview focus or experience comparisons.
+          {best.gaps[0]!.toLowerCase()} — ask AI for interview questions or experience comparisons.
         </p>
       </div>
     </div>

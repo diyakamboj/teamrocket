@@ -1,5 +1,6 @@
 import { Link } from "@tanstack/react-router";
 import { BadgeCheck, FileSearch, ShieldCheck, Sparkles } from "lucide-react";
+import { ProductName } from "@/components/product-name";
 
 const POINTS = [
   { icon: FileSearch, text: "Every score traces back to a line in the résumé" },
@@ -39,7 +40,9 @@ export function AuthLayout({
             <span className="grid h-9 w-9 place-items-center rounded-xl bg-primary text-primary-foreground shadow-sm">
               <Sparkles className="h-4.5 w-4.5" />
             </span>
-            <span className="text-sm font-bold tracking-tight">ResumeIQ</span>
+            <span className="text-sm tracking-tight">
+              <ProductName />
+            </span>
           </Link>
 
           <h1 className="text-2xl font-bold tracking-tight sm:text-3xl">{title}</h1>
@@ -53,10 +56,10 @@ export function AuthLayout({
         <div className="animate-fade hidden lg:block" style={{ animationDelay: "0.15s" }}>
           <div className="lift rounded-3xl border bg-card/70 p-8 backdrop-blur">
             <p className="text-xs font-bold uppercase tracking-wider text-primary">
-              Evidence-backed screening
+              AI-powered hiring
             </p>
             <p className="mt-3 text-lg font-semibold leading-snug">
-              A shortlist you can defend, with the résumé line behind every score.
+              One person can review many candidates. AI validates, scores, and guides the questions.
             </p>
             <ul className="stagger mt-7 space-y-4">
               {POINTS.map(({ icon: Icon, text }) => (

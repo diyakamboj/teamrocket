@@ -21,7 +21,7 @@ export function MessageList({ emptyState }: { emptyState?: ReactNode }) {
         </span>
         {emptyState ?? (
           <div>
-            <p className="text-sm font-semibold">Ask Copilot about your candidates</p>
+            <p className="text-sm font-semibold">Ask AI about your candidates</p>
             <p className="mt-1 text-xs text-muted-foreground">
               Search, compare, and check requirements — grounded in your evaluation data.
             </p>

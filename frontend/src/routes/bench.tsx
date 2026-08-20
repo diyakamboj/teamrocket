@@ -1,5 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useCallback, useEffect, useState } from "react";
+import { InternalRoster } from "@/components/internal-roster";
 import { Armchair, Clock, Loader2, Search, Sparkles, UserCheck } from "lucide-react";
 import { toast } from "sonner";
 import {
@@ -113,6 +114,8 @@ function BenchPage() {
           role, so check here before opening a req externally.
         </p>
       </header>
+
+      <InternalRoster onChanged={() => void refresh()} />
 
       <section className="stagger grid gap-3 sm:grid-cols-3">
         <div className="lift edge-accent rounded-2xl border bg-card p-5">

@@ -22,7 +22,7 @@ const CANDIDATE_SUGGESTIONS = [
 
 const COMPARE_SUGGESTIONS = [
   "Compare these candidates side by side",
-  "Who has the strongest overall fit?",
+  "Who has the strongest ATS score?",
   "What trade-offs should I weigh between them?",
 ];
 
@@ -76,7 +76,7 @@ export function CopilotPanel() {
             <Sparkles className="h-4 w-4" />
           </span>
           <div className="min-w-0 flex-1">
-            <p className="truncate text-sm font-semibold">Copilot</p>
+            <p className="truncate text-sm font-semibold">AI assistant</p>
             <p className="truncate text-[11px] text-muted-foreground">
               {backendReady ? "Connected" : "Offline"}
             </p>
@@ -95,7 +95,7 @@ export function CopilotPanel() {
           <Button
             variant="ghost"
             size="icon"
-            aria-label="Close Copilot"
+            aria-label="Close AI assistant"
             className="h-8 w-8 rounded-lg"
             onClick={() => setOpen(false)}
           >

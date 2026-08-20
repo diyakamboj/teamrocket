@@ -56,7 +56,13 @@ export type UploadFile = {
 
 type Ctx = {
   files: UploadFile[];
-  addFiles: (files: File[]) => Promise<void>;
+  /** `jobId` attaches the résumés to a role, so the candidates land on that
+   *  job's board and no other. Omitted, they join the general pool. */
+  addFiles: (
+    files: File[],
+    jobId?: string | null,
+    source?: "internal" | "external",
+  ) => Promise<void>;
   retry: (id: string) => void;
   retryAllFailed: () => void;
   cancelRemaining: () => void;
@@ -176,7 +182,12 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
    * kicks off OCR + AI parsing. Rows are seeded optimistically so the table
    * appears immediately, then reconciled with the ids the server assigns.
    */
-  const addFiles = useCallback(async (incoming: File[]) => {
+  const addFiles = useCallback(
+    async (
+      incoming: File[],
+      jobId?: string | null,
+      source: "internal" | "external" = "external",
+    ) => {
     if (incoming.length === 0) return;
 
     const localIds = incoming.map(() => {
@@ -196,7 +207,7 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
     ]);
 
     try {
-      const res = await uploadResumesToBackend(incoming);
+      const res = await uploadResumesToBackend(incoming, jobId, source);
       setFiles((prev) =>
         prev.map((row) => {
           const idx = localIds.indexOf(row.id);

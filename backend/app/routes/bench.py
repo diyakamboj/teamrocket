@@ -107,6 +107,51 @@ def list_bench(store: AppStore, recruiter_email: RecruiterEmail):
     return employees
 
 
+class InternalEmployee(BaseModel):
+    """An internal person, whether or not they are on the bench."""
+
+    candidate_id: str
+    name: str
+    title: Optional[str] = None
+    email: str
+    skills: list[str] = Field(default_factory=list)
+    #: What they are working on now. None means they are between assignments.
+    current_assignment: Optional[str] = None
+    on_bench: bool = False
+    days_on_bench: Optional[int] = None
+    job_id: Optional[str] = None
+
+
+@router.get("/employees", response_model=list[InternalEmployee])
+def list_internal_employees(store: AppStore, recruiter_email: RecruiterEmail):
+    """Every internal employee, benched or not.
+
+    The bench list only ever showed people already on the bench, so there was
+    nowhere to put anyone on it -- you could see the bench but not reach it.
+    This is the roster the bench page needs to offer that action.
+    """
+    people = store.candidates.query(
+        lambda c: c.owner_email == recruiter_email and c.source == "internal"
+    )
+    rows = [
+        InternalEmployee(
+            candidate_id=str(c.id),
+            name=c.name,
+            title=c.title,
+            email=c.email,
+            skills=[str(s) for s in (c.skills or [])][:12],
+            current_assignment=c.current_assignment,
+            on_bench=c.employment_status == "bench",
+            days_on_bench=_days_on_bench(c.bench_since) if c.employment_status == "bench" else None,
+            job_id=str(c.job_id) if c.job_id else None,
+        )
+        for c in people
+    ]
+    # Available people first — that is what the page exists to surface.
+    rows.sort(key=lambda r: (not r.on_bench, r.name.lower()))
+    return rows
+
+
 @router.post("/{candidate_id}/place", response_model=BenchEmployee)
 def place_on_bench(
     candidate_id: uuid.UUID,
@@ -114,10 +159,23 @@ def place_on_bench(
     store: AppStore,
     recruiter_email: RecruiterEmail,
 ):
-    """Move an internal employee onto the bench."""
+    """Move an internal employee onto the bench.
+
+    Only internal people. This used to set `source = "internal"` on whoever
+    was passed in, so benching an external applicant silently reclassified
+    them as an employee -- the internal and external pools are meant to stay
+    separate, and a one-click reclassification is not a decision to make on
+    the recruiter's behalf.
+    """
     candidate = _owned(store, candidate_id, recruiter_email)
 
-    candidate.source = "internal"
+    if candidate.source != "internal":
+        raise ValidationAppError(
+            "Only internal employees can be placed on the bench. "
+            "Mark this candidate as internal first if they are an employee.",
+            {"candidate_id": str(candidate_id), "source": candidate.source},
+        )
+
     candidate.employment_status = "bench"
     candidate.current_assignment = payload.previous_assignment or candidate.current_assignment
     if not candidate.bench_since:

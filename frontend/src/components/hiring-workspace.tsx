@@ -56,7 +56,7 @@ export function useJobWorkspace(source: "internal" | "external") {
       })
       .catch((err: unknown) => {
         if (cancelled) return;
-        setError(err instanceof Error ? err.message : "Could not reach the screening API");
+        setError(err instanceof Error ? err.message : "Could not load hiring data");
         setLoading(false);
       });
 

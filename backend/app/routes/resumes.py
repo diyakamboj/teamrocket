@@ -2,7 +2,9 @@ import asyncio
 import uuid
 from pathlib import Path
 
-from fastapi import APIRouter, BackgroundTasks, File, UploadFile
+from typing import Optional
+
+from fastapi import APIRouter, BackgroundTasks, File, Form, UploadFile
 
 from app.config import settings
 from app.dependencies import AppStore, RecruiterEmail
@@ -55,7 +57,13 @@ def _process_resume(upload_id: uuid.UUID) -> None:
         parsed = asyncio.run(resume_parser.parse_resume(text))
 
         candidate = upsert_candidate_from_parsed(
-            store, parsed, text, upload.blob_path, owner_email=upload.recruiter_email
+            store,
+            parsed,
+            text,
+            upload.blob_path,
+            owner_email=upload.recruiter_email,
+            job_id=upload.job_id,
+            source=upload.source,
         )
 
         upload.candidate_id = candidate.id
@@ -78,9 +86,38 @@ async def upload_resumes(
     store: AppStore,
     recruiter_email: RecruiterEmail,
     files: list[UploadFile] = File(...),
+    job_id: Optional[str] = Form(
+        None,
+        description="Role these résumés are for. Omit to add them to the pool without a job.",
+    ),
+    source: str = Form(
+        "external",
+        description="'internal' for an existing employee, 'external' for an outside applicant.",
+    ),
 ):
     if not files:
         raise ValidationAppError("No files provided")
+
+    # Uploading against a role is how a candidate ends up on that board and
+    # no other. A bad id is rejected rather than quietly dropped, which would
+    # scatter the batch into the general pool.
+    # Internal and external are different populations with different
+    # workflows, so which one a résumé belongs to is decided at intake rather
+    # than defaulting to external and being corrected later.
+    if source not in ("internal", "external"):
+        raise ValidationAppError(
+            "source must be 'internal' or 'external'", {"source": source}
+        )
+
+    target_job: Optional[uuid.UUID] = None
+    if job_id:
+        try:
+            target_job = uuid.UUID(job_id)
+        except ValueError:
+            raise ValidationAppError("job_id must be a UUID", {"job_id": job_id})
+        job = store.jobs.get(target_job)
+        if not job or (job.created_by and job.created_by != recruiter_email):
+            raise NotFoundError("Job posting not found", {"job_id": job_id})
 
     Path(settings.UPLOAD_DIR).mkdir(parents=True, exist_ok=True)
     batch_id = str(uuid.uuid4())
@@ -150,6 +187,8 @@ async def upload_resumes(
         )
         upload = ResumeUpload(
             recruiter_email=recruiter_email,
+            job_id=target_job,
+            source=source,
             filename=filename,
             blob_path=blob_path,
             status="duplicate" if is_duplicate else "queued",

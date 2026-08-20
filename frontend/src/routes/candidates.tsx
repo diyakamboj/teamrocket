@@ -17,17 +17,19 @@ import { useAppState } from "@/lib/app-state";
 import { allSkills, DEFAULT_WEIGHTS, rankCandidates, type Candidate } from "@/lib/candidates";
 import { useCandidatePool } from "@/lib/use-candidate-pool";
 import {
+  listJobPipelines,
   submitCandidateDecision,
   type CandidateDecisionKind,
   type InterviewSlot,
+  type JobPipelineSummary,
 } from "@/lib/api";
-import { MiniBar, ScoreRing } from "@/components/score-ring";
+import { MiniBar } from "@/components/score-ring";
+import { AtsScoreBadge } from "@/components/ats-score-badge";
 import { CandidateInterviewSection } from "@/components/interview-card";
 import { CandidateScreeningSection } from "@/components/screening";
-import { CandidateStatusBadges } from "@/components/candidate-badges";
+import { CandidateRoleActions } from "@/components/candidate-role-actions";
+import { CurrentRoleButton, SourceBadge } from "@/components/source-badge";
 import { ShareCandidateButton } from "@/components/share-candidate-button";
-import { CandidateEnrichmentCard } from "@/components/candidate-enrichment-card";
-import { CandidateReadinessSection } from "@/components/candidate-readiness-card";
 import { Button } from "@/components/ui/button";
 
 
@@ -249,6 +251,7 @@ function Candidates() {
     toggleCompare,
     setViewingCandidateId,
     activeJobId,
+    refreshPool,
   } = useAppState();
   const { focus } = Route.useSearch();
   const [query, setQuery] = useState("");
@@ -257,6 +260,17 @@ function Candidates() {
   const [minScore, setMinScore] = useState(0);
   const [page, setPage] = useState(1);
   const [expanded, setExpanded] = useState<string | null>(null);
+  const [roleOptions, setRoleOptions] = useState<JobPipelineSummary[]>([]);
+
+  useEffect(() => {
+    let cancelled = false;
+    listJobPipelines()
+      .then((rows) => !cancelled && setRoleOptions(rows))
+      .catch(() => !cancelled && setRoleOptions([]));
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   // Open and scroll to the candidate global search sent us to. Runs when the
   // id changes rather than on every render so it does not fight the user
@@ -339,7 +353,7 @@ function Candidates() {
     <div className="mx-auto flow max-w-7xl">
       <header className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-4">
         <div className="min-w-0">
-          <h1 className="truncate text-2xl font-extrabold sm:text-3xl">Candidate Ranking</h1>
+          <h1 className="truncate text-2xl font-extrabold sm:text-3xl">Review candidates</h1>
           <p className="mt-1 text-sm text-muted-foreground">
             {poolLoading
               ? "Scoring candidates against the active job…"
@@ -422,11 +436,11 @@ function Candidates() {
           </div>
 
           <div className="card-surface divide-y overflow-hidden">
-            <div className="hidden grid-cols-[52px_minmax(0,1fr)_92px_minmax(0,1.3fr)_44px] items-center gap-4 px-5 py-3 text-[11px] font-bold uppercase tracking-wide text-muted-foreground md:grid">
+            <div className="hidden grid-cols-[52px_minmax(0,1fr)_148px_minmax(0,1.4fr)_44px] items-center gap-4 px-5 py-3 text-[11px] font-bold uppercase tracking-wide text-muted-foreground md:grid">
               <span>Rank</span>
               <span>Candidate</span>
-              <span>Score</span>
-              <span>Category breakdown</span>
+              <span>ATS score</span>
+              <span>Category scores</span>
               <span />
             </div>
 
@@ -458,7 +472,7 @@ function Candidates() {
                     focus === c.id && "bg-primary/5 ring-1 ring-inset ring-primary/30",
                   )}
                 >
-                  <div className="grid grid-cols-[52px_minmax(0,1fr)_92px] items-center gap-4 px-5 py-4 md:grid-cols-[52px_minmax(0,1fr)_92px_minmax(0,1.3fr)_44px]">
+                  <div className="grid grid-cols-[52px_minmax(0,1fr)_148px] items-center gap-4 px-5 py-4 md:grid-cols-[52px_minmax(0,1fr)_148px_minmax(0,1.4fr)_44px]">
                     <span className="text-sm font-extrabold tabular-nums text-muted-foreground">
                       #{c.rank}
                     </span>
@@ -476,12 +490,12 @@ function Candidates() {
                         </p>
                       </div>
                     </div>
-                    <ScoreRing value={c.score} />
+                    <AtsScoreBadge score={c.score} size={52} />
                     <div className="hidden grid-cols-2 gap-x-4 gap-y-1.5 md:grid">
                       <MiniBar label="Skills" value={c.categories.skills} />
                       <MiniBar label="Experience" value={c.categories.experience} />
                       <MiniBar label="Education" value={c.categories.education} />
-                      <MiniBar label="Certs" value={c.categories.certifications} />
+                      <MiniBar label="Projects" value={c.categories.projects} />
                     </div>
                     <button
                       onClick={() => {
@@ -509,6 +523,26 @@ function Candidates() {
                     >
                       {isOpen ? "Hide" : "Why this rank?"}
                     </Button>
+                    <SourceBadge
+                      source={c.origin}
+                      currentAssignment={c.currentAssignment ?? null}
+                      onBench={c.employmentStatus === "bench"}
+                    />
+                    {c.origin === "internal" && (
+                      <CurrentRoleButton
+                        currentAssignment={c.currentAssignment ?? null}
+                        onBench={c.employmentStatus === "bench"}
+                      />
+                    )}
+                    <CandidateRoleActions
+                      candidateId={c.id}
+                      candidateName={blindMode ? displayName : c.name}
+                      currentJobId={c.jobId ?? null}
+                      source={c.origin}
+                      employmentStatus={c.employmentStatus ?? null}
+                      jobs={roleOptions}
+                      onChanged={refreshPool}
+                    />
                     <div className="ml-auto">
                       <ShareCandidateButton
                         candidateId={c.id}
@@ -613,14 +647,6 @@ function Candidates() {
                         candidateId={c.id}
                         candidateName={blindMode ? displayName : c.name}
                       />
-
-                      <CandidateEnrichmentCard candidate={c} />
-
-                      <CandidateReadinessSection
-                        candidateId={c.id}
-                        candidateName={blindMode ? displayName : c.name}
-                        jobId={activeJobId}
-                      />
                     </div>
                   )}
                 </div>
@@ -634,7 +660,7 @@ function Candidates() {
                     <Loader2 className="h-4 w-4 animate-spin" /> Loading ranked candidates…
                   </span>
                 ) : poolError ? (
-                  `Could not reach the screening API — ${poolError}`
+                  `Could not load ranked candidates — ${poolError}`
                 ) : (
                   "No candidates match these filters."
                 )}

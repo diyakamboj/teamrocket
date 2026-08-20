@@ -26,7 +26,6 @@ from typing import Any, Optional
 
 from app.config import settings
 from app.services.azure_services import document_store, openai_service, search_service
-from app.services.cosmos_store import candidate_cosmos
 from app.services.qdrant_store import candidate_qdrant
 from app.utils.logger import get_logger
 
@@ -50,6 +49,42 @@ class VectorMatch:
     id: str
     score: Optional[float]
     metadata: dict[str, Any]
+
+
+#: Standard RRF constant. Damps the influence of the very top ranks so one
+#: engine's confident first hit cannot dominate the fused order.
+RRF_K = 60
+
+
+def reciprocal_rank_fusion(rankings: list[list[str]], *, k: int = RRF_K) -> list[str]:
+    """Merge several ranked id lists into one, best first.
+
+    Reciprocal rank fusion scores each id as the sum of 1/(k + rank) across
+    the lists it appears in. It combines rankings without needing their
+    scores to be comparable, which is the whole problem here: Qdrant returns
+    cosine similarity and Azure returns BM25 relevance, and those numbers
+    mean nothing to each other. Appearing in both lists is what lifts an id
+    to the top.
+    """
+    scores: dict[str, float] = {}
+    for ranking in rankings:
+        for position, record_id in enumerate(ranking):
+            if not record_id:
+                continue
+            scores[record_id] = scores.get(record_id, 0.0) + 1.0 / (k + position + 1)
+    return sorted(scores, key=lambda rid: scores[rid], reverse=True)
+
+
+def _search_filter(
+    owner_email: Optional[str], employment_status: Optional[str]
+) -> Optional[str]:
+    """OData filter for Azure AI Search, scoping a query to one recruiter."""
+    clauses = []
+    if owner_email:
+        clauses.append(f"owner_email eq '{owner_email}'")
+    if employment_status:
+        clauses.append(f"employment_status eq '{employment_status}'")
+    return " and ".join(clauses) if clauses else None
 
 
 def cosine(a: list[float], b: list[float]) -> float:
@@ -101,13 +136,14 @@ class VectorStore:
         return f"{VECTOR_PREFIX}/{self.collection}/{record_id}.json"
 
     def _use_azure_search(self) -> bool:
-        return settings.VECTOR_BACKEND == "search" and not search_service.mock
+        return settings.VECTOR_BACKEND in ("search", "dual") and not search_service.mock
 
     def _use_qdrant(self) -> bool:
-        return settings.VECTOR_BACKEND == "qdrant"
+        return settings.VECTOR_BACKEND in ("qdrant", "dual")
 
-    def _use_cosmos(self) -> bool:
-        return settings.VECTOR_BACKEND == "cosmos"
+    def _use_dual(self) -> bool:
+        """Qdrant for vectors, Azure AI Search for keywords, results fused."""
+        return settings.VECTOR_BACKEND == "dual"
 
     def upsert(self, record_id: str, text: str, metadata: dict[str, Any]) -> bool:
         """Index one record. Returns False when embeddings are unavailable,
@@ -125,9 +161,6 @@ class VectorStore:
             "metadata": metadata,
         }
         document_store.put(self._key(record_id), document)
-
-        if self._use_cosmos():
-            candidate_cosmos.upsert(str(record_id), vector, metadata)
 
         if self._use_qdrant():
             candidate_qdrant.upsert(
@@ -158,14 +191,6 @@ class VectorStore:
 
     def delete(self, record_id: str) -> None:
         document_store.delete(self._key(record_id))
-        if self._use_cosmos():
-            # Cosmos deletes need the partition key, which is the owner. The
-            # local copy still has it at this point; after the delete below
-            # it is gone, so read it first.
-            record = document_store.get(self._key(record_id)) or {}
-            owner = ((record.get("metadata") or {}).get("owner_email")) or ""
-            candidate_cosmos.delete(str(record_id), owner)
-
         if self._use_qdrant():
             candidate_qdrant.delete(str(record_id))
         if self._use_azure_search():
@@ -208,22 +233,21 @@ class VectorStore:
         if query_vector is None:
             return []
 
-        if self._use_cosmos():
-            hits = candidate_cosmos.search(
+        if self._use_dual():
+            fused = self._search_dual(
+                query_text,
                 query_vector,
                 limit=limit,
+                min_score=min_score,
                 owner_email=owner_email,
                 employment_status=employment_status,
-                min_score=min_score,
+                hybrid=hybrid,
             )
-            if hits is not None:
-                return [
-                    VectorMatch(id=rid, score=round(score, 4), metadata=payload)
-                    for rid, score, payload in hits
-                ]
+            if fused is not None:
+                return fused
             logger.info("Falling back to the local vector index for this query")
 
-        if self._use_qdrant():
+        elif self._use_qdrant():
             hits = candidate_qdrant.search(
                 query_vector,
                 limit=limit,
@@ -238,7 +262,7 @@ class VectorStore:
                 ]
             logger.info("Falling back to the local vector index for this query")
 
-        if self._use_azure_search():
+        elif self._use_azure_search():
             remote = self._search_azure(
                 query_vector,
                 limit=limit,
@@ -292,6 +316,80 @@ class VectorStore:
         ordered = literal + [m for m in matches if m.id not in {l.id for l in literal}]
         return ordered[:limit]
 
+    def _search_dual(
+        self,
+        query_text: str,
+        query_vector: list[float],
+        *,
+        limit: int,
+        min_score: float,
+        owner_email: Optional[str] = None,
+        employment_status: Optional[str] = None,
+        hybrid: bool = False,
+    ) -> Optional[list[VectorMatch]]:
+        """Qdrant for meaning, Azure AI Search for exact words, fused.
+
+        Only a `hybrid` query needs both. A plain semantic query ("people like
+        this one") wants ranking by distance alone, and mixing keyword hits
+        into it would both distort the order and destroy the cosine score the
+        UI renders as a percentage -- so that case is served by Qdrant only.
+
+        Returns None if neither engine answered, so the caller can fall back
+        to the local index. If exactly one answered we use it: half a result
+        set beats telling a recruiter their search matched nobody.
+        """
+        vector_hits = candidate_qdrant.search(
+            query_vector,
+            limit=limit * 2 if hybrid else limit,
+            owner_email=owner_email,
+            employment_status=employment_status,
+            min_score=0.0 if hybrid else min_score,
+        )
+
+        if not hybrid:
+            if vector_hits is None:
+                return None
+            return [
+                VectorMatch(id=rid, score=round(score, 4), metadata=payload)
+                for rid, score, payload in vector_hits
+            ]
+
+        lexical_hits = search_service.lexical_search(
+            query_text,
+            limit=limit * 2,
+            filter_expression=_search_filter(owner_email, employment_status),
+        )
+
+        if vector_hits is None and lexical_hits is None:
+            return None
+
+        vector_ranking = [rid for rid, _, _ in (vector_hits or [])]
+        lexical_ranking = [
+            str(hit.get("id")) for hit in (lexical_hits or []) if hit.get("id")
+        ]
+
+        metadata: dict[str, dict[str, Any]] = {}
+        for rid, _, payload in vector_hits or []:
+            metadata[rid] = payload
+        for hit in lexical_hits or []:
+            rid = str(hit.get("id") or "")
+            if rid and rid not in metadata:
+                metadata[rid] = {
+                    "owner_email": hit.get("owner_email") or "",
+                    "name": hit.get("name") or "",
+                    "title": hit.get("title") or "",
+                    "employment_status": hit.get("employment_status") or "",
+                    "source": hit.get("source") or "",
+                }
+
+        fused = reciprocal_rank_fusion([vector_ranking, lexical_ranking])
+        # Fused scores are RRF, not cosine, and belong to no comparable scale
+        # -- reporting one as a "% fit" would be inventing a number.
+        return [
+            VectorMatch(id=rid, score=None, metadata=metadata.get(rid, {}))
+            for rid in fused[:limit]
+        ]
+
     def _search_azure(
         self,
         query_vector: list[float],
@@ -306,12 +404,7 @@ class VectorStore:
         be reached. Scoping is pushed into the index filter so the service
         does the work rather than returning other recruiters' rows to be
         discarded here."""
-        clauses = []
-        if owner_email:
-            clauses.append(f"owner_email eq '{owner_email}'")
-        if employment_status:
-            clauses.append(f"employment_status eq '{employment_status}'")
-        filter_expression = " and ".join(clauses) if clauses else None
+        filter_expression = _search_filter(owner_email, employment_status)
 
         hits = search_service.vector_search(
             query_vector,
@@ -373,29 +466,21 @@ class VectorStore:
         is not empty. Vectors are already stored locally, so this uploads
         rather than re-embedding: no model calls, no cost.
         """
-        if self._use_cosmos():
-            return self._sync_to_cosmos()
+        if self._use_dual():
+            # Both engines have to be complete: a candidate missing from
+            # Qdrant is invisible to the semantic half, one missing from
+            # Azure is invisible to the keyword half, and either way the
+            # fused result is quietly short.
+            qdrant = self._sync_to_qdrant()
+            azure = self.sync_to_search()
+            return {
+                "local": qdrant["local"],
+                "missing": qdrant["missing"] + azure["missing"],
+                "uploaded": qdrant["uploaded"] + azure["uploaded"],
+            }
         if self._use_qdrant():
             return self._sync_to_qdrant()
         return self.sync_to_search()
-
-    def _sync_to_cosmos(self) -> dict[str, int]:
-        records = self._all_records()
-        known = candidate_cosmos.list_ids()
-        if known is None:
-            logger.warning("Could not read the Cosmos container; skipping sync")
-            return {"local": len(records), "missing": 0, "uploaded": 0}
-
-        missing = [r for r in records if str(r.get("id")) not in known and r.get("vector")]
-        uploaded = candidate_cosmos.upsert_many(
-            [(str(r["id"]), r["vector"], r.get("metadata") or {}) for r in missing]
-        )
-        if missing:
-            logger.info(
-                "Cosmos sync: %d local, %d missing, %d uploaded",
-                len(records), len(missing), uploaded,
-            )
-        return {"local": len(records), "missing": len(missing), "uploaded": uploaded}
 
     def _sync_to_qdrant(self) -> dict[str, int]:
         records = self._all_records()

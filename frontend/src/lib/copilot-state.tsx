@@ -136,7 +136,7 @@ export function CopilotProvider({ children }: { children: ReactNode }) {
       })
       .catch((error: unknown) => {
         setModels([]);
-        toast.error("Couldn't load Copilot models", {
+        toast.error("Couldn't load AI models", {
           description: error instanceof Error ? error.message : undefined,
           action: { label: "Retry", onClick: () => loadModels() },
         });
@@ -315,7 +315,7 @@ export function CopilotProvider({ children }: { children: ReactNode }) {
             createdAt: new Date().toISOString(),
           },
         ]);
-        toast.error("Copilot couldn't answer that", {
+        toast.error("AI couldn't answer that", {
           description: message,
           action: { label: "Retry", onClick: () => void send(query, opts) },
         });

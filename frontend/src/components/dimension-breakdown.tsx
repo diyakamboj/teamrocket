@@ -19,7 +19,7 @@ export function DimensionBreakdown({ scores }: { scores: CategoryScore[] }) {
       <CardHeader className="pb-3">
         <CardTitle className="flex items-center gap-2 text-sm font-semibold">
           <BarChart3 className="h-4 w-4 text-primary" />
-          Multi-Dimensional Score Breakdown
+          Multi-dimensional ATS breakdown
         </CardTitle>
       </CardHeader>
       <CardContent className="space-y-3">

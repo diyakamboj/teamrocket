@@ -25,6 +25,7 @@ from app.models.evaluation import (
 )
 from app.models.handoff import CandidateHistoryEvent, InterviewHandoff
 from app.models.interview import ScheduledInterview
+from app.models.interview_questions import RoundQuestionSet
 from app.models.job_posting import JobPosting
 from app.models.jd_recommendation import JDRecommendationRecord
 from app.models.readiness import CandidateAssessmentRecord
@@ -85,6 +86,9 @@ class Store:
         )
         self.readiness_assessments: Repository[CandidateAssessmentRecord] = Repository(
             backing, CandidateAssessmentRecord, "readiness_assessments"
+        )
+        self.round_questions: Repository[RoundQuestionSet] = Repository(
+            backing, RoundQuestionSet, "round_questions"
         )
         self.jd_recommendations: Repository[JDRecommendationRecord] = Repository(
             backing, JDRecommendationRecord, "jd_recommendations"

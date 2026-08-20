@@ -84,24 +84,35 @@ def compute_keyword_baseline(candidate: Candidate, job: JobPosting) -> dict[str,
     }
 
 
+ATS_SCORING_SYSTEM = """You are an ATS scoring engine for a hiring product.
+Return valid JSON only. Produce ONE overall ATS score (0-100), not a separate
+"AI fit" number. Score the résumé against the job the way a recruiter would:
+skills, experience, education, certifications, and projects. Use the full
+range — do not cluster every candidate around 70. Credit synonyms and
+transferable experience. Be consistent and evidence-based."""
+
+
 def _semantic_prompt(candidate: Candidate, job: JobPosting) -> str:
     return f"""
-You are a senior technical recruiter doing a SEMANTIC fit review — judging
-whether the candidate's real experience meets the role's needs by meaning,
-not by literal keyword presence. Credit synonyms, adjacent tools, and
-clearly transferable experience even if the exact keyword never appears.
+Score this candidate with a proper ATS score against the role.
 
 Job: {job.title}
 Required skills: {job.required_skills}
 Nice to have: {job.nice_to_have_skills}
 Required experience (years): {job.required_experience_years}
+Education: {job.education_requirements}
 
 Candidate resume:
 {(candidate.resume_text or "")[:4000]}
 
 Return JSON with keys:
-semantic_score (integer 0-100 — overall semantic fit),
-rationale (2-3 sentences explaining the score),
+ats_score (integer 0-100 — the single overall ATS score),
+semantic_score (same integer as ats_score, for compatibility),
+category_scores (object with integer 0-100 values for skills, experience,
+  education, certifications, projects),
+tier (one of: poor, average, good, excellent —
+  poor <50, average 50-64, good 65-79, excellent 80+),
+rationale (2-3 sentences explaining the ATS score),
 equivalent_terms (list of {{"resume_term": str, "jd_keyword": str}} objects —
   cases where the candidate demonstrates a required/nice-to-have skill using
   different wording than the job description; empty list if none).
@@ -116,10 +127,15 @@ async def compute_semantic_score(candidate: Candidate, job: JobPosting) -> dict[
     "aligned" -- reporting perfect agreement between two scores when in truth
     only one of them existed. A missing score now stays missing.
     """
-    result = openai_service.chat_json_or_empty(_semantic_prompt(candidate, job), temperature=0.2)
+    result = openai_service.chat_json_or_empty(
+        _semantic_prompt(candidate, job),
+        system=ATS_SCORING_SYSTEM,
+        temperature=0.2,
+    )
 
     try:
-        score = round(max(0.0, min(100.0, float(result.get("semantic_score")))), 2)
+        raw = result.get("ats_score", result.get("semantic_score"))
+        score = round(max(0.0, min(100.0, float(raw))), 2)
     except (TypeError, ValueError):
         score = None
 

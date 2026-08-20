@@ -13,14 +13,14 @@ import { CandidateReadinessSection } from "@/components/candidate-readiness-card
 import { CandidateInterviewSection } from "@/components/interview-card";
 import { CandidateNotes } from "@/components/candidate-notes";
 import { ShareCandidateButton } from "@/components/share-candidate-button";
-import { Sparkles, Eye, EyeOff, Layers, Loader2, AlertTriangle } from "lucide-react";
+import { Eye, EyeOff, Layers, Loader2, AlertTriangle } from "lucide-react";
+import { AtsScoreBadge } from "@/components/ats-score-badge";
 import {
   getCandidate,
   getCandidateScore,
   type BackendCandidate,
   type CandidateScore,
 } from "@/lib/api";
-import { cn } from "@/lib/utils";
 
 export type CandidateDetailModalProps = {
   candidateId: string | null;
@@ -102,10 +102,11 @@ export function CandidateDetailModal({
   });
 
   const dimensionCards = [
-    { label: "Technical Skills", val: score?.technical_skills_score },
-    { label: "Role Experience", val: score?.experience_score },
-    { label: "Communication", val: score?.communication_score },
-    { label: "Role Alignment", val: score?.role_alignment_score },
+    { label: "Skills", val: score?.skill_score ?? score?.technical_skills_score },
+    { label: "Experience", val: score?.experience_score },
+    { label: "Education", val: score?.education_score },
+    { label: "Certifications", val: score?.certification_score },
+    { label: "Projects", val: score?.project_score },
   ];
 
   return (
@@ -114,21 +115,9 @@ export function CandidateDetailModal({
         <DialogHeader className="border-b border-border bg-secondary/40 p-6">
           <div className="flex items-start justify-between gap-4">
             <div className="min-w-0">
-              <div className="mb-1 flex flex-wrap items-center gap-2">
+              <div className="mb-3 flex flex-wrap items-center gap-2">
                 {overall !== undefined && overall !== null && (
-                  <Badge
-                    className={cn(
-                      "text-xs font-bold",
-                      overall >= 85
-                        ? "border-success/30 bg-success/15 text-success"
-                        : overall >= 65
-                          ? "border-primary/30 bg-primary-soft text-primary-soft-foreground"
-                          : "border-warning/40 bg-warning/15 text-warning-foreground dark:text-warning",
-                    )}
-                  >
-                    {overall >= 85 ? "Top Match" : overall >= 65 ? "Review" : "Low Match"} (
-                    {pct(overall)} overall fit)
-                  </Badge>
+                  <AtsScoreBadge score={overall} size={64} />
                 )}
                 {profile?.employment_status === "bench" && (
                   <Badge variant="outline" className="text-xs font-bold">
@@ -187,10 +176,10 @@ export function CandidateDetailModal({
             <>
               <section className="space-y-3">
                 <h3 className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-muted-foreground">
-                  <Sparkles className="h-4 w-4 text-primary" /> Multi-dimensional AI fit analysis
+                  Category scores
                 </h3>
                 {score ? (
-                  <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
+                  <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-5">
                     {dimensionCards.map((s) => (
                       <div
                         key={s.label}

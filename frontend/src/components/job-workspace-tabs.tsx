@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
+  UserRound,
   AlertTriangle,
   ArrowRight,
   CheckCircle2,
@@ -189,6 +190,30 @@ function MoveMenu({
   );
 }
 
+/**
+ * Who runs a round, on the column that represents it.
+ *
+ * A hiring manager opening the board wants one question answered — what is
+ * waiting on me — and previously had to open every candidate to find out
+ * which rounds were theirs.
+ */
+function InterviewerTag({ column }: { column: PipelineColumn }) {
+  if (!column.roundId) return null;
+  const name = column.interviewerName?.trim();
+  return (
+    <span
+      className={cn(
+        "mt-1 flex items-center gap-1 text-[10px]",
+        name ? "text-muted-foreground" : "text-muted-foreground/60 italic",
+      )}
+      title={column.interviewerEmail || undefined}
+    >
+      <UserRound className="h-3 w-3 shrink-0" />
+      <span className="truncate">{name || "No interviewer assigned"}</span>
+    </span>
+  );
+}
+
 // ---------------------------------------------------------------------------
 // Pipeline overview: the job's interview loop
 // ---------------------------------------------------------------------------
@@ -346,6 +371,34 @@ export function PipelineOverviewTab({
                       className="h-8 rounded-lg text-xs"
                       placeholder="What this round is for"
                     />
+                    {/* Assigning the round here is what makes the board
+                        answer "what is waiting on me" for a hiring manager. */}
+                    <div className="flex gap-2">
+                      <Input
+                        value={round.interviewer_name ?? ""}
+                        onChange={(e) =>
+                          setRounds((prev) =>
+                            prev.map((r, i) =>
+                              i === index ? { ...r, interviewer_name: e.target.value } : r,
+                            ),
+                          )
+                        }
+                        className="h-8 rounded-lg text-xs"
+                        placeholder="Interviewer name"
+                      />
+                      <Input
+                        value={round.interviewer_email ?? ""}
+                        onChange={(e) =>
+                          setRounds((prev) =>
+                            prev.map((r, i) =>
+                              i === index ? { ...r, interviewer_email: e.target.value } : r,
+                            ),
+                          )
+                        }
+                        className="h-8 rounded-lg text-xs"
+                        placeholder="Interviewer email"
+                      />
+                    </div>
                   </div>
                 ) : (
                   <>
@@ -363,6 +416,18 @@ export function PipelineOverviewTab({
                         {round.focus}
                       </p>
                     )}
+                    <p
+                      className={cn(
+                        "mt-1 flex items-center gap-1 pl-8 text-[11px]",
+                        round.interviewer_name
+                          ? "text-muted-foreground"
+                          : "text-muted-foreground/60 italic",
+                      )}
+                      title={round.interviewer_email || undefined}
+                    >
+                      <UserRound className="h-3 w-3 shrink-0" />
+                      {round.interviewer_name || "No interviewer assigned"}
+                    </p>
 
                     <RoundRoster
                       order={order}
@@ -638,6 +703,9 @@ export function StageBoardTab({
                 {grouped[column.key]?.length ?? 0}
               </span>
             </header>
+            <div className="px-1 pb-2">
+              <InterviewerTag column={column} />
+            </div>
 
             <ul className="flow-tight">
               {(grouped[column.key] ?? []).map((candidate) => (
@@ -693,8 +761,47 @@ export function StageBoardTab({
 }
 
 // ---------------------------------------------------------------------------
-// JD insights & skew analysis
+// Job description insights: how the pool matches each requirement
 // ---------------------------------------------------------------------------
+
+/**
+ * Plain-English names for the optimiser's classifications.
+ *
+ * The raw keys were rendered with the underscores swapped for spaces, so the
+ * page showed "low signal" and "under filtered" — internal vocabulary that
+ * says nothing to the recruiter who has to act on it.
+ */
+const REQUIREMENT_VERDICT: Record<string, { label: string; meaning: string }> = {
+  too_strict: {
+    label: "Ruling people out",
+    meaning: "Very few candidates meet this, so it is shrinking your pool sharply.",
+  },
+  low_signal: {
+    label: "Not telling you much",
+    meaning: "Almost everyone meets this, so it does not separate strong candidates from weak ones.",
+  },
+  under_filtered: {
+    label: "Too broad",
+    meaning: "Nearly every candidate matches, so this is not doing any filtering.",
+  },
+  balanced: {
+    label: "Working well",
+    meaning: "This splits the pool usefully — no change needed.",
+  },
+  insufficient_data: {
+    label: "Not enough data yet",
+    meaning: "Too few candidates have been scored to judge this requirement.",
+  },
+};
+
+function verdictFor(classification: string) {
+  return (
+    REQUIREMENT_VERDICT[classification] ?? {
+      label: classification.replace(/_/g, " "),
+      meaning: "",
+    }
+  );
+}
 
 export function JdInsightsTab({ jobId }: { jobId: string }) {
   const [insights, setInsights] = useState<DashboardInsights | null>(null);
@@ -733,11 +840,11 @@ export function JdInsightsTab({ jobId }: { jobId: string }) {
 
   const coverage = insights?.skill_coverage ?? [];
   /**
-   * Skew: how lopsided the pool is against each requirement. A requirement
-   * almost everyone meets tells you little; one almost nobody meets is either
-   * the real bar or an unrealistic ask — both worth surfacing.
+   * Ordered by how lopsided each requirement is. One almost everyone meets
+   * tells you little; one almost nobody meets is either the real bar or an
+   * unrealistic ask — both worth surfacing, and both sit far from 50%.
    */
-  const skew = [...coverage]
+  const mostLopsided = [...coverage]
     .map((row) => ({ ...row, distance: Math.abs(50 - (row.coverage_pct ?? 0)) }))
     .sort((a, b) => b.distance - a.distance)
     .slice(0, 8);
@@ -759,23 +866,23 @@ export function JdInsightsTab({ jobId }: { jobId: string }) {
 
       <section className="rounded-2xl border bg-card p-6 shadow-sm">
         <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-primary">
-          <TrendingUp className="h-4 w-4" /> Requirement skew
+          <TrendingUp className="h-4 w-4" /> Requirement match rates
         </div>
         <h3 className="mt-1 text-lg font-semibold tracking-tight">
-          How the pool lines up against each requirement
+          How many of your candidates meet each requirement
         </h3>
         <p className="mt-1 text-xs text-muted-foreground">
-          Requirements almost everyone meets are not filtering; ones almost nobody meets may be
-          costing you candidates.
+          A requirement nearly everyone meets is not narrowing the field. One almost nobody meets
+          is either your real bar or an ask that is costing you good candidates.
         </p>
 
-        {skew.length === 0 ? (
+        {mostLopsided.length === 0 ? (
           <p className="mt-5 rounded-xl border border-dashed px-4 py-8 text-center text-xs text-muted-foreground">
             No coverage data yet — score some candidates against this role first.
           </p>
         ) : (
           <ul className="stagger mt-5 space-y-3">
-            {skew.map((row) => {
+            {mostLopsided.map((row) => {
               const pct = Math.round(row.coverage_pct ?? 0);
               const tone = pct >= 80 ? "bg-chart-3" : pct <= 20 ? "bg-destructive" : "bg-primary";
               return (
@@ -813,9 +920,9 @@ export function JdInsightsTab({ jobId }: { jobId: string }) {
 
       <section className="rounded-2xl border bg-card p-6 shadow-sm">
         <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-primary">
-          <Sparkles className="h-4 w-4" /> JD recommendations
+          <Sparkles className="h-4 w-4" /> Suggested edits
         </div>
-        <h3 className="mt-1 text-lg font-semibold tracking-tight">What to change in the posting</h3>
+        <h3 className="mt-1 text-lg font-semibold tracking-tight">What to change in the job description</h3>
         {optimization?.summary && (
           <p className="mt-2 text-xs leading-relaxed text-muted-foreground">{optimization.summary}</p>
         )}
@@ -839,8 +946,11 @@ export function JdInsightsTab({ jobId }: { jobId: string }) {
                   <div className="min-w-0">
                     <div className="flex flex-wrap items-center gap-2">
                       <p className="text-sm font-semibold">{rec.skill}</p>
-                      <span className="rounded-full bg-secondary px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
-                        {rec.classification.replace(/_/g, " ")}
+                      <span
+                        className="rounded-full bg-secondary px-2 py-0.5 text-[10px] font-semibold text-muted-foreground"
+                        title={verdictFor(rec.classification).meaning}
+                      >
+                        {verdictFor(rec.classification).label}
                       </span>
                       {rec.is_must_have && (
                         <span className="rounded-full bg-primary/10 px-2 py-0.5 text-[10px] font-semibold text-primary">
@@ -849,11 +959,14 @@ export function JdInsightsTab({ jobId }: { jobId: string }) {
                       )}
                     </div>
                     <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
+                      {verdictFor(rec.classification).meaning}
+                    </p>
+                    <p className="mt-1 text-xs font-medium leading-relaxed">
                       {rec.suggested_modification}
                     </p>
                     <p className="metric mt-1.5 text-[11px] text-muted-foreground/80">
-                      {rec.candidates_matching}/{rec.total_candidates} candidates match ·{" "}
-                      {Math.round(rec.coverage_pct)}% coverage
+                      {rec.candidates_matching} of {rec.total_candidates} candidates meet this (
+                      {Math.round(rec.coverage_pct)}%)
                     </p>
                   </div>
                 </div>
@@ -865,7 +978,7 @@ export function JdInsightsTab({ jobId }: { jobId: string }) {
 
       {insights?.qualification_gaps_summary && (
         <section className="rounded-2xl border bg-card p-6 shadow-sm">
-          <h3 className="text-sm font-semibold">Qualification gaps</h3>
+          <h3 className="text-sm font-semibold">Skills your candidates are missing most</h3>
           <p className="mt-2 text-xs leading-relaxed text-muted-foreground">
             {insights.qualification_gaps_summary}
           </p>
@@ -883,8 +996,8 @@ export function JdInsightsTab({ jobId }: { jobId: string }) {
       )}
 
       <p className="flex items-center gap-1.5 px-1 text-[11px] text-muted-foreground">
-        <ArrowRight className="h-3 w-3" /> Coverage and skew are computed from candidates scored
-        against this role, so they sharpen as you screen more people.
+        <ArrowRight className="h-3 w-3" /> These figures come from candidates already scored
+        against this role, so they get more reliable as you screen more people.
       </p>
     </div>
   );

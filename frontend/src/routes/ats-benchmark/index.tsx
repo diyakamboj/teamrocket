@@ -256,7 +256,7 @@ function AtsBenchmarkPage() {
                   >
                     <p className="truncate font-semibold">{c.candidate_name}</p>
                     <p className="truncate text-xs text-muted-foreground">
-                      Screening score {c.overall_score != null ? Math.round(c.overall_score) : "—"}
+                      ATS score {c.overall_score != null ? Math.round(c.overall_score) : "—"}
                     </p>
                   </button>
                 ))}

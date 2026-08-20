@@ -153,8 +153,8 @@ async function buildActions(jobs: JobPipelineSummary[]): Promise<ActionItem[]> {
           type: "readiness_assessment",
           title:
             awaiting.length === 1
-              ? `${awaiting[0]!.candidate_name} is screened but not yet in interview`
-              : `${awaiting.length} screened candidates are not yet in interview`,
+              ? `${awaiting[0]!.candidate_name} is reviewed but not yet in interview`
+              : `${awaiting.length} reviewed candidates are not yet in interview`,
           description:
             "A readiness assessment checks the competency gaps before you commit interview time.",
           jobId: job.job_id,
@@ -272,7 +272,7 @@ function ActionsPage() {
       <header className="flex flex-wrap items-center justify-between gap-4 border-b border-border pb-6">
         <div>
           <div className="mb-1 flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-primary">
-            <Zap className="h-4 w-4" /> Recruiter Copilot Decision Queue
+            <Zap className="h-4 w-4" /> AI decision queue
           </div>
           <h1 className="text-2xl font-extrabold tracking-tight sm:text-3xl">Actions Center</h1>
           <p className="mt-1 text-sm text-muted-foreground">
@@ -326,7 +326,7 @@ function ActionsPage() {
             <CheckCircle2 className="mx-auto mb-3 h-12 w-12 text-success" />
             <h3 className="text-lg font-bold">Queue clear</h3>
             <p className="mt-1 text-sm text-muted-foreground">
-              No outstanding Copilot recommendations for your open jobs.
+              No outstanding AI recommendations for your open jobs.
             </p>
           </Card>
         ) : (

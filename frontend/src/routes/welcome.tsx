@@ -14,6 +14,7 @@ import {
 import { isSignedIn } from "@/lib/auth";
 import { useReveal } from "@/lib/use-reveal";
 import { Button } from "@/components/ui/button";
+import { ProductName } from "@/components/product-name";
 
 export const Route = createFileRoute("/welcome")({
   head: () => ({
@@ -22,7 +23,7 @@ export const Route = createFileRoute("/welcome")({
       {
         name: "description",
         content:
-          "ResumeIQ screens résumés against your job description, scores every candidate on evidence you can click through to, and runs first-round screening with an AI copilot.",
+          "ResumeIQ scores résumés against your job description so one person can review many candidates — AI handles validation, scoring, and interview questions.",
       },
     ],
   }),
@@ -32,28 +33,28 @@ export const Route = createFileRoute("/welcome")({
 const FEATURES = [
   {
     icon: FileSearch,
-    title: "Screening that shows its work",
-    body: "Every score traces back to a line in the résumé. Open a badge and read the sentence it came from — no black-box ranking.",
+    title: "One ATS score, clearly explained",
+    body: "Skills, experience, and the rest sit beside the overall ATS score — with the résumé line behind each number.",
   },
   {
     icon: Bot,
-    title: "A copilot that only cites what it has",
-    body: "Ask about your pool in plain language. Answers come from stored verdicts and your own company documents, never invention.",
+    title: "AI that validates and guides",
+    body: "Ask about your pool in plain language. AI checks résumés, scores them, and suggests what to ask next.",
   },
   {
     icon: BadgeCheck,
     title: "Status at a glance",
-    body: "Top match, bench candidate, immediate joiner, incomplete profile — standard flags applied consistently across everyone.",
+    body: "Pass, review, or fail — plus Poor / Average / Good / Excellent so a first look is enough to decide.",
   },
   {
     icon: ShieldCheck,
     title: "Fraud and consistency checks",
-    body: "Employment claims and sanctions lists are checked live, and the app tells you which checks were real and which were inferred.",
+    body: "Employment claims and sanctions lists are checked live, and the app tells you which checks were real.",
   },
   {
     icon: CalendarClock,
-    title: "Screening to interview, in one thread",
-    body: "Run a structured L1 screen, then hand the interviewer a briefing with strengths, gaps and what to probe.",
+    title: "From reviewed to interview",
+    body: "AI drafts first-round questions, then hands the interviewer a briefing with strengths, gaps, and what to probe.",
   },
   {
     icon: Gauge,
@@ -63,10 +64,10 @@ const FEATURES = [
 ];
 
 const STEPS = [
-  { n: "01", title: "Add the role", body: "Paste a job description. Requirements are extracted and editable." },
-  { n: "02", title: "Upload résumés", body: "Bulk upload; each file is parsed, deduplicated and scored." },
-  { n: "03", title: "Review the evidence", body: "Ranked candidates with per-requirement verdicts and citations." },
-  { n: "04", title: "Screen and hand off", body: "Run L1 screening, then send the interviewer a briefing." },
+  { n: "01", title: "Add the role", body: "Paste a job description. AI extracts skills, experience, and questions." },
+  { n: "02", title: "Upload résumés", body: "Bulk upload. Each file is validated, parsed, and scored automatically." },
+  { n: "03", title: "Review ATS scores", body: "One score per candidate, with category breakdowns and a pass/fail tier." },
+  { n: "04", title: "Ask and hand off", body: "Let AI guide questions, then send the interviewer a briefing." },
 ];
 
 function LandingPage() {
@@ -96,7 +97,9 @@ function LandingPage() {
             <Sparkles className="h-4.5 w-4.5" />
           </span>
           <div className="leading-tight">
-            <p className="text-sm font-bold tracking-tight">ResumeIQ</p>
+            <p className="text-sm tracking-tight">
+              <ProductName />
+            </p>
             <p className="text-[11px] text-muted-foreground">Recruiting intelligence</p>
           </div>
         </div>
@@ -120,7 +123,7 @@ function LandingPage() {
               <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-500 opacity-75" />
               <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-emerald-500" />
             </span>
-            Screening 400 candidates in this workspace right now
+            One recruiter reviewing hundreds of candidates — no technical skills needed
           </span>
 
           <h1 className="mt-6 text-4xl font-extrabold leading-[1.08] tracking-tight sm:text-6xl">
@@ -129,9 +132,9 @@ function LandingPage() {
           </h1>
 
           <p className="mx-auto mt-5 max-w-2xl text-base leading-relaxed text-muted-foreground sm:text-lg">
-            ResumeIQ reads every résumé against your job description, scores candidates on
-            requirements you set, and shows the exact line behind every claim — so a shortlist is
-            something you can defend, not just feel good about.
+            <ProductName /> reads every résumé against your job. AI validates the file, scores
+            it, and guides the questions — so one person can review many candidates without
+            being a recruiter-engineer.
           </p>
 
           <div className="mt-9 flex flex-wrap items-center justify-center gap-3">
@@ -190,7 +193,10 @@ function LandingPage() {
                         />
                       </div>
                     </div>
-                    <span className="text-sm font-bold tabular-nums">{row.score}</span>
+                    <div className="text-right">
+                      <p className="text-[10px] font-bold uppercase text-muted-foreground">ATS</p>
+                      <span className="text-lg font-extrabold tabular-nums">{row.score}</span>
+                    </div>
                   </li>
                 ))}
               </ul>
@@ -203,11 +209,10 @@ function LandingPage() {
       <section className="mx-auto max-w-6xl px-6 py-20">
         <div className="reveal mx-auto max-w-2xl text-center">
           <h2 className="text-3xl font-bold tracking-tight sm:text-4xl">
-            Everything a first-round takes
+            Simple, guided, AI-powered
           </h2>
           <p className="mt-3 text-sm leading-relaxed text-muted-foreground">
-            Parsing, scoring, screening, verification and hand-off — in one place, all pointing back
-            at the same evidence.
+            Validation, scoring, and interview questions — handled by AI so you can stay on the shortlist.
           </p>
         </div>
 
@@ -273,8 +278,10 @@ function LandingPage() {
 
       <footer className="border-t">
         <div className="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-3 px-6 py-6 text-xs text-muted-foreground">
-          <span>ResumeIQ — recruiting intelligence</span>
-          <span>Evidence-backed screening</span>
+          <span>
+            <ProductName /> — AI-powered hiring
+          </span>
+          <span>One ATS score. Many candidates. Zero guesswork.</span>
         </div>
       </footer>
     </div>

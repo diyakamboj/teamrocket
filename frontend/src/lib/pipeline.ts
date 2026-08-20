@@ -15,7 +15,13 @@ import type { PipelineStage } from "@/lib/api";
  * and the trimmed `SharedRound` a collaborator receives satisfy this, so the
  * two see identical columns.
  */
-export type RoundLike = { id: string; name: string; sequence: number };
+export type RoundLike = {
+  id: string;
+  name: string;
+  sequence: number;
+  interviewer_name?: string | null;
+  interviewer_email?: string | null;
+};
 
 export type PipelineColumn = {
   /** Unique per column — `interviewing:<round_id>` for round columns. */
@@ -24,6 +30,11 @@ export type PipelineColumn = {
   stage: PipelineStage;
   /** Set only on round columns. */
   roundId?: string;
+  /** Who runs this round. Set only on round columns, and only when the job
+   *  names one — a hiring manager scanning the board needs to see what is
+   *  waiting on them without opening each candidate. */
+  interviewerName?: string | undefined;
+  interviewerEmail?: string | undefined;
   tone: string;
   /** Rounds and Screened are steps in the loop; Hired/Rejected end it. */
   terminal: boolean;
@@ -40,7 +51,7 @@ const STAGE_TONE: Record<PipelineStage, string> = {
 
 /** The flat six stages, for tallies and for jobs with no rounds defined. */
 export const STAGES: { id: PipelineStage; label: string; tone: string }[] = [
-  { id: "screened", label: "Screened", tone: STAGE_TONE.screened },
+  { id: "screened", label: "Reviewed", tone: STAGE_TONE.screened },
   { id: "interviewing", label: "Interviewing", tone: STAGE_TONE.interviewing },
   { id: "interviewed", label: "Interviewed", tone: STAGE_TONE.interviewed },
   { id: "selected", label: "Selected", tone: STAGE_TONE.selected },
@@ -70,7 +81,7 @@ export function columnsForJob(
   return [
     {
       key: "screened",
-      label: "Screened",
+      label: "Reviewed",
       stage: "screened" as const,
       tone: STAGE_TONE.screened,
       terminal: false,
@@ -80,6 +91,8 @@ export function columnsForJob(
       label: round.name,
       stage: "interviewing" as const,
       roundId: round.id,
+      interviewerName: round.interviewer_name ?? undefined,
+      interviewerEmail: round.interviewer_email ?? undefined,
       tone: STAGE_TONE.interviewing,
       terminal: false,
     })),

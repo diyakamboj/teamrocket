@@ -21,6 +21,25 @@ DEFAULT_WEIGHTS = WeightConfig()
 BENCH_PRIORITY_BOOST = 8.0
 
 
+def ats_tier(score: float) -> str:
+    if score >= 80:
+        return "excellent"
+    if score >= 65:
+        return "good"
+    if score >= 50:
+        return "average"
+    return "poor"
+
+
+def ats_verdict(score: float) -> str:
+    tier = ats_tier(score)
+    if tier in ("excellent", "good"):
+        return "pass"
+    if tier == "average":
+        return "review"
+    return "fail"
+
+
 def bench_sort_key(overall_score: float, employment_status: Optional[str], tie_breaker: str) -> tuple:
     boosted = min(100.0, overall_score + BENCH_PRIORITY_BOOST) if employment_status == "bench" else overall_score
     return (-boosted, -overall_score, tie_breaker)
@@ -181,13 +200,22 @@ class CandidateMatcher:
         if not job:
             raise NotFoundError("Job posting not found", {"job_id": str(job_id)})
 
-        # Rank only the pool the job's owner actually holds — otherwise a
-        # recruiter's shortlist fills up with other accounts' candidates.
-        owner = job.created_by
-        candidates = store.candidates.query(
-            lambda c: (owner is None or c.owner_email == owner)
-            and (source is None or c.source == source)
-        )
+        # Rank this job's own candidates, not the whole pool.
+        #
+        # Scoring everyone wrote an Evaluation for every (job, candidate)
+        # pair, and pipelines were built from evaluations — so one ranking
+        # run put the entire pool on every board. Membership is now the
+        # job's own candidates: those uploaded against it, placed on it, or
+        # not yet assigned to any role.
+        from app.services.job_pipeline_service import rankable_candidate_ids_for_job
+
+        member_ids = rankable_candidate_ids_for_job(store, job)
+        candidates = [
+            candidate
+            for candidate in (store.candidates.get(cid) for cid in member_ids)
+            if candidate is not None
+            and (source is None or candidate.source == source)
+        ]
         weights = weight_config or DEFAULT_WEIGHTS
         scores: list[dict[str, Any]] = []
 
@@ -326,7 +354,7 @@ class CandidateMatcher:
             "overall_fit": self._dimension_detail(
                 score=round(float(overall), 2),
                 explanation=explanation.get("overall_fit_explanation")
-                or f"Overall fit combines technical skills ({technical_score}), role alignment ({role_alignment_score}), and communication ({communication['score']}).",
+                or f"ATS score {round(float(overall), 2)} ({ats_tier(overall)}) from skills, experience, and related categories.",
                 evidence=overall_evidence,
             ),
             "technical_skills": self._dimension_detail(
@@ -355,6 +383,9 @@ class CandidateMatcher:
             "years_of_experience": candidate.years_of_experience(),
             "skills": [str(s) for s in (candidate.skills or [])],
             "overall_score": round(float(overall), 2),
+            "ats_score": round(float(overall), 2),
+            "ats_tier": ats_tier(overall),
+            "ats_verdict": ats_verdict(overall),
             "skill_score": skill_score,
             "experience_score": exp_score,
             "education_score": edu_score,
@@ -511,7 +542,10 @@ class CandidateMatcher:
             "technical_skills_explanation": f"Technical score is {scores['technical_skills_score']} based on skills, certifications, and projects.",
             "communication_explanation": f"Communication score is {scores['communication_score']} based on resume structure and quantified evidence.",
             "role_alignment_explanation": f"Role alignment score is {scores['role_alignment_score']} based on experience, education, and title/domain signals.",
-            "overall_fit_explanation": f"Overall fit is {scores['overall_fit_score']} from the weighted technical, role, and communication scores.",
+            "overall_fit_explanation": (
+                f"ATS score is {scores['overall_fit_score']} ({ats_tier(scores['overall_fit_score'])}) "
+                "from weighted skills, experience, education, certifications, and projects."
+            ),
         }
 
     def _prepare_evaluation(

@@ -51,3 +51,10 @@ Thumbs.db
 # Embedded Qdrant vector store (local, rebuildable from the blob index)
 .qdrant/
 backend/.qdrant/
+
+# Local data snapshots from scripts/backup_and_reset.py — large, and they
+# contain real candidate records. Never commit these.
+backend/backups/
+
+# Scratch commit message file
+COMMIT_MSG.txt

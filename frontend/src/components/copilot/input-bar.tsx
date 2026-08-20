@@ -75,7 +75,7 @@ export function InputBar({ suggestions }: { suggestions?: string[] | undefined }
           }}
           rows={1}
           disabled={loading}
-          placeholder="Ask Copilot anything…"
+          placeholder="Ask AI anything…"
           className="max-h-36 min-h-[44px] w-full resize-none bg-transparent px-3.5 pt-3 pb-1 text-sm text-foreground caret-foreground outline-none placeholder:text-muted-foreground disabled:cursor-not-allowed disabled:opacity-60"
         />
         <div className="flex items-center justify-between gap-1 px-2 pb-2">

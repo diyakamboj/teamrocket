@@ -91,7 +91,7 @@ function ExternalHiringPage() {
           <StatTile
             label="Average match score"
             value={`${totals.averageScore}%`}
-            hint="Mean overall fit across all scored external applicants."
+            hint="Mean ATS score across scored external applicants."
           />
           <StatTile
             label="Top-quality matches"

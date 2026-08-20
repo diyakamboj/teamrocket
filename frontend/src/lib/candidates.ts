@@ -51,6 +51,8 @@ export type Candidate = {
   origin: "internal" | "external";
   employmentStatus?: string | null;
   currentAssignment?: string | null;
+  /** The role they are assigned to, or null for the general pool. */
+  jobId?: string | null;
   evaluationId?: string | null;
 };
 
@@ -236,6 +238,8 @@ export function mapRankedCandidate(
     evidence,
     origin: ranked.source === "internal" ? "internal" : "external",
     employmentStatus: ranked.employment_status ?? profile?.employment_status ?? null,
+    // Which opening they sit on, so the role picker can show it.
+    jobId: profile?.job_id ?? null,
     currentAssignment: ranked.current_assignment ?? null,
     evaluationId: ranked.evaluation_id ?? null,
   };

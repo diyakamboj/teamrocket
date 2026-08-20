@@ -16,11 +16,20 @@ export const Route = createFileRoute("/register")({
 /** Mirrors the server's rule (see auth_service.MIN_PASSWORD_LENGTH). */
 const MIN_PASSWORD = 8;
 
+/** Mirrors backend `app/models/roles.py`. HR is deliberately not a role:
+ *  recruiters and hiring managers own hiring decisions, IT owns the
+ *  platform, and HR would duplicate permissions all three already have. */
+const ROLES = [
+  { value: "recruiter", label: "Recruiter", description: "Sources and screens candidates, runs the pipeline." },
+  { value: "hiring_manager", label: "Hiring Manager", description: "Reviews shortlists and interviews for their own roles." },
+  { value: "it_admin", label: "IT Admin", description: "Manages accounts, integrations and platform settings." },
+] as const;
+
 function RegisterPage() {
   const navigate = useNavigate();
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
-  const [role, setRole] = useState("");
+  const [role, setRole] = useState<string>(ROLES[0].value);
   const [password, setPassword] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -48,7 +57,7 @@ function RegisterPage() {
         email: email.trim(),
         password,
         name: name.trim(),
-        ...(role.trim() ? { role: role.trim() } : {}),
+        role,
       });
       toast.success(`Welcome, ${session.name.split(" ")[0]} — your workspace is ready.`);
       void navigate({ to: "/", replace: true });
@@ -106,15 +115,25 @@ function RegisterPage() {
 
         <div className="space-y-1.5">
           <label htmlFor="role" className="text-xs font-medium">
-            Job title <span className="text-muted-foreground">(optional)</span>
+            Role
           </label>
-          <Input
+          {/* A picker, not free text: the role decides what you can see and
+              do, so it has to be one the API recognises. */}
+          <select
             id="role"
             value={role}
             onChange={(e) => setRole(e.target.value)}
-            placeholder="Technical Recruiter"
-            className="rounded-xl"
-          />
+            className="w-full rounded-xl border border-input bg-background px-3 py-2 text-sm"
+          >
+            {ROLES.map((option) => (
+              <option key={option.value} value={option.value}>
+                {option.label}
+              </option>
+            ))}
+          </select>
+          <p className="text-[11px] text-muted-foreground">
+            {ROLES.find((r) => r.value === role)?.description}
+          </p>
         </div>
 
         <div className="space-y-1.5">

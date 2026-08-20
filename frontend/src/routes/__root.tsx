@@ -86,13 +86,13 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
   // twitter:card), so HeadContent isn't fighting a static duplicate.
   head: () => ({
     meta: [
-      { title: "ResumeIQ — AI Resume Screening for Recruiters" },
+      { title: "ResumeIQ — AI-powered hiring" },
       {
         name: "description",
         content:
           "Screen resumes at scale with AI: bulk parsing, job-description matching, ranked candidates and side-by-side comparison.",
       },
-      { property: "og:title", content: "ResumeIQ — AI Resume Screening for Recruiters" },
+      { property: "og:title", content: "ResumeIQ — AI-powered hiring" },
     ],
   }),
   component: RootComponent,
