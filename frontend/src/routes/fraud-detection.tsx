@@ -63,20 +63,20 @@ const FILTERS: Array<{ id: "all" | FraudStatus; label: string }> = [
 function StatusPill({ status }: { status: FraudStatus }) {
   if (status === "verified") {
     return (
-      <span className="inline-flex items-center gap-1 rounded-full bg-emerald-100 px-2.5 py-1 text-xs font-semibold text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-300">
+      <span className="inline-flex items-center gap-1 rounded-full bg-success/10 px-2.5 py-1 text-xs font-semibold text-success dark:bg-success/15 dark:text-success">
         <BadgeCheck className="h-3.5 w-3.5" /> Verified
       </span>
     );
   }
   if (status === "fraud") {
     return (
-      <span className="inline-flex items-center gap-1 rounded-full bg-rose-100 px-2.5 py-1 text-xs font-semibold text-rose-700 dark:bg-rose-500/15 dark:text-rose-300">
+      <span className="inline-flex items-center gap-1 rounded-full bg-destructive/10 px-2.5 py-1 text-xs font-semibold text-destructive dark:bg-destructive/15 dark:text-destructive">
         <ShieldAlert className="h-3.5 w-3.5" /> Fraud
       </span>
     );
   }
   return (
-    <span className="inline-flex items-center gap-1 rounded-full bg-amber-100 px-2.5 py-1 text-xs font-semibold text-amber-800 dark:bg-amber-500/15 dark:text-amber-300">
+    <span className="inline-flex items-center gap-1 rounded-full bg-warning/10 px-2.5 py-1 text-xs font-semibold text-warning dark:bg-warning/15 dark:text-warning">
       <AlertTriangle className="h-3.5 w-3.5" /> Suspicious
     </span>
   );
@@ -86,7 +86,7 @@ function SourceTag({ source }: { source?: FraudCheckSource | undefined }) {
   if (!source || source === "no_data") return null;
   if (source === "live") {
     return (
-      <span className="ml-1.5 rounded-full bg-sky-100 px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wide text-sky-700 dark:bg-sky-500/15 dark:text-sky-300">
+      <span className="ml-1.5 rounded-full bg-primary/10 px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wide text-primary dark:bg-primary/15 dark:text-primary">
         Live
       </span>
     );
@@ -122,13 +122,13 @@ function CheckRow({
         className={cn(
           "grid h-7 w-7 place-items-center rounded-lg",
           ok
-            ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-300"
-            : "bg-rose-100 text-rose-700 dark:bg-rose-500/15 dark:text-rose-300",
+            ? "bg-success/10 text-success dark:bg-success/15 dark:text-success"
+            : "bg-destructive/10 text-destructive dark:bg-destructive/15 dark:text-destructive",
         )}
       >
         <Icon className="h-3.5 w-3.5" />
       </span>
-      <span className={ok ? "text-foreground" : "text-rose-700 dark:text-rose-300"}>
+      <span className={ok ? "text-foreground" : "text-destructive dark:text-destructive"}>
         {label}
         <span className="ml-1 text-xs text-muted-foreground">{ok ? "passed" : "failed"}</span>
         <SourceTag source={source} />
@@ -257,7 +257,7 @@ function FraudDetectionPage() {
       </header>
 
       {liveError && (
-        <div className="flex items-center gap-2 rounded-xl border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-800 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-300">
+        <div className="flex items-center gap-2 rounded-xl border border-warning/30 bg-warning/10 px-4 py-3 text-sm text-warning dark:border-warning/30 dark:bg-warning/10 dark:text-warning">
           <WifiOff className="h-4 w-4 shrink-0" />
           <span>
             Live verification API unavailable ({liveError}) — showing heuristic-only results.
@@ -276,19 +276,19 @@ function FraudDetectionPage() {
             label: "Verified",
             value: stats.verified.toLocaleString(),
             icon: ShieldCheck,
-            tone: "text-emerald-600",
+            tone: "text-success",
           },
           {
             label: "Suspicious",
             value: stats.suspicious.toLocaleString(),
             icon: AlertTriangle,
-            tone: "text-amber-600",
+            tone: "text-warning",
           },
           {
             label: "Fraud flagged",
             value: stats.fraud.toLocaleString(),
             icon: ShieldAlert,
-            tone: "text-rose-600",
+            tone: "text-destructive",
           },
         ].map((card) => (
           <div key={card.label} className="card-surface p-5">
@@ -348,10 +348,10 @@ function FraudDetectionPage() {
                 className={cn(
                   "h-full rounded-full transition-all",
                   selected.status === "fraud"
-                    ? "bg-rose-500"
+                    ? "bg-destructive"
                     : selected.status === "suspicious"
-                      ? "bg-amber-500"
-                      : "bg-emerald-500",
+                      ? "bg-warning"
+                      : "bg-success",
                 )}
                 style={{ width: `${selected.riskScore}%` }}
               />
@@ -409,10 +409,10 @@ function FraudDetectionPage() {
                     className={cn(
                       "mr-2 inline-flex rounded-full px-2 py-0.5 text-[11px] font-bold uppercase",
                       signal.severity === "high"
-                        ? "bg-rose-100 text-rose-700"
+                        ? "bg-destructive/10 text-destructive"
                         : signal.severity === "medium"
-                          ? "bg-amber-100 text-amber-800"
-                          : "bg-emerald-100 text-emerald-700",
+                          ? "bg-warning/10 text-warning"
+                          : "bg-success/10 text-success",
                     )}
                   >
                     {signal.severity}
@@ -438,18 +438,18 @@ function FraudDetectionPage() {
                 Checking resume &amp; profile consistency…
               </div>
             ) : consistencyError ? (
-              <p className="mt-2 rounded-xl border border-rose-300 bg-rose-50 px-3 py-2 text-sm text-rose-700 dark:border-rose-500/30 dark:bg-rose-500/10 dark:text-rose-300">
+              <p className="mt-2 rounded-xl border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive dark:border-destructive/30 dark:bg-destructive/10 dark:text-destructive">
                 Couldn&apos;t run consistency check: {consistencyError}
               </p>
             ) : consistency ? (
               consistency.flags.length === 0 ? (
-                <p className="mt-2 rounded-xl border bg-emerald-50 px-3 py-2 text-sm text-emerald-700 dark:border-emerald-500/30 dark:bg-emerald-500/10 dark:text-emerald-300">
+                <p className="mt-2 rounded-xl border bg-success/10 px-3 py-2 text-sm text-success dark:border-success/30 dark:bg-success/10 dark:text-success">
                   {consistency.summary}
                 </p>
               ) : (
                 <>
                   {consistency.requires_review && (
-                    <div className="mt-2 flex items-center gap-2 rounded-xl border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-800 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-300">
+                    <div className="mt-2 flex items-center gap-2 rounded-xl border border-warning/30 bg-warning/10 px-3 py-2 text-sm text-warning dark:border-warning/30 dark:bg-warning/10 dark:text-warning">
                       <AlertTriangle className="h-4 w-4 shrink-0" />
                       Recruiter review recommended
                     </div>
@@ -464,10 +464,10 @@ function FraudDetectionPage() {
                           className={cn(
                             "mr-2 inline-flex rounded-full px-2 py-0.5 text-[11px] font-bold uppercase",
                             flag.severity === "high"
-                              ? "bg-rose-100 text-rose-700"
+                              ? "bg-destructive/10 text-destructive"
                               : flag.severity === "medium"
-                                ? "bg-amber-100 text-amber-800"
-                                : "bg-emerald-100 text-emerald-700",
+                                ? "bg-warning/10 text-warning"
+                                : "bg-success/10 text-success",
                           )}
                         >
                           {flag.severity}

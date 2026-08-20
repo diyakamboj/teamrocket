@@ -36,9 +36,9 @@ export function UnclassifiedRoles({
   }
 
   return (
-    <section className="rounded-2xl border border-amber-300 bg-amber-50/60 p-5 dark:border-amber-500/30 dark:bg-amber-500/5">
+    <section className="rounded-2xl border border-warning/30 bg-warning/60 p-5 dark:border-warning/30 dark:bg-warning/5">
       <div className="flex items-start gap-3">
-        <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-amber-600" />
+        <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-warning" />
         <div className="min-w-0 flex-1">
           <h2 className="text-sm font-bold">
             {jobs.length} {jobs.length === 1 ? "role has" : "roles have"} no hiring type
@@ -63,7 +63,7 @@ export function UnclassifiedRoles({
                     type="button"
                     disabled={busy === job.job_id}
                     onClick={() => void classify(job, "internal")}
-                    className="inline-flex items-center gap-1 rounded-lg border px-2 py-1 text-xs font-medium transition-colors hover:border-violet-400 hover:bg-violet-50 hover:text-violet-700 disabled:opacity-50 dark:hover:bg-violet-500/10"
+                    className="inline-flex items-center gap-1 rounded-lg border px-2 py-1 text-xs font-medium transition-colors hover:border-primary/30 hover:bg-primary/10 hover:text-primary disabled:opacity-50 dark:hover:bg-primary/10"
                   >
                     {busy === job.job_id ? (
                       <Loader2 className="h-3 w-3 animate-spin" />
@@ -76,7 +76,7 @@ export function UnclassifiedRoles({
                     type="button"
                     disabled={busy === job.job_id}
                     onClick={() => void classify(job, "external")}
-                    className="inline-flex items-center gap-1 rounded-lg border px-2 py-1 text-xs font-medium transition-colors hover:border-sky-400 hover:bg-sky-50 hover:text-sky-700 disabled:opacity-50 dark:hover:bg-sky-500/10"
+                    className="inline-flex items-center gap-1 rounded-lg border px-2 py-1 text-xs font-medium transition-colors hover:border-primary/30 hover:bg-primary/10 hover:text-primary disabled:opacity-50 dark:hover:bg-primary/10"
                   >
                     <Globe className="h-3 w-3" />
                     External

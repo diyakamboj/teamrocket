@@ -34,7 +34,7 @@ export function AuthLayout({
       <div aria-hidden className="pointer-events-none absolute inset-0 -z-10">
         <div className="animate-aurora absolute -left-32 -top-32 h-[30rem] w-[30rem] rounded-full bg-primary/20 blur-3xl" />
         <div
-          className="animate-aurora absolute -bottom-40 right-0 h-[26rem] w-[26rem] rounded-full bg-sky-400/15 blur-3xl"
+          className="animate-aurora absolute -bottom-40 right-0 h-[26rem] w-[26rem] rounded-full bg-primary/15 blur-3xl"
           style={{ animationDelay: "-8s" }}
         />
       </div>

@@ -56,7 +56,7 @@ export function VectorIndexCard() {
           className={cn(
             "ml-auto shrink-0 rounded-full px-2.5 py-1 text-xs font-semibold",
             status.reachable
-              ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-300"
+              ? "bg-success/10 text-success dark:bg-success/15 dark:text-success"
               : "bg-destructive/10 text-destructive",
           )}
         >
@@ -76,7 +76,7 @@ export function VectorIndexCard() {
               <span
                 className={cn(
                   "h-2 w-2 shrink-0 rounded-full",
-                  engine.reachable ? "bg-emerald-500" : "bg-destructive",
+                  engine.reachable ? "bg-success" : "bg-destructive",
                 )}
               />
               <span className="min-w-0 flex-1">
@@ -116,7 +116,7 @@ export function VectorIndexCard() {
       </dl>
 
       {!coverageComplete && (
-        <p className="rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-900 dark:bg-amber-500/10 dark:text-amber-200">
+        <p className="rounded-lg bg-warning/10 px-3 py-2 text-xs text-warning dark:bg-warning/10 dark:text-warning">
           {status.my_candidates - status.indexed_for_me} of your candidates are not in the index
           yet, so semantic search will not return them. They are indexed on upload and backfilled
           at startup.

@@ -57,7 +57,7 @@ function BenchBadge({ member }: { member: AgentEvaluationSummary }) {
   if (source !== "internal") return null;
   if (employment_status === "bench") {
     return (
-      <Badge className="border-transparent bg-amber-100 text-amber-700 dark:bg-amber-500/15 dark:text-amber-300">
+      <Badge className="border-transparent bg-warning/10 text-warning dark:bg-warning/15 dark:text-warning">
         On bench
       </Badge>
     );

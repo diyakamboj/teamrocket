@@ -117,11 +117,11 @@ function HandoffView() {
           </p>
         </div>
         {handoff.status === "acknowledged" ? (
-          <Badge className="gap-1 border-transparent bg-emerald-100 text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-300">
+          <Badge className="gap-1 border-transparent bg-success/10 text-success dark:bg-success/15 dark:text-success">
             <CheckCircle2 className="h-3 w-3" /> Acknowledged
           </Badge>
         ) : handoff.status === "viewed" ? (
-          <Badge className="gap-1 border-transparent bg-sky-100 text-sky-700 dark:bg-sky-500/15 dark:text-sky-300">
+          <Badge className="gap-1 border-transparent bg-primary/10 text-primary dark:bg-primary/15 dark:text-primary">
             <UserCheck className="h-3 w-3" /> Viewed
           </Badge>
         ) : (

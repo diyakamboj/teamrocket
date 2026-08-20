@@ -46,14 +46,14 @@ export function CandidateSkillBadges({ badges }: { badges: SkillBadge[] }) {
                 variant="secondary"
                 className="flex items-center gap-1 text-xs font-medium py-0 px-2 bg-secondary/80 text-secondary-foreground hover:bg-secondary cursor-help"
               >
-                <ShieldCheck className="h-3 w-3 text-emerald-600 dark:text-emerald-400 shrink-0" />
+                <ShieldCheck className="h-3 w-3 text-success dark:text-success shrink-0" />
                 <span>{b.name}</span>
               </Badge>
             </TooltipTrigger>
             <TooltipContent className="max-w-xs text-xs space-y-1">
               <div className="flex items-center justify-between gap-2">
                 <span className="font-semibold">{b.name}</span>
-                <span className="text-[11px] text-emerald-600 font-semibold">
+                <span className="text-[11px] text-success font-semibold">
                   Verified ({Math.round(b.confidence * 100)}%)
                 </span>
               </div>

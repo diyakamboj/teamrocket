@@ -149,8 +149,8 @@ export function CandidateScreeningSection({ candidateId, candidateName, jobId }:
                 variant="outline"
                 className={`text-[11px] ${
                   activeSession.status === "completed"
-                    ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/30"
-                    : "bg-blue-500/10 text-blue-600 dark:text-blue-400 border-blue-500/30"
+                    ? "bg-success/10 text-success dark:text-success border-success/30"
+                    : "bg-primary/10 text-primary dark:text-primary border-primary/30"
                 }`}
               >
                 {activeSession.status === "completed" ? "REVIEWED" : activeSession.status.toUpperCase()}
@@ -159,8 +159,8 @@ export function CandidateScreeningSection({ candidateId, candidateName, jobId }:
 
             {/* PRE-INTERVIEW SUMMARY PACK */}
             {activeSession.summary_pack && (
-              <div className="rounded-xl border border-emerald-500/30 bg-emerald-500/10 p-3.5 text-xs text-foreground space-y-1">
-                <div className="flex items-center gap-1.5 font-semibold text-emerald-700 dark:text-emerald-300">
+              <div className="rounded-xl border border-success/30 bg-success/10 p-3.5 text-xs text-foreground space-y-1">
+                <div className="flex items-center gap-1.5 font-semibold text-success dark:text-success">
                   <CheckCircle2 className="h-4 w-4 shrink-0" />
                   Pre-Interview Summary Pack Generated
                 </div>
@@ -183,7 +183,7 @@ export function CandidateScreeningSection({ candidateId, candidateName, jobId }:
                         </Badge>
                       </div>
                       {existingAns && (
-                        <span className="text-xs font-semibold text-emerald-600 dark:text-emerald-400 flex items-center gap-1">
+                        <span className="text-xs font-semibold text-success dark:text-success flex items-center gap-1">
                           <CheckCircle2 className="h-3.5 w-3.5" /> Evaluated ({existingAns.score.toFixed(0)}/100)
                         </span>
                       )}

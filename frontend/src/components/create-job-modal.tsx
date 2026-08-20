@@ -676,7 +676,7 @@ Pick from the bench
                       requiredSkills.map((sk) => (
                         <Badge key={sk} className="bg-primary-soft text-primary border-primary/30 text-xs px-2.5 py-1 flex items-center gap-1.5">
                           ✓ {sk}
-                          <span onClick={() => handleRemoveSkill(sk, "required")} className="hover:text-rose-600 cursor-pointer font-bold ml-1">×</span>
+                          <span onClick={() => handleRemoveSkill(sk, "required")} className="hover:text-destructive cursor-pointer font-bold ml-1">×</span>
                         </Badge>
                       ))
                     )}
@@ -692,7 +692,7 @@ Pick from the bench
                       preferredSkills.map((sk) => (
                         <Badge key={sk} variant="outline" className="text-foreground bg-card border-border text-xs px-2.5 py-1 flex items-center gap-1.5">
                           + {sk}
-                          <span onClick={() => handleRemoveSkill(sk, "preferred")} className="hover:text-rose-600 cursor-pointer font-bold ml-1">×</span>
+                          <span onClick={() => handleRemoveSkill(sk, "preferred")} className="hover:text-destructive cursor-pointer font-bold ml-1">×</span>
                         </Badge>
                       ))
                     )}
@@ -804,7 +804,7 @@ Pick from the bench
                       type="button"
                       aria-label={`Remove round ${index + 1}`}
                       onClick={() => setRounds((prev) => prev.filter((_, i) => i !== index))}
-                      className="shrink-0 rounded-md px-2 py-1 text-xs text-muted-foreground hover:text-rose-600"
+                      className="shrink-0 rounded-md px-2 py-1 text-xs text-muted-foreground hover:text-destructive"
                     >
                       ✕
                     </button>

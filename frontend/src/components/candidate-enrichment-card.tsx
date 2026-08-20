@@ -51,12 +51,12 @@ export function CandidateEnrichmentCard({ candidate, onEnriched }: CandidateEnri
       case "github":
         return <Github className="h-3.5 w-3.5 text-foreground" />;
       case "linkedin":
-        return <Linkedin className="h-3.5 w-3.5 text-blue-600 dark:text-blue-400" />;
+        return <Linkedin className="h-3.5 w-3.5 text-primary dark:text-primary" />;
       case "hackerrank":
-        return <Award className="h-3.5 w-3.5 text-emerald-600 dark:text-emerald-400" />;
+        return <Award className="h-3.5 w-3.5 text-success dark:text-success" />;
       case "portfolio":
       default:
-        return <Globe className="h-3.5 w-3.5 text-purple-600 dark:text-purple-400" />;
+        return <Globe className="h-3.5 w-3.5 text-primary dark:text-primary" />;
     }
   };
 
@@ -65,7 +65,7 @@ export function CandidateEnrichmentCard({ candidate, onEnriched }: CandidateEnri
       <CardHeader className="flex flex-row items-center justify-between pb-3">
         <div>
           <CardTitle className="flex items-center gap-2 text-base font-semibold">
-            <Sparkles className="h-4 w-4 text-amber-500" />
+            <Sparkles className="h-4 w-4 text-warning" />
             Public Profile Signals & Attribution
           </CardTitle>
           <CardDescription className="text-xs">
@@ -109,7 +109,7 @@ export function CandidateEnrichmentCard({ candidate, onEnriched }: CandidateEnri
               href={candidate.linkedin_url}
               target="_blank"
               rel="noreferrer"
-              className="inline-flex items-center gap-1.5 rounded-full border bg-blue-500/10 border-blue-500/20 px-3 py-1 text-xs font-medium text-blue-600 dark:text-blue-400 hover:bg-blue-500/20 transition-colors"
+              className="inline-flex items-center gap-1.5 rounded-full border bg-primary/10 border-primary/20 px-3 py-1 text-xs font-medium text-primary dark:text-primary hover:bg-primary/20 transition-colors"
             >
               {platformIcon("linkedin")} LinkedIn Profile <ExternalLinkIcon className="h-3 w-3 opacity-60" />
             </a>
@@ -119,7 +119,7 @@ export function CandidateEnrichmentCard({ candidate, onEnriched }: CandidateEnri
               href={candidate.hackerrank_url}
               target="_blank"
               rel="noreferrer"
-              className="inline-flex items-center gap-1.5 rounded-full border bg-emerald-500/10 border-emerald-500/20 px-3 py-1 text-xs font-medium text-emerald-600 dark:text-emerald-400 hover:bg-emerald-500/20 transition-colors"
+              className="inline-flex items-center gap-1.5 rounded-full border bg-success/10 border-success/20 px-3 py-1 text-xs font-medium text-success dark:text-success hover:bg-success/20 transition-colors"
             >
               {platformIcon("hackerrank")} HackerRank Profile <ExternalLinkIcon className="h-3 w-3 opacity-60" />
             </a>
@@ -129,7 +129,7 @@ export function CandidateEnrichmentCard({ candidate, onEnriched }: CandidateEnri
               href={candidate.portfolio_url}
               target="_blank"
               rel="noreferrer"
-              className="inline-flex items-center gap-1.5 rounded-full border bg-purple-500/10 border-purple-500/20 px-3 py-1 text-xs font-medium text-purple-600 dark:text-purple-400 hover:bg-purple-500/20 transition-colors"
+              className="inline-flex items-center gap-1.5 rounded-full border bg-primary/10 border-primary/20 px-3 py-1 text-xs font-medium text-primary dark:text-primary hover:bg-primary/20 transition-colors"
             >
               {platformIcon("portfolio")} Portfolio Website <ExternalLinkIcon className="h-3 w-3 opacity-60" />
             </a>
@@ -141,8 +141,8 @@ export function CandidateEnrichmentCard({ candidate, onEnriched }: CandidateEnri
 
         {/* ENRICHMENT SUMMARY PACK */}
         {profile?.summary && (
-          <div className="rounded-xl border border-amber-500/30 bg-amber-500/10 p-3.5 text-xs text-foreground space-y-1.5">
-            <div className="flex items-center gap-1.5 font-semibold text-amber-700 dark:text-amber-400">
+          <div className="rounded-xl border border-warning/30 bg-warning/10 p-3.5 text-xs text-foreground space-y-1.5">
+            <div className="flex items-center gap-1.5 font-semibold text-warning dark:text-warning">
               <Sparkles className="h-4 w-4 shrink-0" />
               Verified External Profile Summary
             </div>
@@ -170,8 +170,8 @@ export function CandidateEnrichmentCard({ candidate, onEnriched }: CandidateEnri
                       {repo.name} <ExternalLinkIcon className="h-3 w-3 opacity-50" />
                     </span>
                     {repo.stars > 0 && (
-                      <span className="text-xs text-amber-600 font-medium flex items-center gap-0.5">
-                        <Star className="h-3 w-3 fill-amber-500 text-amber-500" /> {repo.stars}
+                      <span className="text-xs text-warning font-medium flex items-center gap-0.5">
+                        <Star className="h-3 w-3 fill-amber-500 text-warning" /> {repo.stars}
                       </span>
                     )}
                   </div>
@@ -193,7 +193,7 @@ export function CandidateEnrichmentCard({ candidate, onEnriched }: CandidateEnri
         {profile?.inferred_skills && profile.inferred_skills.length > 0 && (
           <div className="space-y-1.5">
             <p className="text-xs font-semibold text-foreground flex items-center gap-1.5">
-              <ShieldCheck className="h-3.5 w-3.5 text-emerald-600 dark:text-emerald-400" />
+              <ShieldCheck className="h-3.5 w-3.5 text-success dark:text-success" />
               Verified Skills with Source Attribution
             </p>
             <div className="flex flex-wrap gap-1.5">
@@ -201,10 +201,10 @@ export function CandidateEnrichmentCard({ candidate, onEnriched }: CandidateEnri
                 <Badge
                   key={i}
                   variant="secondary"
-                  className="flex items-center gap-1 text-xs py-0.5 px-2 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border-emerald-500/20"
+                  className="flex items-center gap-1 text-xs py-0.5 px-2 bg-success/10 text-success dark:text-success border-success/20"
                 >
                   <span>{skill.name}</span>
-                  <span className="text-[9px] uppercase font-semibold text-emerald-600/80 bg-emerald-500/20 px-1 rounded">
+                  <span className="text-[9px] uppercase font-semibold text-success bg-success/20 px-1 rounded">
                     {skill.origin}
                   </span>
                 </Badge>

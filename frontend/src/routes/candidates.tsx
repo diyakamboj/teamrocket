@@ -127,8 +127,8 @@ const DECISIONS: Record<
     done: "Advanced to next round",
     confirm: "Send next-round invitation",
     icon: ArrowRight,
-    tone: "border-sky-300 text-sky-700 hover:bg-sky-50 dark:border-sky-500/30 dark:text-sky-300 dark:hover:bg-sky-500/10",
-    doneTone: "bg-sky-100 text-sky-700 dark:bg-sky-500/15 dark:text-sky-300",
+    tone: "border-primary/30 text-primary hover:bg-primary/10 dark:border-primary/30 dark:text-primary dark:hover:bg-primary/10",
+    doneTone: "bg-primary/10 text-primary dark:bg-primary/15 dark:text-primary",
   },
   approved: {
     label: "Select",
@@ -151,8 +151,8 @@ const DECISIONS: Record<
     done: "Rejected",
     confirm: "Send rejection",
     icon: X,
-    tone: "border-rose-300 text-rose-700 hover:bg-rose-50 dark:border-rose-500/30 dark:text-rose-300 dark:hover:bg-rose-500/10",
-    doneTone: "bg-rose-100 text-rose-700 dark:bg-rose-500/15 dark:text-rose-300",
+    tone: "border-destructive/30 text-destructive hover:bg-destructive/10 dark:border-destructive/30 dark:text-destructive dark:hover:bg-destructive/10",
+    doneTone: "bg-destructive/10 text-destructive dark:bg-destructive/15 dark:text-destructive",
   },
 };
 

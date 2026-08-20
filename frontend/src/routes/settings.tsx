@@ -1,7 +1,8 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Bot, Building2, CheckCircle2, Database, FileText, Info, Loader2, Lock, ShieldCheck, Sliders, Sparkles, Trash2, Upload, User } from "lucide-react";
+import { Bot, Building2, Check, CheckCircle2, Database, FileText, Info, Loader2, Lock, Moon, Palette, ShieldCheck, Sliders, Sparkles, Sun, Trash2, Upload, User } from "lucide-react";
 import { toast } from "sonner";
+import { useTheme } from "@/lib/theme";
 import {
   getRecruiterSettings,
   saveRecruiterSettings,
@@ -52,6 +53,7 @@ const WEIGHT_FIELDS = [
 ] as const;
 
 const SECTIONS = [
+  { id: "appearance", label: "Appearance", icon: Palette },
   { id: "profile", label: "Recruiter identity", icon: User },
   { id: "context", label: "Company context", icon: Building2 },
   { id: "copilot", label: "AI grounding", icon: Bot },
@@ -145,7 +147,7 @@ function DocumentRow({
             </span>
           )}
           {doc.status === "processed" && (
-            <span className="inline-flex items-center gap-1 text-xs font-medium text-emerald-600 dark:text-emerald-400">
+            <span className="inline-flex items-center gap-1 text-xs font-medium text-success dark:text-success">
               <CheckCircle2 className="h-3 w-3" /> Ready for AI
             </span>
           )}
@@ -180,6 +182,7 @@ function DocumentRow({
 }
 
 function SettingsPage() {
+  const { theme, toggle } = useTheme();
   const { setWeights } = useAppState();
   const [settings, setSettings] = useState<RecruiterSettings>(getRecruiterSettings);
   const [saved, setSaved] = useState(false);
@@ -323,6 +326,57 @@ function SettingsPage() {
 
         <div className="min-w-0 space-y-6">
           {/* ---------- Recruiter identity ---------- */}
+          <SectionCard
+            id="appearance"
+            eyebrow="Appearance"
+            title="Light or dark"
+            description="Applies everywhere and is remembered on this device. ⌘K can also switch it."
+            icon={Palette}
+          >
+            <div className="grid gap-3 sm:grid-cols-2">
+              {(
+                [
+                  { id: "light", label: "Light", hint: "Bright, for well-lit rooms", icon: Sun },
+                  { id: "dark", label: "Dark", hint: "Dim, easier at night", icon: Moon },
+                ] as const
+              ).map((option) => {
+                const selected = theme === option.id;
+                return (
+                  <button
+                    key={option.id}
+                    type="button"
+                    onClick={() => {
+                      if (!selected) toggle();
+                    }}
+                    aria-pressed={selected}
+                    className={cn(
+                      "press-fx flex items-center gap-3 rounded-xl border p-4 text-left transition-colors",
+                      selected
+                        ? "border-primary bg-primary-soft"
+                        : "hover:border-primary/40 hover:bg-secondary/60",
+                    )}
+                  >
+                    <span
+                      className={cn(
+                        "grid h-9 w-9 shrink-0 place-items-center rounded-lg",
+                        selected
+                          ? "bg-primary text-primary-foreground"
+                          : "bg-secondary text-muted-foreground",
+                      )}
+                    >
+                      <option.icon className="h-4 w-4" />
+                    </span>
+                    <span className="min-w-0">
+                      <span className="block text-sm font-medium">{option.label}</span>
+                      <span className="block text-xs text-muted-foreground">{option.hint}</span>
+                    </span>
+                    {selected && <Check className="ml-auto h-4 w-4 shrink-0 text-primary" />}
+                  </button>
+                );
+              })}
+            </div>
+          </SectionCard>
+
           <SectionCard
             id="profile"
             eyebrow="Profile"

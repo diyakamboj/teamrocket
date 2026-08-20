@@ -1,13 +1,17 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useEffect, useMemo, useState } from "react";
-import { Briefcase, Loader2, PlusCircle, Search, Upload, Users } from "lucide-react";
+import { ArrowRight, Briefcase, Gauge, Loader2, PlusCircle, Search, Upload, Users } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { CandidateDetailModal } from "@/components/candidate-detail-modal";
 import { UnclassifiedRoles } from "@/components/unclassified-roles";
-import { HiringFlow, StepActions, type FlowStep } from "@/components/hiring-flow";
+import {
+  HiringSections,
+  SectionActions,
+  type HiringSection,
+} from "@/components/hiring-sections";
 import {
   JobGrid,
   StatTile,
@@ -136,12 +140,19 @@ function InternalHiringPage() {
     0,
   );
 
-  const steps: FlowStep[] = [
+  /**
+   * Only a genuinely empty workspace gets the first-run bar. Once there is a
+   * role with people on it, the work is under way and a progress meter over
+   * a process you re-enter constantly is just noise.
+   */
+  const isNewAccount = jobs.length === 0 || people === 0;
+
+  const sections: HiringSection[] = [
     {
       id: "role",
+      icon: Briefcase,
       title: "Open the role",
       blurb: "Describe the job you want to fill with someone already at the company.",
-      done: jobs.length > 0,
       summary: jobs.length > 0 ? `${jobs.length} open` : undefined,
       body: (
         <>
@@ -161,19 +172,19 @@ function InternalHiringPage() {
               },
             ]}
           />
-          <StepActions>
+          <SectionActions>
             <Button onClick={openCreateJob} className="press-fx ripple">
               <PlusCircle className="mr-1.5 h-3.5 w-3.5" /> Create a role
             </Button>
-          </StepActions>
+          </SectionActions>
         </>
       ),
     },
     {
       id: "people",
+      icon: Users,
       title: "Find people for it",
       blurb: "Pick from employees already free, or add someone by uploading their résumé.",
-      done: people > 0 || bench.length > 0,
       summary: bench.length > 0 ? `${bench.length} on the bench` : undefined,
       body: (
         <div className="space-y-4">
@@ -276,21 +287,21 @@ function InternalHiringPage() {
             </div>
           )}
 
-          <StepActions>
+          <SectionActions>
             <Link to="/upload" search={{ source: "internal" }}>
               <Button variant="outline" className="press-fx">
                 <Upload className="mr-1.5 h-3.5 w-3.5" /> Add someone by résumé
               </Button>
             </Link>
-          </StepActions>
+          </SectionActions>
         </div>
       ),
     },
     {
       id: "review",
+      icon: Gauge,
       title: "See who fits",
       blurb: "Each person is scored against the role, with the evidence behind it.",
-      done: scored > 0,
       summary: scored > 0 ? `${totals.topMatches} strong` : undefined,
       body: (
         <>
@@ -307,21 +318,21 @@ function InternalHiringPage() {
               hint="Scoring 85 or higher."
             />
           </div>
-          <StepActions>
+          <SectionActions>
             <Link to="/candidates">
               <Button variant="outline" className="press-fx">
                 Review everyone
               </Button>
             </Link>
-          </StepActions>
+          </SectionActions>
         </>
       ),
     },
     {
       id: "advance",
+      icon: ArrowRight,
       title: "Move them forward",
       blurb: "Advance the ones who pass through the role's interview rounds.",
-      done: advanced > 0,
       summary: advanced > 0 ? `${advanced} in progress` : undefined,
       body: (
         <>
@@ -330,7 +341,7 @@ function InternalHiringPage() {
               ? `${advanced} person${advanced === 1 ? "" : "s"} are in or past an interview.`
               : "Open a role to move people through its rounds on the board."}
           </p>
-          <StepActions>
+          <SectionActions>
             {jobs[0] && (
               <Link to="/jobs/$jobId" params={{ jobId: String(jobs[0].job_id) }}>
                 <Button variant="outline" className="press-fx">
@@ -338,7 +349,7 @@ function InternalHiringPage() {
                 </Button>
               </Link>
             )}
-          </StepActions>
+          </SectionActions>
         </>
       ),
     },
@@ -354,12 +365,25 @@ function InternalHiringPage() {
           Fill a role with someone already here
         </h1>
         <p className="mt-1 max-w-2xl text-sm text-muted-foreground">
-          Four steps, in order. Each one ticks itself off as you go — you can open any of them at
-          any time.
+          Everything for this kind of hiring, in one place. Jump between sections in any order —
+          you will move back and forth as you go.
         </p>
       </header>
 
-      <HiringFlow steps={steps} />
+      <HiringSections
+        sections={sections}
+        {...(isNewAccount
+          ? {
+              gettingStarted: {
+                steps: [
+                  { label: "Create a role", done: jobs.length > 0 },
+                  { label: "Add people to it", done: people > 0 },
+                  { label: "Review their scores", done: scored > 0 },
+                ],
+              },
+            }
+          : {})}
+      />
 
       <CandidateDetailModal
         candidateId={selectedCandidateId}

@@ -157,7 +157,7 @@ function RegisterPage() {
                   key={check.label}
                   className={cn(
                     "flex items-center gap-1.5 text-xs transition-colors",
-                    check.ok ? "text-emerald-600 dark:text-emerald-400" : "text-muted-foreground",
+                    check.ok ? "text-success dark:text-success" : "text-muted-foreground",
                   )}
                 >
                   <Check className={cn("h-3 w-3", !check.ok && "opacity-30")} />

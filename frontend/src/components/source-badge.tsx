@@ -37,8 +37,8 @@ export function SourceBadge({
       className={cn(
         "inline-flex shrink-0 items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-semibold",
         internal
-          ? "bg-violet-100 text-violet-700 dark:bg-violet-500/15 dark:text-violet-300"
-          : "bg-sky-100 text-sky-700 dark:bg-sky-500/15 dark:text-sky-300",
+          ? "bg-primary/10 text-primary dark:bg-primary/15 dark:text-primary"
+          : "bg-primary/10 text-primary dark:bg-primary/15 dark:text-primary",
         className,
       )}
     >

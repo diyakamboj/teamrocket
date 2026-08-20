@@ -43,13 +43,13 @@ const VERDICT_META: Record<AtsVerdict, { label: string; description: string; cla
       label: "AI found a stronger fit",
       description:
         "The candidate scores meaningfully higher on semantic fit than on literal keyword matches — a keyword-only ATS would likely have under-ranked or filtered this candidate out.",
-      className: "bg-emerald-100 text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-300",
+      className: "bg-success/10 text-success dark:bg-success/15 dark:text-success",
     },
     keyword_stronger: {
       label: "Keyword score runs hot",
       description:
         "The keyword baseline is notably higher than the semantic assessment — worth a closer look at whether the resume is keyword-optimized without matching depth of experience.",
-      className: "bg-amber-100 text-amber-700 dark:bg-amber-500/15 dark:text-amber-300",
+      className: "bg-warning/10 text-warning dark:bg-warning/15 dark:text-warning",
     },
     aligned: {
       label: "Signals aligned",
@@ -60,13 +60,13 @@ const VERDICT_META: Record<AtsVerdict, { label: string; description: string; cla
       label: "No keyword baseline",
       description:
         "This job lists no required or nice-to-have skills, so the keyword scan had nothing to look for. Add skills to the job to get an ATS baseline worth comparing against.",
-      className: "bg-slate-100 text-slate-700 dark:bg-slate-500/15 dark:text-slate-300",
+      className: "bg-secondary text-foreground dark:bg-secondary dark:text-muted-foreground",
     },
     semantic_unavailable: {
       label: "Semantic score unavailable",
       description:
         "The AI evaluation did not return a usable score for this run, so there is nothing to compare the keyword baseline against. Re-run to try again.",
-      className: "bg-amber-100 text-amber-700 dark:bg-amber-500/15 dark:text-amber-300",
+      className: "bg-warning/10 text-warning dark:bg-warning/15 dark:text-warning",
     },
   };
 
@@ -324,8 +324,8 @@ function AtsBenchmarkPage() {
                         <span
                           className={cn(
                             "text-sm font-bold tabular-nums",
-                            delta !== null && delta > 0 && "text-emerald-600 dark:text-emerald-400",
-                            delta !== null && delta < 0 && "text-rose-600 dark:text-rose-400",
+                            delta !== null && delta > 0 && "text-success dark:text-success",
+                            delta !== null && delta < 0 && "text-destructive dark:text-destructive",
                             delta === null && "text-muted-foreground",
                           )}
                         >

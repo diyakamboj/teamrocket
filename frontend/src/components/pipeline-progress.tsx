@@ -99,9 +99,9 @@ export function PipelineProgress({
                   }
                   className={cn(
                     "grid h-5 w-5 shrink-0 place-items-center rounded-full border text-[11px]",
-                    state === "passed" && "border-emerald-500 bg-emerald-500 text-white",
+                    state === "passed" && "border-success/30 bg-success text-white",
                     state === "current" && "border-primary bg-primary text-primary-foreground",
-                    state === "upcoming" && "border-slate-200 bg-white text-slate-300",
+                    state === "upcoming" && "border-border bg-white text-muted-foreground",
                   )}
                 >
                   {state === "passed" ? (
@@ -115,9 +115,9 @@ export function PipelineProgress({
                 <span
                   className={cn(
                     "max-w-[4.5rem] truncate text-center text-[9px] font-medium leading-tight",
-                    state === "passed" && "text-emerald-700",
+                    state === "passed" && "text-success",
                     state === "current" && "text-primary",
-                    state === "upcoming" && "text-slate-400",
+                    state === "upcoming" && "text-muted-foreground",
                   )}
                 >
                   {step.label}
@@ -128,7 +128,7 @@ export function PipelineProgress({
                   aria-hidden
                   className={cn(
                     "mt-2.5 h-px min-w-[8px] flex-1",
-                    (hired || index < currentIndex) ? "bg-emerald-400" : "bg-slate-200",
+                    (hired || index < currentIndex) ? "bg-success/10" : "bg-secondary",
                   )}
                 />
               )}
@@ -137,7 +137,7 @@ export function PipelineProgress({
         })}
       </ol>
       {rejected && (
-        <p className="mt-1.5 inline-flex items-center gap-1 rounded-full bg-red-50 px-2 py-0.5 text-[11px] font-semibold text-red-700">
+        <p className="mt-1.5 inline-flex items-center gap-1 rounded-full bg-destructive/10 px-2 py-0.5 text-[11px] font-semibold text-destructive">
           <X className="h-3 w-3" /> Rejected
         </p>
       )}
@@ -190,12 +190,12 @@ export function CandidateStatusTab({
           </p>
         </div>
         <div className="relative w-full max-w-sm">
-          <Search className="absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-slate-400" />
+          <Search className="absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
           <Input
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             placeholder="Search by name or skill..."
-            className="rounded-lg border-slate-200 bg-white pl-9 text-xs"
+            className="rounded-lg border-border bg-white pl-9 text-xs"
           />
         </div>
       </div>
@@ -225,7 +225,7 @@ export function CandidateStatusTab({
                         {blindMode ? `Candidate #${index + 1}` : candidate.name}
                       </button>
                       {candidate.isBench && (
-                        <Badge className="bg-blue-50 text-[11px] font-bold text-blue-700 border-blue-200">
+                        <Badge className="bg-primary/10 text-[11px] font-bold text-primary border-primary/30">
                           Bench
                         </Badge>
                       )}

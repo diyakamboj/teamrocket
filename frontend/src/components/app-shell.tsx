@@ -4,6 +4,8 @@ import {
   Bell,
   ChevronsLeft,
   Command,
+  Moon,
+  Sun,
   ChevronsRight,
   LayoutDashboard,
   Briefcase,
@@ -82,6 +84,7 @@ const NAV_GROUPS = [
 export function AppShell({ children }: { children: ReactNode }) {
   const [collapsed, setCollapsed] = useState(false);
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
+  const { theme, toggle } = useTheme();
   const { active, counts, overallProgress } = useAppState();
   const pathname = useRouterState({ select: (s) => s.location.pathname });
   const navigate = useNavigate();
@@ -288,6 +291,16 @@ export function AppShell({ children }: { children: ReactNode }) {
               <PlusCircle className="w-3.5 h-3.5" />
               Create New Job
             </Button>
+
+            <button
+              type="button"
+              onClick={toggle}
+              aria-label={`Switch to ${theme === "dark" ? "light" : "dark"} mode`}
+              title={`Switch to ${theme === "dark" ? "light" : "dark"} mode`}
+              className="press-fx grid h-8 w-8 place-items-center rounded-lg border border-border text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground"
+            >
+              {theme === "dark" ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
+            </button>
 
             <Link to="/actions">
               <button

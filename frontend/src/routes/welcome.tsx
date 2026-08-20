@@ -86,7 +86,7 @@ function LandingPage() {
       <div aria-hidden className="pointer-events-none fixed inset-0 -z-10 overflow-hidden">
         <div className="animate-aurora absolute -left-40 -top-40 h-[38rem] w-[38rem] rounded-full bg-primary/25 blur-3xl" />
         <div
-          className="animate-aurora absolute -right-32 top-1/3 h-[32rem] w-[32rem] rounded-full bg-sky-400/20 blur-3xl"
+          className="animate-aurora absolute -right-32 top-1/3 h-[32rem] w-[32rem] rounded-full bg-primary/20 blur-3xl"
           style={{ animationDelay: "-6s" }}
         />
       </div>
@@ -120,8 +120,8 @@ function LandingPage() {
         <div className="stagger mx-auto max-w-3xl text-center">
           <span className="inline-flex items-center gap-2 rounded-full border bg-card/70 px-3 py-1.5 text-xs font-medium text-muted-foreground backdrop-blur">
             <span className="relative flex h-1.5 w-1.5">
-              <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-500 opacity-75" />
-              <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-emerald-500" />
+              <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-success opacity-75" />
+              <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-success" />
             </span>
             One recruiter reviewing hundreds of candidates — no technical skills needed
           </span>
@@ -170,8 +170,8 @@ function LandingPage() {
               </div>
               <ul className="stagger mt-4 space-y-3">
                 {[
-                  { rank: 1, name: "Priya Raman", score: 92, flag: "🟢 Top match", tone: "text-emerald-600 dark:text-emerald-400" },
-                  { rank: 2, name: "Daniel Osei", score: 87, flag: "🚀 Immediate joiner", tone: "text-sky-600 dark:text-sky-400" },
+                  { rank: 1, name: "Priya Raman", score: 92, flag: "🟢 Top match", tone: "text-success dark:text-success" },
+                  { rank: 2, name: "Daniel Osei", score: 87, flag: "🚀 Immediate joiner", tone: "text-primary dark:text-primary" },
                   { rank: 3, name: "Mei Tanaka", score: 74, flag: "👥 Bench candidate", tone: "text-muted-foreground" },
                 ].map((row) => (
                   <li key={row.rank} className="flex items-center gap-4 rounded-xl border p-3">

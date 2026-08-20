@@ -123,7 +123,7 @@ export function InternalRoster({
                 key={person.candidate_id}
                 className={cn(
                   "flex flex-wrap items-center gap-3 rounded-xl border px-3 py-2.5",
-                  person.on_bench && "border-emerald-300 bg-emerald-50/50 dark:bg-emerald-500/5",
+                  person.on_bench && "border-success/30 bg-success/50 dark:bg-success/5",
                 )}
               >
                 <span className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-primary/10 text-xs font-bold text-primary">
@@ -148,7 +148,7 @@ export function InternalRoster({
                   className={cn(
                     "inline-flex shrink-0 items-center gap-1 rounded-full px-2.5 py-1 text-xs font-medium",
                     person.on_bench
-                      ? "bg-emerald-100 text-emerald-800 dark:bg-emerald-500/15 dark:text-emerald-300"
+                      ? "bg-success/10 text-success dark:bg-success/15 dark:text-success"
                       : "bg-secondary text-secondary-foreground",
                   )}
                   title={

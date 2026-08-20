@@ -29,9 +29,9 @@ export function EvaluationSummary({ data }: { data: AgentEvaluationSummary }) {
                     className={cn(
                       "mt-0.5 grid h-4 w-4 shrink-0 place-items-center rounded-full",
                       met === true &&
-                        "bg-emerald-100 text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-300",
+                        "bg-success/10 text-success dark:bg-success/15 dark:text-success",
                       met === false &&
-                        "bg-rose-100 text-rose-700 dark:bg-rose-500/15 dark:text-rose-300",
+                        "bg-destructive/10 text-destructive dark:bg-destructive/15 dark:text-destructive",
                       met === null && "bg-secondary text-secondary-foreground",
                     )}
                   >
