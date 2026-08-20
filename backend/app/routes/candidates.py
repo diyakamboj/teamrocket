@@ -7,7 +7,7 @@ from pydantic import BaseModel, Field
 from fastapi import APIRouter, Query
 from fastapi.concurrency import run_in_threadpool
 
-from app.dependencies import AppStore, RecruiterEmail
+from app.dependencies import AppStore, CanRunPipeline, RecruiterEmail
 from app.models.candidate import Candidate
 from app.models.evaluation import AuditLog, CandidateDecision
 from app.models.schemas import (
@@ -429,6 +429,7 @@ def create_internal_employee(
     payload: InternalEmployeeRequest,
     store: AppStore,
     recruiter_email: RecruiterEmail,
+    _role: CanRunPipeline,
 ):
     """Add an internal employee directly.
 

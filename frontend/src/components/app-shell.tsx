@@ -19,7 +19,6 @@ import {
   Armchair,
   Network,
   Building2,
-  Users,
   UserSearch,
 } from "lucide-react";
 import { useEffect, useState, type ReactNode } from "react";
@@ -47,38 +46,34 @@ import { listJobPipelines, type JobPipelineSummary } from "@/lib/api";
  * `as const` is load-bearing: the router types `Link to` as a union of real
  * route paths, so these have to stay literals rather than widen to string.
  */
+/**
+ * Two groups instead of five.
+ *
+ * Nine items under five headings, three of which held a single link, made
+ * the rail read as a site map rather than a place to go. The headings are
+ * now the two things a recruiter actually does — fill roles, and work with
+ * people — and everything that is not navigation moved out: notifications
+ * live in the header bell, settings under the account menu.
+ */
 const NAV_GROUPS = [
   {
-    heading: "Overview",
+    heading: "Hiring",
     items: [
       { to: "/", label: "Dashboard", icon: LayoutDashboard },
-      { to: "/actions", label: "Actions Center", icon: Zap },
+      { to: "/internal-hiring", label: "Internal roles", icon: Briefcase },
+      { to: "/external-hiring", label: "External roles", icon: Globe },
     ],
   },
   {
     heading: "People",
     items: [
-      { to: "/people", label: "Everyone", icon: Users },
       { to: "/candidates", label: "Candidates", icon: UserSearch },
+      { to: "/bench", label: "Bench", icon: Armchair },
+      { to: "/network", label: "Recruiter network", icon: Network },
     ],
-  },
-  {
-    heading: "Sourcing",
-    items: [
-      { to: "/internal-hiring", label: "Internal Hiring", icon: Briefcase },
-      { to: "/external-hiring", label: "External Hiring", icon: Globe },
-      { to: "/bench", label: "Bench Employees", icon: Armchair },
-    ],
-  },
-  {
-    heading: "Collaborate",
-    items: [{ to: "/network", label: "Recruiter Network", icon: Network }],
-  },
-  {
-    heading: "Account",
-    items: [{ to: "/settings", label: "Settings & Context", icon: Settings }],
   },
 ] as const;
+
 
 
 export function AppShell({ children }: { children: ReactNode }) {
@@ -304,7 +299,7 @@ export function AppShell({ children }: { children: ReactNode }) {
 
             <Link to="/actions">
               <button
-                aria-label="Actions Center"
+                aria-label="Notifications"
                 className="relative grid h-8 w-8 place-items-center rounded-lg border border-border text-muted-foreground transition-colors hover:bg-accent"
               >
                 <Zap className="h-4 w-4" />

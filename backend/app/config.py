@@ -34,6 +34,16 @@ class Settings(BaseSettings):
     BLOB_CACHE_ENABLED: bool = True
     BLOB_LISTING_CACHE_SECONDS: float = 5.0
 
+    # Accept `X-Recruiter-Email` as identity when no session token is sent.
+    #
+    # Every data endpoint used to trust that header unconditionally, with a
+    # default value, so anyone could read any recruiter's candidates by
+    # changing a string and no token was needed at all. It survives for the
+    # test suite and local scripts; turn it off in any deployment.
+    ALLOW_HEADER_IDENTITY: bool = True
+    #: Identity used in header mode when no header is sent at all.
+    DEFAULT_RECRUITER_EMAIL: str = "recruiter@example.com"
+
     # Vector index backend for semantic candidate search.
     #   "blob"   vectors persisted in the document store, exact cosine search
     #   "search" Azure AI Search vector index (needs AZURE_SEARCH_* set)

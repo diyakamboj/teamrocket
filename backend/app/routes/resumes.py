@@ -7,7 +7,7 @@ from typing import Optional
 from fastapi import APIRouter, BackgroundTasks, File, Form, UploadFile
 
 from app.config import settings
-from app.dependencies import AppStore, RecruiterEmail
+from app.dependencies import AppStore, CanRunPipeline, RecruiterEmail
 from app.models.evaluation import AuditLog, ResumeUpload
 from app.models.schemas import ResumeDetailResponse, ResumeUploadItem, ResumeUploadResponse
 from app.services.attachment_processor import upsert_candidate_from_parsed
@@ -126,6 +126,7 @@ async def upload_resumes(
     current_role_duties: Optional[str] = Form(
         None, description="Internal only: what they do in that role."
     ),
+    _role: CanRunPipeline = None,
 ):
     if not files:
         raise ValidationAppError("No files provided")

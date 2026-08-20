@@ -6,7 +6,7 @@ from pydantic import BaseModel, Field
 
 from fastapi import APIRouter
 
-from app.dependencies import AppStore, RecruiterEmail
+from app.dependencies import AppStore, CanRunPipeline, RecruiterEmail
 from app.models.evaluation import AuditLog
 from app.models.job_posting import DEFAULT_ROUNDS, InterviewRound, JobPosting, ScoringWeights
 from app.models.schemas import (
@@ -35,7 +35,14 @@ def _log_audit(store: Store, **fields) -> None:
 
 
 @router.post("", response_model=JobResponse)
-async def create_job(payload: JobCreate, store: AppStore, recruiter_email: RecruiterEmail):
+async def create_job(
+    payload: JobCreate,
+    store: AppStore,
+    recruiter_email: RecruiterEmail,
+    # Sourcing work: recruiters and admins. A hiring manager reviews their
+    # own roles rather than opening new ones.
+    _role: CanRunPipeline,
+):
     job = JobPosting(
         title=payload.title,
         description=payload.description,

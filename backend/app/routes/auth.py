@@ -21,7 +21,7 @@ from app.models.evaluation import AuditLog
 from app.models.roles import ROLE_DESCRIPTIONS, ROLE_LABELS, Role, normalise_role
 from app.models.user import PublicUser, User
 from app.services import auth_service
-from app.utils.error_handlers import AppError, ValidationAppError
+from app.utils.error_handlers import UnauthorizedError, ValidationAppError
 from app.utils.logger import get_logger
 from app.utils.validators import normalize_email
 
@@ -45,11 +45,6 @@ class LoginRequest(BaseModel):
 class AuthResponse(BaseModel):
     token: str
     user: PublicUser
-
-
-class UnauthorizedError(AppError):
-    def __init__(self, message: str = "Not signed in") -> None:
-        super().__init__(message=message, status_code=401)
 
 
 def _audit(store, **fields) -> None:

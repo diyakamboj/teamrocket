@@ -1,4 +1,4 @@
-import { recruiterEmail } from "@/lib/auth";
+import { getSession, recruiterEmail } from "@/lib/auth";
 
 const API_BASE =
   (import.meta.env["VITE_API_BASE_URL"] as string | undefined)?.replace(/\/$/, "") ?? "";
@@ -203,9 +203,15 @@ export type JobResponse = {
 
 function recruiterHeaders(): HeadersInit {
   const email = recruiterEmail();
+  // The session token is what actually proves who is calling. Until now only
+  // the email header was sent, so the API had nothing to verify identity
+  // against and anyone could read another recruiter's pool by changing a
+  // header. The header stays for audit logging; the token is the authority.
+  const token = getSession()?.token;
   return {
     "Content-Type": "application/json",
     "X-Recruiter-Email": email,
+    ...(token ? { Authorization: `Bearer ${token}` } : {}),
   };
 }
 
@@ -380,7 +386,7 @@ export async function uploadChatAttachment(
 
   const response = await fetch(`${API_BASE}/api/agent/attachments`, {
     method: "POST",
-    headers: { "X-Recruiter-Email": email },
+    headers: recruiterHeaders(),
     body: form,
   });
 
@@ -456,7 +462,7 @@ export async function respondToConnection(
 export async function removeConnection(id: string): Promise<void> {
   const response = await fetch(`${API_BASE}/api/connections/${encodeURIComponent(id)}`, {
     method: "DELETE",
-    headers: { "X-Recruiter-Email": recruiterEmail() },
+    headers: recruiterHeaders(),
   });
   if (!response.ok) throw new Error(`Could not remove connection (${response.status})`);
 }
@@ -690,7 +696,7 @@ export async function listSharedByMe(): Promise<SharedCandidate[]> {
 export async function revokeShare(shareId: string): Promise<void> {
   const response = await fetch(`${API_BASE}/api/connections/share/${encodeURIComponent(shareId)}`, {
     method: "DELETE",
-    headers: { "X-Recruiter-Email": recruiterEmail() },
+    headers: recruiterHeaders(),
   });
   if (!response.ok) throw new Error(`Could not revoke the share (${response.status})`);
 }
@@ -779,7 +785,7 @@ export async function uploadCompanyDocument(
     method: "POST",
     // Only the identity header: the browser must not set Content-Type here,
     // or the multipart boundary is lost.
-    headers: { "X-Recruiter-Email": recruiterEmail() },
+    headers: recruiterHeaders(),
     body: form,
   });
 
@@ -800,7 +806,7 @@ export async function uploadCompanyDocument(
 export async function deleteCompanyDocument(id: string): Promise<void> {
   const response = await fetch(`${API_BASE}/api/company-documents/${encodeURIComponent(id)}`, {
     method: "DELETE",
-    headers: { "X-Recruiter-Email": recruiterEmail() },
+    headers: recruiterHeaders(),
   });
   if (!response.ok) {
     throw new Error(`Could not delete document (${response.status})`);
@@ -850,7 +856,7 @@ export type BackendHealth = {
  */
 export async function getBackendHealth(): Promise<BackendHealth> {
   const response = await fetch(`${API_BASE}/health`, {
-    headers: { "X-Recruiter-Email": recruiterEmail() },
+    headers: recruiterHeaders(),
   });
   if (!response.ok) throw new Error(`Backend unhealthy (${response.status})`);
   return response.json() as Promise<BackendHealth>;
@@ -1756,7 +1762,7 @@ export async function uploadResumesToBackend(
   const email = recruiterEmail();
   const res = await fetch(`${API_BASE}/api/resumes/upload`, {
     method: "POST",
-    headers: { "X-Recruiter-Email": email },
+    headers: recruiterHeaders(),
     body: formData,
   });
 
@@ -2086,4 +2092,61 @@ export async function updateMyProfile(input: {
   department?: string;
 }): Promise<{ id: string; email: string; name: string; role: string; department: string }> {
   return request("/api/auth/me", { method: "PATCH", body: JSON.stringify(input) });
+}
+
+
+// ---------- Interview question bank ----------
+
+export type QuestionDifficulty = "easy" | "medium" | "hard";
+/** Who the question is written for. A recruiter without domain expertise
+ *  cannot grade a systems answer, so they get a different set. */
+export type QuestionAudience = "non_technical" | "technical";
+
+export type InterviewQuestion = {
+  id: string;
+  question: string;
+  difficulty: QuestionDifficulty;
+  audience: QuestionAudience;
+  /** What a good answer actually contains — the part that makes the
+   *  question usable by someone who could not otherwise grade it. */
+  model_answer: string;
+  signals: string[];
+  follow_ups: string[];
+  competency?: string | null;
+};
+
+export type RoundQuestionSet = {
+  id: string;
+  job_id: string;
+  round_id: string;
+  round_name: string;
+  interview_type: string;
+  questions: InterviewQuestion[];
+  /** False when the model could not be reached and these are the built-in
+   *  fallbacks, so the page can say so rather than passing them off as
+   *  tailored to this role. */
+  generated_by_ai: boolean;
+};
+
+/** The stored bank for a round, or null if none has been generated. */
+export async function getRoundQuestions(
+  jobId: string,
+  roundId: string,
+): Promise<RoundQuestionSet | null> {
+  return request<RoundQuestionSet | null>(
+    `/api/jobs/${encodeURIComponent(jobId)}/rounds/${encodeURIComponent(roundId)}/questions`,
+  );
+}
+
+/** Generate (or regenerate) the bank for one round. */
+export async function generateRoundQuestions(
+  jobId: string,
+  roundId: string,
+  refresh = false,
+): Promise<RoundQuestionSet> {
+  const qs = refresh ? "?refresh=true" : "";
+  return request<RoundQuestionSet>(
+    `/api/jobs/${encodeURIComponent(jobId)}/rounds/${encodeURIComponent(roundId)}/questions${qs}`,
+    { method: "POST" },
+  );
 }

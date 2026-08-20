@@ -1,4 +1,5 @@
 import { BoardGuide } from "@/components/board-guide";
+import { RoundQuestions } from "@/components/round-questions";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   UserRound,
@@ -436,6 +437,22 @@ export function PipelineOverviewTab({
                         <UserRound className="h-3 w-3 shrink-0" />
                         {round.interviewer_name || "No interviewer assigned"}
                       </p>
+
+                      {/* The question bank belongs with the round it is for.
+                          It was built end to end on the backend and had no
+                          screen at all, so none of it was reachable. */}
+                      <details className="mt-3 pl-8">
+                        <summary className="cursor-pointer text-xs font-semibold text-primary">
+                          Interview questions
+                        </summary>
+                        <div className="mt-3">
+                          <RoundQuestions
+                            jobId={String(job?.id ?? "")}
+                            roundId={round.id}
+                            roundName={round.name}
+                          />
+                        </div>
+                      </details>
   
                       <RoundRoster
                         order={order}
