@@ -13,7 +13,8 @@ import { CandidateReadinessSection } from "@/components/candidate-readiness-card
 import { CandidateInterviewSection } from "@/components/interview-card";
 import { CandidateNotes } from "@/components/candidate-notes";
 import { ShareCandidateButton } from "@/components/share-candidate-button";
-import { Eye, EyeOff, Layers, Loader2, AlertTriangle } from "lucide-react";
+import { CandidateRolePanel } from "@/components/candidate-role-panel";
+import { Building2, Eye, EyeOff, Layers, Loader2, AlertTriangle } from "lucide-react";
 import { AtsScoreBadge } from "@/components/ats-score-badge";
 import {
   getCandidate,
@@ -174,6 +175,38 @@ export function CandidateDetailModal({
             </p>
           ) : (
             <>
+              {profile?.source === "internal" && (
+                <section className="rounded-xl border bg-secondary/40 p-4">
+                  <h3 className="flex items-center gap-2 text-sm font-semibold">
+                    <Building2 className="h-4 w-4 text-primary" />
+                    Their role in the company today
+                  </h3>
+                  <p className="mt-2 text-sm font-medium">
+                    {profile?.current_assignment || (
+                      <span className="font-normal text-muted-foreground">
+                        Not recorded — ask when their résumé is next uploaded.
+                      </span>
+                    )}
+                  </p>
+                  {profile?.current_role_duties && (
+                    <p className="mt-1.5 text-xs leading-relaxed text-muted-foreground">
+                      {profile.current_role_duties}
+                    </p>
+                  )}
+                  {profile?.employment_status === "bench" && (
+                    <p className="mt-2 text-xs text-muted-foreground">
+                      Currently on the bench, between assignments.
+                    </p>
+                  )}
+                </section>
+              )}
+
+              <CandidateRolePanel
+                candidateId={candidateId}
+                candidateName={displayName}
+                currentJobId={profile?.job_id ?? null}
+              />
+
               <section className="space-y-3">
                 <h3 className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-muted-foreground">
                   Category scores

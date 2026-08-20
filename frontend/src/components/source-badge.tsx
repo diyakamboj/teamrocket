@@ -79,7 +79,7 @@ export function CurrentRoleButton({
       className={cn(
         "inline-flex shrink-0 items-center gap-1 rounded-lg border px-2 py-1 text-xs font-medium transition-colors",
         onBench
-          ? "border-emerald-300 bg-emerald-50 text-emerald-800 dark:border-emerald-500/30 dark:bg-emerald-500/10 dark:text-emerald-300"
+          ? "border-success/40 bg-success/10 text-success dark:border-success/40 dark:bg-success/100/10 dark:text-success"
           : "hover:border-primary hover:bg-primary/5",
         className,
       )}

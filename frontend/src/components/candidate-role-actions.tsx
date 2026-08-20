@@ -26,6 +26,7 @@ export function CandidateRoleActions({
   jobs,
   onChanged,
   compact = false,
+  showRolePicker = false,
   className,
 }: {
   candidateId: string;
@@ -37,6 +38,13 @@ export function CandidateRoleActions({
   onChanged?: () => void;
   /** Tighter labels for dense table rows. */
   compact?: boolean;
+  /**
+   * Show the role picker inline. Off by default: a bare <select> of titles
+   * in every row said nothing about the roles being chosen between, and
+   * reassignment now lives in the candidate's profile where each role can
+   * show its own numbers and its internal/external section.
+   */
+  showRolePicker?: boolean;
   className?: string;
 }) {
   const [busy, setBusy] = useState<"role" | "bench" | "remove" | null>(null);
@@ -105,29 +113,33 @@ export function CandidateRoleActions({
 
   return (
     <div className={cn("flex flex-wrap items-center gap-2", className)}>
-      <label className="sr-only" htmlFor={`role-${candidateId}`}>
-        Role for {candidateName}
-      </label>
-      <div className="relative">
-        <Briefcase className="pointer-events-none absolute left-2 top-1/2 h-3 w-3 -translate-y-1/2 text-muted-foreground" />
-        <select
-          id={`role-${candidateId}`}
-          value={currentJobId ?? ""}
-          disabled={busy !== null}
-          onChange={(e) => void changeRole(e.target.value)}
-          className={cn(
-            "truncate rounded-lg border border-input bg-background py-1 pl-7 pr-2 text-xs disabled:opacity-50",
-            compact ? "max-w-[9.5rem]" : "max-w-[14rem]",
-          )}
-        >
-          <option value="">No role (pool)</option>
-          {jobs.map((job) => (
-            <option key={job.job_id} value={job.job_id}>
-              {job.title}
-            </option>
-          ))}
-        </select>
-      </div>
+      {showRolePicker && (
+        <>
+          <label className="sr-only" htmlFor={`role-${candidateId}`}>
+            Role for {candidateName}
+          </label>
+          <div className="relative">
+            <Briefcase className="pointer-events-none absolute left-2 top-1/2 h-3 w-3 -translate-y-1/2 text-muted-foreground" />
+            <select
+              id={`role-${candidateId}`}
+              value={currentJobId ?? ""}
+              disabled={busy !== null}
+              onChange={(e) => void changeRole(e.target.value)}
+              className={cn(
+                "truncate rounded-lg border border-input bg-background py-1 pl-7 pr-2 text-xs disabled:opacity-50",
+                compact ? "max-w-[9.5rem]" : "max-w-[14rem]",
+              )}
+            >
+              <option value="">No role (pool)</option>
+              {jobs.map((job) => (
+                <option key={job.job_id} value={job.job_id}>
+                  {job.title}
+                </option>
+              ))}
+            </select>
+          </div>
+        </>
+      )}
 
       {currentJobId && (
         <button

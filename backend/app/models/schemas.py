@@ -35,6 +35,10 @@ class CandidateBase(BaseModel):
 
     employment_status: Optional[str] = None  # "bench" | "assigned" | None
     current_assignment: Optional[str] = None
+    #: What the employee does in that role. Captured at internal intake and
+    #: stored on the candidate, but previously never returned, so the profile
+    #: could not show it.
+    current_role_duties: Optional[str] = None
     bench_since: Optional[datetime] = None
 
 
@@ -59,6 +63,7 @@ class CandidateUpdate(BaseModel):
     source: Optional[str] = None
     employment_status: Optional[str] = None
     current_assignment: Optional[str] = None
+    current_role_duties: Optional[str] = None
     bench_since: Optional[datetime] = None
 
 

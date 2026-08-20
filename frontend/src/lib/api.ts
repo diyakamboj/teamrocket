@@ -1794,7 +1794,11 @@ export type BackendCandidate = {
   enriched_profile?: EnrichedProfileData | null;
   source?: string | null;
   employment_status?: string | null;
+  /** Internal employees only: the role they hold in the company today, and
+   *  what they do in it. Captured at internal intake — a résumé lists past
+   *  roles, not the current one. */
   current_assignment?: string | null;
+  current_role_duties?: string | null;
   bench_since?: string | null;
   /** The role this résumé was uploaded against; null means the general pool. */
   job_id?: string | null;

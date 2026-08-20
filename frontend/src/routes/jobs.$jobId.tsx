@@ -28,6 +28,7 @@ import { Input } from "@/components/ui/input";
 import { Slider } from "@/components/ui/slider";
 import { CandidateDetailModal } from "@/components/candidate-detail-modal";
 import { CandidateRoleActions } from "@/components/candidate-role-actions";
+import { InternalIntakeDialog, type InternalIntake } from "@/components/internal-intake-dialog";
 import { CurrentRoleButton, SourceBadge } from "@/components/source-badge";
 import { atsTierLabel, atsToneClass, atsVerdictLabel } from "@/lib/ats-score";
 import { CandidateStatusTab } from "@/components/pipeline-progress";
@@ -153,16 +154,36 @@ function JobWorkspacePage() {
   const [uploadedFiles, setUploadedFiles] = useState<
     Array<{ name: string; size: string; status: string; color: string }>
   >([]);
+  //: Files held back while we ask what the employee does here today. Only
+  //: internal roles ask; external intake uploads straight through.
+  const [pendingInternal, setPendingInternal] = useState<File[] | null>(null);
 
   useEffect(() => {
     if (jobId) setActiveJobId(jobId);
   }, [jobId, setActiveJobId]);
 
+  const isInternalRole = (job?.sourcing_mode ?? "").toLowerCase() === "internal";
+
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const fileList = e.target.files;
     if (!fileList || fileList.length === 0) return;
 
-    const fileArray = Array.from(fileList);
+    const selected = Array.from(fileList);
+    // Clear the input so picking the same file twice still fires a change.
+    e.target.value = "";
+
+    if (isInternalRole) {
+      setPendingInternal(selected);
+      return;
+    }
+    await uploadFiles(selected, "external");
+  };
+
+  const uploadFiles = async (
+    fileArray: File[],
+    source: "internal" | "external",
+    intake?: InternalIntake,
+  ) => {
     const newItems = fileArray.map((f) => ({
       name: f.name,
       size: `${(f.size / 1024).toFixed(1)} KB`,
@@ -174,7 +195,7 @@ function JobWorkspacePage() {
 
     try {
       // Uploading from a job workspace means "these are for this role".
-      await addFiles(fileArray, jobId);
+      await addFiles(fileArray, jobId, source, intake ?? undefined);
       refreshPool();
       setUploadedFiles((prev) =>
         prev.map((item) =>
@@ -803,6 +824,20 @@ function JobWorkspacePage() {
           onClose={() => setSelectedCandidateId(null)}
         />
       )}
+
+      {/* Internal intake: asked before the files are sent, so it must not be
+          gated on a candidate being selected. */}
+      <InternalIntakeDialog
+        open={pendingInternal !== null}
+        fileCount={pendingInternal?.length ?? 0}
+        jobTitle={job?.title ?? "this role"}
+        onCancel={() => setPendingInternal(null)}
+        onConfirm={(intake) => {
+          const batch = pendingInternal ?? [];
+          setPendingInternal(null);
+          void uploadFiles(batch, "internal", intake);
+        }}
+      />
     </div>
 
   );
