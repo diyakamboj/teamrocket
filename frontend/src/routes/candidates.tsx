@@ -1,6 +1,7 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
+  ArrowRight,
   Calendar,
   Check,
   ChevronDown,
@@ -8,19 +9,25 @@ import {
   Loader2,
   Search,
   SlidersHorizontal,
+  Trophy,
   X,
 } from "lucide-react";
 import { toast } from "sonner";
 import { useAppState } from "@/lib/app-state";
 import { allSkills, DEFAULT_WEIGHTS, rankCandidates, type Candidate } from "@/lib/candidates";
 import { useCandidatePool } from "@/lib/use-candidate-pool";
-import { submitCandidateDecision, type InterviewSlot } from "@/lib/api";
-import { MiniBar, ScoreRing } from "@/components/score-ring";
+import {
+  listJobPipelines,
+  type InterviewSlot,
+  type JobPipelineSummary,
+} from "@/lib/api";
+import { MiniBar } from "@/components/score-ring";
+import { AtsScoreBadge } from "@/components/ats-score-badge";
 import { CandidateInterviewSection } from "@/components/interview-card";
 import { CandidateScreeningSection } from "@/components/screening";
-import { CandidateStatusBadges } from "@/components/candidate-badges";
-import { CandidateEnrichmentCard } from "@/components/candidate-enrichment-card";
-import { CandidateReadinessSection } from "@/components/candidate-readiness-card";
+import { CandidateRoleActions } from "@/components/candidate-role-actions";
+import { CurrentRoleButton, SourceBadge } from "@/components/source-badge";
+import { ShareCandidateButton } from "@/components/share-candidate-button";
 import { Button } from "@/components/ui/button";
 
 
@@ -30,16 +37,6 @@ import { Input } from "@/components/ui/input";
 import { Slider } from "@/components/ui/slider";
 import { Switch } from "@/components/ui/switch";
 import { cn } from "@/lib/utils";
-
-type DecisionState =
-  | { status: "sending" }
-  | {
-      status: "done";
-      decision: "approved" | "rejected";
-      source: "live" | "mock";
-      slots: InterviewSlot[];
-      error?: string | null | undefined;
-    };
 
 export const Route = createFileRoute("/candidates")({
   head: () => ({
@@ -57,6 +54,13 @@ export const Route = createFileRoute("/candidates")({
       },
     ],
   }),
+  // Global search sends the recruiter here with the candidate it matched, so
+  // the result lands on that person rather than on the top of an unfiltered
+  // list they then have to scan by hand.
+  validateSearch: (search: Record<string, unknown>): { focus?: string | undefined } => {
+    const raw = search["focus"];
+    return typeof raw === "string" && raw ? { focus: raw } : {};
+  },
   component: Candidates,
 });
 
@@ -95,166 +99,90 @@ function rankReason(c: Candidate, allRows: Candidate[]): string {
   return [strengthPart, gapPart, positionPart].filter(Boolean).join(" · ");
 }
 
-function DecisionControls({
-  candidate,
-  state,
-  onDecide,
-  blindMode,
-  displayName,
-}: {
-  candidate: Candidate;
-  state: DecisionState | undefined;
-  onDecide: (decision: "approved" | "rejected") => void;
-  blindMode: boolean;
-  displayName: string;
-}) {
-  const [pending, setPending] = useState<"approved" | "rejected" | null>(null);
-
-  if (state?.status === "sending") {
+/**
+ * Where to act on this candidate.
+ *
+ * Advance / Select / Hire / Reject used to sit here. They looked like
+ * pipeline controls and were not: this page has no job context, so the
+ * decision was recorded against `candidate.title` -- the candidate's own job
+ * title, matching no role -- no placement was written, and the email still
+ * went out. Deciding needs a role, so this points at the one they are on.
+ */
+function OpenInRole({ candidate }: { candidate: Candidate }) {
+  if (!candidate.jobId) {
     return (
-      <span className="inline-flex items-center gap-1.5 rounded-xl bg-secondary px-3 py-1.5 text-xs font-semibold text-muted-foreground">
-        <Loader2 className="h-3.5 w-3.5 animate-spin" /> Sending email…
+      <span className="text-[11px] text-muted-foreground">
+        Not on a role yet — add them to one to advance, hire or reject.
       </span>
     );
   }
-
-  if (state?.status === "done") {
-    const isApproved = state.decision === "approved";
-    return (
-      <span
-        className={cn(
-          "inline-flex items-center gap-1.5 rounded-xl px-3 py-1.5 text-xs font-semibold",
-          isApproved
-            ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-300"
-            : "bg-rose-100 text-rose-700 dark:bg-rose-500/15 dark:text-rose-300",
-        )}
-      >
-        {isApproved ? <Check className="h-3.5 w-3.5" /> : <X className="h-3.5 w-3.5" />}
-        {isApproved ? "Selected" : "Rejected"} — email{" "}
-        {state.source === "mock" ? "logged (mock)" : "sent"}
-      </span>
-    );
-  }
-
-  if (pending) {
-    const isApproved = pending === "approved";
-    return (
-      <div className="flex items-center gap-2 text-xs">
-        <span className="text-muted-foreground">
-          {isApproved ? "Send selection" : "Send rejection"} email to{" "}
-          {blindMode ? displayName : candidate.email}?
-        </span>
-        <Button
-          size="sm"
-          className={cn(
-            "rounded-xl",
-            isApproved ? "bg-emerald-600 hover:bg-emerald-700" : "bg-rose-600 hover:bg-rose-700",
-          )}
-          onClick={() => {
-            onDecide(pending);
-            setPending(null);
-          }}
-        >
-          Confirm
-        </Button>
-        <Button size="sm" variant="ghost" className="rounded-xl" onClick={() => setPending(null)}>
-          Cancel
-        </Button>
-      </div>
-    );
-  }
-
   return (
-    <div className="flex items-center gap-2">
-      <Button
-        size="sm"
-        variant="outline"
-        className="rounded-xl border-emerald-300 text-emerald-700 hover:bg-emerald-50 dark:border-emerald-500/30 dark:text-emerald-300 dark:hover:bg-emerald-500/10"
-        onClick={() => setPending("approved")}
-      >
-        <Check className="mr-1.5 h-3.5 w-3.5" /> Approve
+    <Link to="/jobs/$jobId" params={{ jobId: candidate.jobId }}>
+      <Button size="sm" className="press rounded-xl text-xs">
+        Open in the hiring steps
+        <ArrowRight className="ml-1.5 h-3.5 w-3.5" />
       </Button>
-      <Button
-        size="sm"
-        variant="outline"
-        className="rounded-xl border-rose-300 text-rose-700 hover:bg-rose-50 dark:border-rose-500/30 dark:text-rose-300 dark:hover:bg-rose-500/10"
-        onClick={() => setPending("rejected")}
-      >
-        <X className="mr-1.5 h-3.5 w-3.5" /> Reject
-      </Button>
-    </div>
+    </Link>
   );
 }
 
-export function Candidates() {
+function Candidates() {
 
   const {
     weights,
     setWeights,
     resetWeights,
+    saveWeights,
+    savedWeights,
     blindMode,
     setBlindMode,
     compareIds,
     toggleCompare,
     setViewingCandidateId,
     activeJobId,
+    refreshPool,
   } = useAppState();
+  const { focus } = Route.useSearch();
   const [query, setQuery] = useState("");
   const [level, setLevel] = useState<(typeof LEVELS)[number]>("All");
   const [skill, setSkill] = useState("All");
   const [minScore, setMinScore] = useState(0);
   const [page, setPage] = useState(1);
   const [expanded, setExpanded] = useState<string | null>(null);
+  const [roleOptions, setRoleOptions] = useState<JobPipelineSummary[]>([]);
+
+  useEffect(() => {
+    let cancelled = false;
+    listJobPipelines()
+      .then((rows) => !cancelled && setRoleOptions(rows))
+      .catch(() => !cancelled && setRoleOptions([]));
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  // Open and scroll to the candidate global search sent us to. Runs when the
+  // id changes rather than on every render so it does not fight the user
+  // scrolling away afterwards.
+  useEffect(() => {
+    if (!focus) return;
+    setExpanded(focus);
+    const row = document.getElementById(`candidate-row-${focus}`);
+    row?.scrollIntoView({ behavior: "smooth", block: "center" });
+  }, [focus]);
   const [panelOpen, setPanelOpen] = useState(true);
-  const [decisions, setDecisions] = useState<Record<string, DecisionState>>({});
 
   // Candidates and their per-category scores both come from the backend
   // scoring pipeline; only the weighting of those categories is re-applied
   // locally so the sliders stay responsive.
   const { candidates: pool, loading: poolLoading, error: poolError } = useCandidatePool();
   const ranked = useMemo(() => rankCandidates(pool, weights), [pool, weights]);
+  const weightsDirty = useMemo(
+    () => WEIGHT_KEYS.some((key) => weights[key] !== savedWeights[key]),
+    [weights, savedWeights],
+  );
   const skillOptions = useMemo(() => allSkills(pool), [pool]);
 
-
-  async function handleDecision(candidate: Candidate, decision: "approved" | "rejected") {
-    setDecisions((d) => ({ ...d, [candidate.id]: { status: "sending" } }));
-    try {
-      const result = await submitCandidateDecision({
-        candidate_id: candidate.id,
-        name: candidate.name,
-        email: candidate.email,
-        decision,
-        job_title: candidate.title,
-      });
-      setDecisions((d) => ({
-        ...d,
-        [candidate.id]: {
-          status: "done",
-          decision: result.decision,
-          source: result.email_source,
-          slots: result.calendar_slots,
-          error: result.email_error,
-        },
-      }));
-      if (result.email_sent) {
-        const label = blindMode ? `Candidate #${candidate.rank}` : candidate.name;
-        toast.success(
-          decision === "approved"
-            ? `Selection email sent to ${label}${result.email_source === "mock" ? " (mock — configure SMTP to send for real)" : ""}`
-            : `Rejection email sent to ${label}${result.email_source === "mock" ? " (mock — configure SMTP to send for real)" : ""}`,
-        );
-      } else {
-        toast.error(`Email failed to send: ${result.email_error ?? "unknown error"}`);
-      }
-    } catch (error) {
-      setDecisions((d) => {
-        const next = { ...d };
-        delete next[candidate.id];
-        return next;
-      });
-      toast.error(error instanceof Error ? error.message : "Could not submit decision");
-    }
-  }
 
   const filtered = useMemo(
     () =>
@@ -276,16 +204,18 @@ export function Candidates() {
   const rows = filtered.slice((current - 1) * PAGE_SIZE, current * PAGE_SIZE);
 
   return (
-    <div className="mx-auto max-w-7xl space-y-6">
+    <div className="mx-auto flow max-w-7xl">
       <header className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-4">
         <div className="min-w-0">
-          <h1 className="truncate text-2xl font-extrabold sm:text-3xl">Candidate Ranking</h1>
+          <h1 className="truncate text-2xl font-extrabold sm:text-3xl">Review candidates</h1>
           <p className="mt-1 text-sm text-muted-foreground">
             {poolLoading
               ? "Scoring candidates against the active job…"
               : poolError
                 ? `Could not load candidates: ${poolError}`
-                : `${filtered.length} candidates match your filters`}
+                : !activeJobId
+                  ? "No role selected"
+                  : `${filtered.length} candidates match your filters`}
           </p>
         </div>
         <div className="flex shrink-0 items-center gap-2">
@@ -348,7 +278,7 @@ export function Candidates() {
               ))}
             </select>
             <div className="min-w-0">
-              <p className="mb-1 text-[11px] text-muted-foreground">Min score: {minScore}</p>
+              <p className="mb-1 text-xs text-muted-foreground">Min score: {minScore}</p>
               <Slider
                 value={[minScore]}
                 max={100}
@@ -362,20 +292,43 @@ export function Candidates() {
           </div>
 
           <div className="card-surface divide-y overflow-hidden">
-            <div className="hidden grid-cols-[52px_minmax(0,1fr)_92px_minmax(0,1.3fr)_44px] items-center gap-4 px-5 py-3 text-[11px] font-bold uppercase tracking-wide text-muted-foreground md:grid">
+            <div className="hidden grid-cols-[52px_minmax(0,1fr)_148px_minmax(0,1.4fr)_44px] items-center gap-4 px-5 py-3 text-xs font-bold uppercase tracking-wide text-muted-foreground md:grid">
               <span>Rank</span>
               <span>Candidate</span>
-              <span>Score</span>
-              <span>Category breakdown</span>
+              <span>ATS score</span>
+              <span>Category scores</span>
               <span />
             </div>
+
+            {focus && blindMode && (
+              <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border bg-warning/10 px-5 py-3 text-xs dark:bg-warning/10">
+                <span className="text-warning dark:text-warning">
+                  Blind review is on, so names and contact details are hidden — the
+                  candidate you searched for is shown as a number.
+                </span>
+                <button
+                  type="button"
+                  onClick={() => setBlindMode(false)}
+                  className="shrink-0 rounded-lg border border-warning/40 px-2.5 py-1 font-semibold text-warning transition-colors hover:bg-warning/15 dark:border-warning/40 dark:text-warning dark:hover:bg-warning/20"
+                >
+                  Show names
+                </button>
+              </div>
+            )}
 
             {rows.map((c) => {
               const isOpen = expanded === c.id;
               const displayName = blindMode ? `Candidate #${c.rank}` : c.name;
               return (
-                <div key={c.id} className="transition-colors hover:bg-secondary/40">
-                  <div className="grid grid-cols-[52px_minmax(0,1fr)_92px] items-center gap-4 px-5 py-4 md:grid-cols-[52px_minmax(0,1fr)_92px_minmax(0,1.3fr)_44px]">
+                <div
+                  key={c.id}
+                  id={`candidate-row-${c.id}`}
+                  className={cn(
+                    "animate-fade transition-colors hover:bg-secondary/40",
+                    focus === c.id && "bg-primary/5 ring-1 ring-inset ring-primary/30",
+                  )}
+                >
+                  <div className="grid grid-cols-[52px_minmax(0,1fr)_148px] items-center gap-4 px-5 py-4 md:grid-cols-[52px_minmax(0,1fr)_148px_minmax(0,1.4fr)_44px]">
                     <span className="text-sm font-extrabold tabular-nums text-muted-foreground">
                       #{c.rank}
                     </span>
@@ -393,12 +346,12 @@ export function Candidates() {
                         </p>
                       </div>
                     </div>
-                    <ScoreRing value={c.score} />
+                    <AtsScoreBadge score={c.score} size={52} />
                     <div className="hidden grid-cols-2 gap-x-4 gap-y-1.5 md:grid">
                       <MiniBar label="Skills" value={c.categories.skills} />
                       <MiniBar label="Experience" value={c.categories.experience} />
                       <MiniBar label="Education" value={c.categories.education} />
-                      <MiniBar label="Certs" value={c.categories.certifications} />
+                      <MiniBar label="Projects" value={c.categories.projects} />
                     </div>
                     <button
                       onClick={() => {
@@ -426,14 +379,33 @@ export function Candidates() {
                     >
                       {isOpen ? "Hide" : "Why this rank?"}
                     </Button>
-                    <div className="ml-auto">
-                      <DecisionControls
-                        candidate={c}
-                        state={decisions[c.id]}
-                        onDecide={(decision) => void handleDecision(c, decision)}
-                        blindMode={blindMode}
-                        displayName={displayName}
+                    <SourceBadge
+                      source={c.origin}
+                      currentAssignment={c.currentAssignment ?? null}
+                      onBench={c.employmentStatus === "bench"}
+                    />
+                    {c.origin === "internal" && (
+                      <CurrentRoleButton
+                        currentAssignment={c.currentAssignment ?? null}
+                        onBench={c.employmentStatus === "bench"}
                       />
+                    )}
+                    <CandidateRoleActions
+                      candidateId={c.id}
+                      candidateName={blindMode ? displayName : c.name}
+                      currentJobId={c.jobId ?? null}
+                      source={c.origin}
+                      employmentStatus={c.employmentStatus ?? null}
+                      jobs={roleOptions}
+                      onChanged={refreshPool}
+                    />
+                    <div className="ml-auto">
+                      <ShareCandidateButton
+                        candidateId={c.id}
+                        candidateName={blindMode ? displayName : c.name}
+                        jobId={activeJobId}
+                      />
+                      <OpenInRole candidate={c} />
                     </div>
                   </div>
 
@@ -466,7 +438,7 @@ export function Candidates() {
                         {c.evidence.map((e, i) => (
                           <span
                             key={i}
-                            className="rounded-full bg-primary-soft px-3 py-1 text-[11px] font-medium text-primary-soft-foreground"
+                            className="rounded-full bg-primary-soft px-3 py-1 text-xs font-medium text-primary-soft-foreground"
                           >
                             {e.skill} — {e.detail} | Source: {e.source}
                           </span>
@@ -483,36 +455,6 @@ export function Candidates() {
                           : "Add to comparison"}
                       </Button>
 
-                      {(() => {
-                        const state = decisions[c.id];
-                        if (
-                          state?.status !== "done" ||
-                          state.decision !== "approved" ||
-                          state.slots.length === 0
-                        ) {
-                          return null;
-                        }
-                        return (
-                          <div>
-                            <p className="text-xs font-bold uppercase tracking-wide text-muted-foreground">
-                              Interview slots included in the email
-                            </p>
-                            <div className="mt-2 flex flex-wrap gap-2">
-                              {state.slots.map((s: InterviewSlot) => (
-                                <a
-                                  key={s.outlook_url}
-                                  href={s.outlook_url}
-                                  target="_blank"
-                                  rel="noreferrer"
-                                  className="inline-flex items-center gap-1.5 rounded-full border bg-background px-3 py-1 text-[11px] font-medium text-muted-foreground hover:border-primary/40 hover:text-foreground"
-                                >
-                                  <Calendar className="h-3 w-3" /> {s.label}
-                                </a>
-                              ))}
-                            </div>
-                          </div>
-                        );
-                      })()}
 
 
                       <CandidateInterviewSection
@@ -524,14 +466,6 @@ export function Candidates() {
                       <CandidateScreeningSection
                         candidateId={c.id}
                         candidateName={blindMode ? displayName : c.name}
-                      />
-
-                      <CandidateEnrichmentCard candidate={c} />
-
-                      <CandidateReadinessSection
-                        candidateId={c.id}
-                        candidateName={blindMode ? displayName : c.name}
-                        jobId={activeJobId}
                       />
                     </div>
                   )}
@@ -546,7 +480,20 @@ export function Candidates() {
                     <Loader2 className="h-4 w-4 animate-spin" /> Loading ranked candidates…
                   </span>
                 ) : poolError ? (
-                  `Could not reach the screening API — ${poolError}`
+                  `Could not load ranked candidates — ${poolError}`
+                ) : !activeJobId ? (
+                  // Candidates are ranked *against a role*, so with no role
+                  // chosen there is nothing to rank and the page previously
+                  // just said "0 candidates match your filters" — which
+                  // reads as an empty pool rather than a missing selection.
+                  <span className="inline-flex flex-col items-center gap-2">
+                    <span>Pick a role first — candidates are scored against one.</span>
+                    <Link to="/">
+                      <Button size="sm" className="press rounded-xl text-xs">
+                        Choose a role
+                      </Button>
+                    </Link>
+                  </span>
                 ) : (
                   "No candidates match these filters."
                 )}
@@ -584,8 +531,12 @@ export function Candidates() {
         {panelOpen && (
           <aside className="card-surface h-fit space-y-5 p-5 lg:sticky lg:top-24">
             <div>
-              <h2 className="text-base font-bold">Score weights</h2>
-              <p className="text-xs text-muted-foreground">Re-ranks the list instantly</p>
+              <h2 className="font-display text-base font-bold">Score weights</h2>
+              <p className="text-xs text-muted-foreground">
+                {weightsDirty
+                  ? "Preview only — save to use these everywhere."
+                  : "In use across every ATS score on the site."}
+              </p>
             </div>
 
             {WEIGHT_KEYS.map((key) => (
@@ -603,13 +554,31 @@ export function Candidates() {
               </div>
             ))}
 
+            {/* Sliders re-rank this list live, but until they are saved the
+                rest of the site is still scoring on the old numbers. Saying
+                so, and making saving an explicit act, is what stopped the
+                two disagreeing. */}
+            <Button
+              size="sm"
+              disabled={!weightsDirty}
+              className="press w-full rounded-xl"
+              onClick={() => {
+                saveWeights(weights);
+                toast.success("Weights saved", {
+                  description: "Every ATS score on the site now uses these.",
+                });
+              }}
+            >
+              {weightsDirty ? "Save weights" : "Weights saved"}
+            </Button>
+
             <Button
               variant="outline"
               size="sm"
               className="w-full rounded-xl"
-              onClick={() => setWeights(DEFAULT_WEIGHTS)}
+              onClick={() => resetWeights()}
             >
-              Reset weights
+              Reset to defaults
             </Button>
 
             <div className="flex items-center justify-between gap-3 rounded-xl bg-secondary/60 p-3">
@@ -617,7 +586,7 @@ export function Candidates() {
                 <EyeOff className="h-4 w-4 shrink-0 text-muted-foreground" />
                 <div className="min-w-0">
                   <p className="truncate text-sm font-semibold">Blind review</p>
-                  <p className="truncate text-[11px] text-muted-foreground">
+                  <p className="truncate text-xs text-muted-foreground">
                     Hides names & contact info
                   </p>
                 </div>

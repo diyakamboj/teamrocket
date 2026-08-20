@@ -11,6 +11,7 @@ from app.services.recruiter_agent import recruiter_agent
 @pytest.fixture()
 def second_candidate(store):
     candidate = Candidate(
+        owner_email="recruiter@example.com",
         id=uuid.uuid4(),
         name="Bob Martinez",
         email="bob.martinez@example.com",

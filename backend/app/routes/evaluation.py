@@ -119,6 +119,11 @@ def toggle_blind_review(
     return response
 
 
+def _score_label(score) -> str:
+    """Either half of the benchmark can be absent; say so rather than "None"."""
+    return "n/a" if score is None else str(score)
+
+
 @router.post("/{candidate_id}/{job_id}/ats-benchmark", response_model=AtsBenchmarkResponse)
 async def run_ats_benchmark(
     candidate_id: uuid.UUID,
@@ -152,7 +157,8 @@ async def run_ats_benchmark(
         event_type="ats_benchmark_computed",
         actor_email=recruiter_email,
         summary=(
-            f"ATS keyword baseline {result['keyword_score']} vs AI semantic {result['semantic_score']} "
+            f"ATS keyword baseline {_score_label(result['keyword_score'])} vs "
+            f"AI semantic {_score_label(result['semantic_score'])} "
             f"({result['verdict'].replace('_', ' ')})"
         ),
         details={

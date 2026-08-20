@@ -229,7 +229,7 @@ function JobAnalysis() {
           </span>
           <div className="min-w-0">
             <p className="text-sm font-semibold">Job requirements chat</p>
-            <p className="text-[11px] text-muted-foreground">
+            <p className="text-xs text-muted-foreground">
               Ask for skills, experience, education, or certifications
             </p>
           </div>
@@ -238,7 +238,7 @@ function JobAnalysis() {
         <div ref={scrollRef} className="flex-1 space-y-4 overflow-y-auto px-4 py-3">
           {messages.map((m, i) => (
             <div key={i} className="space-y-1">
-              <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+              <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
                 {m.role === "user" ? "You" : "Assistant"}
               </p>
               <div
@@ -275,7 +275,7 @@ function JobAnalysis() {
                 type="button"
                 disabled={loading}
                 onClick={() => void ask(s)}
-                className="rounded-full border bg-background px-3 py-1 text-[11px] font-medium text-muted-foreground transition-colors hover:border-primary/40 hover:text-foreground disabled:opacity-40"
+                className="rounded-full border bg-background px-3 py-1 text-xs font-medium text-muted-foreground transition-colors hover:border-primary/40 hover:text-foreground disabled:opacity-40"
               >
                 {s}
               </button>
@@ -307,7 +307,7 @@ function JobAnalysis() {
               className="max-h-28 min-h-[48px] w-full resize-none bg-transparent px-3.5 pt-3 pb-2 text-sm outline-none placeholder:text-muted-foreground disabled:opacity-60"
             />
             <div className="flex items-center justify-between gap-2 px-2 pb-2">
-              <p className="px-1.5 text-[10px] text-muted-foreground">
+              <p className="px-1.5 text-[11px] text-muted-foreground">
                 Enter to send · sections update only for what you ask
               </p>
               <button
@@ -343,7 +343,7 @@ function JobAnalysis() {
               <div key={cat} className="card-surface p-5">
                 <div className="flex items-center justify-between gap-3">
                   <h3 className="text-base font-bold">{cat}</h3>
-                  <span className="rounded-full bg-primary-soft px-2.5 py-0.5 text-[11px] font-semibold text-primary-soft-foreground">
+                  <span className="rounded-full bg-primary-soft px-2.5 py-0.5 text-xs font-semibold text-primary-soft-foreground">
                     {items.length}
                   </span>
                 </div>
@@ -383,8 +383,8 @@ function JobAnalysis() {
                             }
                             className={
                               r.must
-                                ? "rounded-full bg-primary px-2 py-0.5 text-[10px] font-bold text-primary-foreground"
-                                : "rounded-full bg-background px-2 py-0.5 text-[10px] font-bold text-muted-foreground"
+                                ? "rounded-full bg-primary px-2 py-0.5 text-[11px] font-bold text-primary-foreground"
+                                : "rounded-full bg-background px-2 py-0.5 text-[11px] font-bold text-muted-foreground"
                             }
                           >
                             {r.must ? "MUST" : "NICE"}

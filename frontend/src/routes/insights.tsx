@@ -68,6 +68,7 @@ const PIPELINE_STAGES = [
   "interviewing",
   "interviewed",
   "selected",
+  "hired",
   "rejected",
 ] as const;
 
@@ -96,7 +97,7 @@ function StatCard({
           <Icon className="h-5 w-5" />
         </span>
         {delta && (
-          <span className="inline-flex items-center gap-0.5 rounded-full bg-secondary px-2 py-0.5 text-[11px] font-semibold text-muted-foreground">
+          <span className="inline-flex items-center gap-0.5 rounded-full bg-secondary px-2 py-0.5 text-xs font-semibold text-muted-foreground">
             {delta}
           </span>
         )}
@@ -140,22 +141,22 @@ const CLASSIFICATION_META: Record<
   too_strict: {
     label: "Too Strict",
     icon: TrendingDown,
-    className: "bg-rose-100 text-rose-700 dark:bg-rose-500/15 dark:text-rose-300",
+    className: "bg-destructive/10 text-destructive dark:bg-destructive/15 dark:text-destructive",
   },
   low_signal: {
     label: "Low Signal",
     icon: CircleAlert,
-    className: "bg-amber-100 text-amber-700 dark:bg-amber-500/15 dark:text-amber-300",
+    className: "bg-warning/10 text-warning dark:bg-warning/15 dark:text-warning",
   },
   under_filtered: {
     label: "Under-filtered",
     icon: TrendingUp,
-    className: "bg-emerald-100 text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-300",
+    className: "bg-success/10 text-success dark:bg-success/15 dark:text-success",
   },
   balanced: {
     label: "Balanced",
     icon: BadgeCheck,
-    className: "bg-sky-100 text-sky-700 dark:bg-sky-500/15 dark:text-sky-300",
+    className: "bg-primary/10 text-primary dark:bg-primary/15 dark:text-primary",
   },
   insufficient_data: {
     label: "Insufficient Data",
@@ -511,14 +512,14 @@ function Insights() {
             {topFlag ? (
               <span
                 className={cn(
-                  "inline-flex items-center rounded-full px-2.5 py-0.5 text-[11px] font-semibold",
+                  "inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold",
                   CLASSIFICATION_META[topFlag].className,
                 )}
               >
                 {CLASSIFICATION_META[topFlag].label}
               </span>
             ) : null}
-            <span className="rounded-full bg-secondary px-2.5 py-0.5 text-[11px] font-semibold text-muted-foreground">
+            <span className="rounded-full bg-secondary px-2.5 py-0.5 text-xs font-semibold text-muted-foreground">
               {feed.length} pending
             </span>
           </div>
@@ -555,7 +556,7 @@ function Insights() {
                     </div>
                     <span
                       className={cn(
-                        "inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-[10px] font-bold",
+                        "inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-[11px] font-bold",
                         meta.className,
                       )}
                     >

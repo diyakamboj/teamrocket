@@ -1,7 +1,7 @@
 {
   "name": "resumeiq",
   "private": true,
-  "description": "ResumeIQ full stack — frontend, screening API, and chatbot",
+  "description": "ResumeIQ full stack \u2014 frontend, screening API, and chatbot",
   "scripts": {
     "install:all": "npm --prefix frontend install",
     "postinstall": "npm --prefix frontend install",
@@ -13,6 +13,7 @@
     "build": "npm --prefix frontend run build",
     "build:portfolio": "npm --prefix portfolio run build",
     "lint": "npm --prefix frontend run lint",
-    "test:backend": "cd backend && .venv/bin/pytest tests/ -v"
+    "test:backend": "cd backend && .venv/bin/pytest tests/ -v",
+    "dev:all": "bash scripts/dev.sh"
   }
 }

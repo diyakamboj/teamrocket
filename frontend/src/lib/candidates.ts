@@ -51,6 +51,8 @@ export type Candidate = {
   origin: "internal" | "external";
   employmentStatus?: string | null;
   currentAssignment?: string | null;
+  /** The role they are assigned to, or null for the general pool. */
+  jobId?: string | null;
   evaluationId?: string | null;
 };
 
@@ -217,14 +219,15 @@ export function mapRankedCandidate(
     years,
     level: levelFor(years),
     education: (profile?.education ?? []).map(textOf).filter(Boolean).join(" · "),
-    score: Math.round(ranked.overall_score),
+    score: Math.round(ranked.overall_score ?? 0),
     categories: {
-      skills: Math.round(ranked.skill_score),
-      experience: Math.round(ranked.experience_score),
-      education: Math.round(ranked.education_score),
-      certifications: Math.round(ranked.certification_score),
-      projects: Math.round(ranked.project_score),
+      skills: Math.round(ranked.skill_score ?? 0),
+      experience: Math.round(ranked.experience_score ?? 0),
+      education: Math.round(ranked.education_score ?? 0),
+      certifications: Math.round(ranked.certification_score ?? 0),
+      projects: Math.round(ranked.project_score ?? 0),
     },
+
     skills: (profile?.skills ?? []).map(skillName).filter(Boolean),
     strengths: toBullets(ranked.strengths),
     gaps: [
@@ -235,6 +238,8 @@ export function mapRankedCandidate(
     evidence,
     origin: ranked.source === "internal" ? "internal" : "external",
     employmentStatus: ranked.employment_status ?? profile?.employment_status ?? null,
+    // Which opening they sit on, so the role picker can show it.
+    jobId: profile?.job_id ?? null,
     currentAssignment: ranked.current_assignment ?? null,
     evaluationId: ranked.evaluation_id ?? null,
   };
@@ -246,7 +251,7 @@ export function mapRankedCandidate(
  */
 export async function fetchCandidatePool(
   jobId: string,
-  options?: { blindMode?: boolean },
+  options?: { blindMode?: boolean; weights?: Record<string, number> },
 ): Promise<Candidate[]> {
   const [ranked, profiles] = await Promise.all([
     rankCandidatesApi(jobId, options),

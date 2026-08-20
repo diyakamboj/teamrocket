@@ -113,7 +113,23 @@ class ResumeUpload(BaseModel):
     """Tracks bulk resume upload processing status."""
 
     id: uuid.UUID = Field(default_factory=uuid.uuid4)
+    #: Who uploaded it — the background task needs this to file the resulting
+    #: candidate under the right recruiter.
+    recruiter_email: Optional[str] = None
+    #: The role this batch was uploaded against, carried through to the
+    #: candidate so the résumé lands on that job's board and no other.
+    job_id: Optional[uuid.UUID] = None
+    #: 'internal' (existing employee) or 'external' (outside applicant),
+    #: chosen at intake so the two populations never mix by default.
+    source: str = "external"
+    #: Internal intake only: where this person sits today, captured at
+    #: upload because a résumé states past roles, not the current one.
+    current_position: Optional[str] = None
+    current_role_duties: Optional[str] = None
     filename: str
+    #: SHA-256 of the uploaded bytes. Identity by content, so the same résumé
+    #: re-exported under a different filename is still recognised.
+    content_sha256: Optional[str] = None
     blob_path: Optional[str] = None
     status: str = "queued"
     progress: int = 0

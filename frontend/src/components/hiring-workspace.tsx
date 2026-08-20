@@ -1,5 +1,5 @@
 import { Link } from "@tanstack/react-router";
-import { useEffect, useMemo, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -25,6 +25,9 @@ export function useJobWorkspace(source: "internal" | "external") {
   const [jobs, setJobs] = useState<JobWithPipeline[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  //: Bumped by `refresh` so adding someone to a role re-reads the counts
+  //: rather than leaving the list showing what was true on mount.
+  const [version, setVersion] = useState(0);
 
   useEffect(() => {
     let cancelled = false;
@@ -42,21 +45,55 @@ export function useJobWorkspace(source: "internal" | "external") {
       )
       .then((rows) => {
         if (cancelled) return;
-        setJobs(rows.filter((j) => j.pipeline.length > 0));
+        setJobs(
+          // Strict: a role belongs to one funnel. "both" used to match here,
+          // so every unclassified job appeared in the internal workspace as
+          // well as the external one — which is why external reqs showed up
+          // under internal hiring. Unclassified roles are surfaced
+          // separately by `useUnclassifiedJobs` rather than shown in both.
+          rows.filter((j) => (j.sourcing_mode || "both") === source),
+        );
+
         setLoading(false);
       })
       .catch((err: unknown) => {
         if (cancelled) return;
-        setError(err instanceof Error ? err.message : "Could not reach the screening API");
+        setError(err instanceof Error ? err.message : "Could not load hiring data");
         setLoading(false);
       });
+
 
     return () => {
       cancelled = true;
     };
-  }, [source]);
+  }, [source, version]);
 
-  return { jobs, loading, error };
+  const refresh = useCallback(() => setVersion((v) => v + 1), []);
+
+  return { jobs, loading, error, refresh };
+}
+
+/**
+ * Roles that never had a funnel chosen.
+ *
+ * These predate the internal/external choice being mandatory at creation.
+ * They belong to neither workspace, so rather than silently appearing in
+ * both they are listed for the recruiter to classify.
+ */
+export function useUnclassifiedJobs() {
+  const [jobs, setJobs] = useState<JobPipelineSummary[]>([]);
+
+  const refresh = useCallback(() => {
+    listJobPipelines()
+      .then((rows) => setJobs(rows.filter((j) => (j.sourcing_mode || "both") === "both")))
+      .catch(() => setJobs([]));
+  }, []);
+
+  useEffect(() => {
+    refresh();
+  }, [refresh]);
+
+  return { jobs, refresh };
 }
 
 export function countTopMatches(job: JobWithPipeline): number {
@@ -104,10 +141,10 @@ export function JobGrid({
         <Card key={job.job_id} className="card-surface transition-all hover:border-primary">
           <CardHeader className="pb-3">
             <div className="flex items-center justify-between gap-2">
-              <Badge variant="outline" className="text-[10px] font-bold uppercase">
+              <Badge variant="outline" className="text-[11px] font-bold uppercase">
                 {job.status}
               </Badge>
-              <span className="rounded border border-success/30 bg-success/15 px-2 py-0.5 text-[10px] font-bold text-success">
+              <span className="rounded border border-success/30 bg-success/15 px-2 py-0.5 text-[11px] font-bold text-success">
                 avg {Math.round(job.average_score)}%
               </span>
             </div>
@@ -117,7 +154,7 @@ export function JobGrid({
             <div className="grid grid-cols-3 gap-2 rounded-lg border border-border bg-secondary/40 p-3 text-center text-xs">
               {metrics(job).map((m) => (
                 <div key={m.label}>
-                  <span className="block text-[10px] font-semibold text-muted-foreground">
+                  <span className="block text-[11px] font-semibold text-muted-foreground">
                     {m.label}
                   </span>
                   <span className={cn("font-bold", m.tone ?? "text-foreground")}>{m.value}</span>
@@ -125,11 +162,12 @@ export function JobGrid({
               ))}
             </div>
 
-            <Link to="/jobs/$jobId" params={{ jobId: job.job_id }}>
+            <Link to="/jobs/$jobId" params={{ jobId: String((job as any).job_id || (job as any).id || "") }}>
               <Button variant="outline" className="w-full rounded-lg text-xs font-semibold">
                 Open job workspace →
               </Button>
             </Link>
+
           </CardContent>
         </Card>
       ))}

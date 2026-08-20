@@ -42,8 +42,8 @@ export function InterviewProposalCard({ proposal }: InterviewProposalCardProps) 
 
   if (scheduled) {
     return (
-      <div className="space-y-3 rounded-xl border border-emerald-500/30 bg-emerald-500/10 p-3.5 text-xs text-foreground">
-        <div className="flex items-center gap-2 font-semibold text-emerald-700 dark:text-emerald-300">
+      <div className="space-y-3 rounded-xl border border-success/30 bg-success/10 p-3.5 text-xs text-foreground">
+        <div className="flex items-center gap-2 font-semibold text-success dark:text-success">
           <CheckCircle2 className="h-4 w-4 shrink-0" />
           Interview Confirmed & Booked!
         </div>
@@ -69,7 +69,7 @@ export function InterviewProposalCard({ proposal }: InterviewProposalCardProps) 
             href={scheduled.teams_link}
             target="_blank"
             rel="noreferrer"
-            className="inline-flex items-center gap-1.5 rounded-lg bg-indigo-600 px-3 py-1.5 text-xs font-semibold text-white shadow-sm hover:bg-indigo-700 transition-colors"
+            className="inline-flex items-center gap-1.5 rounded-lg bg-primary px-3 py-1.5 text-xs font-semibold text-white shadow-sm hover:bg-primary transition-colors"
           >
             <Video className="h-3.5 w-3.5" /> Join Teams Meeting
           </a>
@@ -96,7 +96,7 @@ export function InterviewProposalCard({ proposal }: InterviewProposalCardProps) 
           <Calendar className="h-4 w-4 text-primary" />
           <span>Proposed {proposal.interview_type}</span>
         </div>
-        <Badge variant="outline" className="text-[10px] bg-secondary/50">
+        <Badge variant="outline" className="text-[11px] bg-secondary/50">
           {proposal.duration_minutes} mins
         </Badge>
       </div>
@@ -114,7 +114,7 @@ export function InterviewProposalCard({ proposal }: InterviewProposalCardProps) 
       </div>
 
       <div className="space-y-2 pt-1">
-        <p className="font-medium text-[11px] text-muted-foreground">Select Preferred Time Slot:</p>
+        <p className="font-medium text-xs text-muted-foreground">Select Preferred Time Slot:</p>
         {proposal.proposed_slots.map((slot) => {
           const isSelected = selectedSlot?.slot_id === slot.slot_id;
           return (
@@ -131,13 +131,13 @@ export function InterviewProposalCard({ proposal }: InterviewProposalCardProps) 
                 <div className="flex items-center gap-2">
                   <span className="font-semibold text-foreground text-xs">{slot.label}</span>
                   {slot.is_recommended && (
-                    <Badge className="h-4 bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 border-emerald-500/30 text-[9px]">
+                    <Badge className="h-4 bg-success/15 text-success dark:text-success border-success/30 text-[9px]">
                       Best Fit
                     </Badge>
                   )}
                 </div>
-                <div className="mt-0.5 flex items-center gap-1 text-[11px] text-muted-foreground">
-                  <UserCheck className="h-3 w-3 text-emerald-600 dark:text-emerald-400" />
+                <div className="mt-0.5 flex items-center gap-1 text-xs text-muted-foreground">
+                  <UserCheck className="h-3 w-3 text-success dark:text-success" />
                   <span>Free: {slot.available_interviewers.join(", ")}</span>
                 </div>
               </div>
@@ -147,7 +147,7 @@ export function InterviewProposalCard({ proposal }: InterviewProposalCardProps) 
                   href={slot.outlook_url}
                   target="_blank"
                   rel="noreferrer"
-                  className="flex items-center gap-1 text-[10px] text-primary hover:underline"
+                  className="flex items-center gap-1 text-[11px] text-primary hover:underline"
                   onClick={(e) => e.stopPropagation()}
                 >
                   Outlook <ExternalLink className="h-3 w-3" />
@@ -161,7 +161,7 @@ export function InterviewProposalCard({ proposal }: InterviewProposalCardProps) 
       <Button
         onClick={handleConfirm}
         disabled={confirming || !selectedSlot}
-        className="w-full gap-2 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold"
+        className="w-full gap-2 bg-success hover:bg-success text-white text-xs font-semibold"
       >
         {confirming ? (
           <>

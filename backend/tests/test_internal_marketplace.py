@@ -11,6 +11,7 @@ from app.services.candidate_matcher import CandidateMatcher, bench_sort_key
 @pytest.fixture()
 def bench_candidate(store):
     candidate = Candidate(
+        owner_email="recruiter@example.com",
         id=uuid.uuid4(),
         name="Bench Priya",
         email="bench.priya@example.com",
@@ -30,6 +31,7 @@ def bench_candidate(store):
 @pytest.fixture()
 def external_candidate(store):
     candidate = Candidate(
+        owner_email="recruiter@example.com",
         id=uuid.uuid4(),
         name="External Erin",
         email="external.erin@example.com",
@@ -81,6 +83,7 @@ async def test_rank_candidates_bench_priority_reorders(db, sample_job, monkeypat
     # bench-priority reordering can be asserted deterministically without
     # depending on the (deterministic-but-opaque) mock-mode scoring math.
     bench = Candidate(
+        owner_email="recruiter@example.com",
         id=uuid.uuid4(),
         name="Bench Candidate",
         email="bench.candidate@example.com",
@@ -88,12 +91,14 @@ async def test_rank_candidates_bench_priority_reorders(db, sample_job, monkeypat
         employment_status="bench",
     )
     non_bench_close = Candidate(
+        owner_email="recruiter@example.com",
         id=uuid.uuid4(),
         name="Close Non-Bench Candidate",
         email="close.nonbench@example.com",
         source="internal",
     )
     non_bench_high = Candidate(
+        owner_email="recruiter@example.com",
         id=uuid.uuid4(),
         name="High Non-Bench Candidate",
         email="high.nonbench@example.com",

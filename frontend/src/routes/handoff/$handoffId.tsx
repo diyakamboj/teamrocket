@@ -117,11 +117,11 @@ function HandoffView() {
           </p>
         </div>
         {handoff.status === "acknowledged" ? (
-          <Badge className="gap-1 border-transparent bg-emerald-100 text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-300">
+          <Badge className="gap-1 border-transparent bg-success/10 text-success dark:bg-success/15 dark:text-success">
             <CheckCircle2 className="h-3 w-3" /> Acknowledged
           </Badge>
         ) : handoff.status === "viewed" ? (
-          <Badge className="gap-1 border-transparent bg-sky-100 text-sky-700 dark:bg-sky-500/15 dark:text-sky-300">
+          <Badge className="gap-1 border-transparent bg-primary/10 text-primary dark:bg-primary/15 dark:text-primary">
             <UserCheck className="h-3 w-3" /> Viewed
           </Badge>
         ) : (
@@ -185,7 +185,7 @@ function HandoffView() {
             {b.matched_skills.map((s, i) => (
               <span
                 key={i}
-                className="rounded-full bg-primary-soft px-2.5 py-0.5 text-[11px] font-medium text-primary-soft-foreground"
+                className="rounded-full bg-primary-soft px-2.5 py-0.5 text-xs font-medium text-primary-soft-foreground"
               >
                 {skillLabel(s)}
               </span>
@@ -268,7 +268,7 @@ function HandoffView() {
           {handoff.status === "acknowledged" ? "Update acknowledgement" : "Acknowledge briefing"}
         </Button>
         {handoff.acknowledged_at && (
-          <p className="text-[11px] text-muted-foreground">
+          <p className="text-xs text-muted-foreground">
             Last acknowledged {new Date(`${handoff.acknowledged_at}Z`).toLocaleString()}
           </p>
         )}

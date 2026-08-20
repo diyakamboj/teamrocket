@@ -11,6 +11,7 @@
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as ActionsRouteImport } from './routes/actions'
+import { Route as BenchRouteImport } from './routes/bench'
 import { Route as CandidatesRouteImport } from './routes/candidates'
 import { Route as CompareRouteImport } from './routes/compare'
 import { Route as ExternalHiringRouteImport } from './routes/external-hiring'
@@ -19,9 +20,13 @@ import { Route as InsightsRouteImport } from './routes/insights'
 import { Route as InternalHiringRouteImport } from './routes/internal-hiring'
 import { Route as JobAnalysisRouteImport } from './routes/job-analysis'
 import { Route as LoginRouteImport } from './routes/login'
+import { Route as NetworkRouteImport } from './routes/network'
+import { Route as PeopleRouteImport } from './routes/people'
+import { Route as RegisterRouteImport } from './routes/register'
 import { Route as ScreeningRouteImport } from './routes/screening'
 import { Route as SettingsRouteImport } from './routes/settings'
 import { Route as UploadRouteImport } from './routes/upload'
+import { Route as WelcomeRouteImport } from './routes/welcome'
 import { Route as AtsBenchmarkIndexRouteImport } from './routes/ats-benchmark/index'
 import { Route as HandoffIndexRouteImport } from './routes/handoff/index'
 import { Route as HandoffHandoffIdRouteImport } from './routes/handoff/$handoffId'
@@ -36,6 +41,11 @@ const IndexRoute = IndexRouteImport.update({
 const ActionsRoute = ActionsRouteImport.update({
   id: '/actions',
   path: '/actions',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const BenchRoute = BenchRouteImport.update({
+  id: '/bench',
+  path: '/bench',
   getParentRoute: () => rootRouteImport,
 } as any)
 const CandidatesRoute = CandidatesRouteImport.update({
@@ -78,6 +88,21 @@ const LoginRoute = LoginRouteImport.update({
   path: '/login',
   getParentRoute: () => rootRouteImport,
 } as any)
+const NetworkRoute = NetworkRouteImport.update({
+  id: '/network',
+  path: '/network',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const PeopleRoute = PeopleRouteImport.update({
+  id: '/people',
+  path: '/people',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const RegisterRoute = RegisterRouteImport.update({
+  id: '/register',
+  path: '/register',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ScreeningRoute = ScreeningRouteImport.update({
   id: '/screening',
   path: '/screening',
@@ -91,6 +116,11 @@ const SettingsRoute = SettingsRouteImport.update({
 const UploadRoute = UploadRouteImport.update({
   id: '/upload',
   path: '/upload',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const WelcomeRoute = WelcomeRouteImport.update({
+  id: '/welcome',
+  path: '/welcome',
   getParentRoute: () => rootRouteImport,
 } as any)
 const AtsBenchmarkIndexRoute = AtsBenchmarkIndexRouteImport.update({
@@ -122,6 +152,7 @@ const TalentMarketplaceIndexRoute = TalentMarketplaceIndexRouteImport.update({
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/actions': typeof ActionsRoute
+  '/bench': typeof BenchRoute
   '/candidates': typeof CandidatesRoute
   '/compare': typeof CompareRoute
   '/external-hiring': typeof ExternalHiringRoute
@@ -130,9 +161,13 @@ export interface FileRoutesByFullPath {
   '/internal-hiring': typeof InternalHiringRoute
   '/job-analysis': typeof JobAnalysisRoute
   '/login': typeof LoginRoute
+  '/network': typeof NetworkRoute
+  '/people': typeof PeopleRoute
+  '/register': typeof RegisterRoute
   '/screening': typeof ScreeningRoute
   '/settings': typeof SettingsRoute
   '/upload': typeof UploadRoute
+  '/welcome': typeof WelcomeRoute
   '/handoff/$handoffId': typeof HandoffHandoffIdRoute
   '/jobs/$jobId': typeof JobsJobIdRoute
   '/ats-benchmark/': typeof AtsBenchmarkIndexRoute
@@ -142,6 +177,7 @@ export interface FileRoutesByFullPath {
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/actions': typeof ActionsRoute
+  '/bench': typeof BenchRoute
   '/candidates': typeof CandidatesRoute
   '/compare': typeof CompareRoute
   '/external-hiring': typeof ExternalHiringRoute
@@ -150,9 +186,13 @@ export interface FileRoutesByTo {
   '/internal-hiring': typeof InternalHiringRoute
   '/job-analysis': typeof JobAnalysisRoute
   '/login': typeof LoginRoute
+  '/network': typeof NetworkRoute
+  '/people': typeof PeopleRoute
+  '/register': typeof RegisterRoute
   '/screening': typeof ScreeningRoute
   '/settings': typeof SettingsRoute
   '/upload': typeof UploadRoute
+  '/welcome': typeof WelcomeRoute
   '/handoff/$handoffId': typeof HandoffHandoffIdRoute
   '/jobs/$jobId': typeof JobsJobIdRoute
   '/ats-benchmark': typeof AtsBenchmarkIndexRoute
@@ -163,6 +203,7 @@ export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/actions': typeof ActionsRoute
+  '/bench': typeof BenchRoute
   '/candidates': typeof CandidatesRoute
   '/compare': typeof CompareRoute
   '/external-hiring': typeof ExternalHiringRoute
@@ -171,9 +212,13 @@ export interface FileRoutesById {
   '/internal-hiring': typeof InternalHiringRoute
   '/job-analysis': typeof JobAnalysisRoute
   '/login': typeof LoginRoute
+  '/network': typeof NetworkRoute
+  '/people': typeof PeopleRoute
+  '/register': typeof RegisterRoute
   '/screening': typeof ScreeningRoute
   '/settings': typeof SettingsRoute
   '/upload': typeof UploadRoute
+  '/welcome': typeof WelcomeRoute
   '/handoff/$handoffId': typeof HandoffHandoffIdRoute
   '/jobs/$jobId': typeof JobsJobIdRoute
   '/ats-benchmark/': typeof AtsBenchmarkIndexRoute
@@ -185,6 +230,7 @@ export interface FileRouteTypes {
   fullPaths:
     | '/'
     | '/actions'
+    | '/bench'
     | '/candidates'
     | '/compare'
     | '/external-hiring'
@@ -193,9 +239,13 @@ export interface FileRouteTypes {
     | '/internal-hiring'
     | '/job-analysis'
     | '/login'
+    | '/network'
+    | '/people'
+    | '/register'
     | '/screening'
     | '/settings'
     | '/upload'
+    | '/welcome'
     | '/handoff/$handoffId'
     | '/jobs/$jobId'
     | '/ats-benchmark/'
@@ -205,6 +255,7 @@ export interface FileRouteTypes {
   to:
     | '/'
     | '/actions'
+    | '/bench'
     | '/candidates'
     | '/compare'
     | '/external-hiring'
@@ -213,9 +264,13 @@ export interface FileRouteTypes {
     | '/internal-hiring'
     | '/job-analysis'
     | '/login'
+    | '/network'
+    | '/people'
+    | '/register'
     | '/screening'
     | '/settings'
     | '/upload'
+    | '/welcome'
     | '/handoff/$handoffId'
     | '/jobs/$jobId'
     | '/ats-benchmark'
@@ -225,6 +280,7 @@ export interface FileRouteTypes {
     | '__root__'
     | '/'
     | '/actions'
+    | '/bench'
     | '/candidates'
     | '/compare'
     | '/external-hiring'
@@ -233,9 +289,13 @@ export interface FileRouteTypes {
     | '/internal-hiring'
     | '/job-analysis'
     | '/login'
+    | '/network'
+    | '/people'
+    | '/register'
     | '/screening'
     | '/settings'
     | '/upload'
+    | '/welcome'
     | '/handoff/$handoffId'
     | '/jobs/$jobId'
     | '/ats-benchmark/'
@@ -246,6 +306,7 @@ export interface FileRouteTypes {
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   ActionsRoute: typeof ActionsRoute
+  BenchRoute: typeof BenchRoute
   CandidatesRoute: typeof CandidatesRoute
   CompareRoute: typeof CompareRoute
   ExternalHiringRoute: typeof ExternalHiringRoute
@@ -254,9 +315,13 @@ export interface RootRouteChildren {
   InternalHiringRoute: typeof InternalHiringRoute
   JobAnalysisRoute: typeof JobAnalysisRoute
   LoginRoute: typeof LoginRoute
+  NetworkRoute: typeof NetworkRoute
+  PeopleRoute: typeof PeopleRoute
+  RegisterRoute: typeof RegisterRoute
   ScreeningRoute: typeof ScreeningRoute
   SettingsRoute: typeof SettingsRoute
   UploadRoute: typeof UploadRoute
+  WelcomeRoute: typeof WelcomeRoute
   HandoffHandoffIdRoute: typeof HandoffHandoffIdRoute
   JobsJobIdRoute: typeof JobsJobIdRoute
   AtsBenchmarkIndexRoute: typeof AtsBenchmarkIndexRoute
@@ -278,6 +343,13 @@ declare module '@tanstack/react-router' {
       path: '/actions'
       fullPath: '/actions'
       preLoaderRoute: typeof ActionsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/bench': {
+      id: '/bench'
+      path: '/bench'
+      fullPath: '/bench'
+      preLoaderRoute: typeof BenchRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/candidates': {
@@ -336,6 +408,27 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof LoginRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/network': {
+      id: '/network'
+      path: '/network'
+      fullPath: '/network'
+      preLoaderRoute: typeof NetworkRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/people': {
+      id: '/people'
+      path: '/people'
+      fullPath: '/people'
+      preLoaderRoute: typeof PeopleRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/register': {
+      id: '/register'
+      path: '/register'
+      fullPath: '/register'
+      preLoaderRoute: typeof RegisterRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/screening': {
       id: '/screening'
       path: '/screening'
@@ -355,6 +448,13 @@ declare module '@tanstack/react-router' {
       path: '/upload'
       fullPath: '/upload'
       preLoaderRoute: typeof UploadRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/welcome': {
+      id: '/welcome'
+      path: '/welcome'
+      fullPath: '/welcome'
+      preLoaderRoute: typeof WelcomeRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/ats-benchmark/': {
@@ -398,6 +498,7 @@ declare module '@tanstack/react-router' {
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   ActionsRoute: ActionsRoute,
+  BenchRoute: BenchRoute,
   CandidatesRoute: CandidatesRoute,
   CompareRoute: CompareRoute,
   ExternalHiringRoute: ExternalHiringRoute,
@@ -406,9 +507,13 @@ const rootRouteChildren: RootRouteChildren = {
   InternalHiringRoute: InternalHiringRoute,
   JobAnalysisRoute: JobAnalysisRoute,
   LoginRoute: LoginRoute,
+  NetworkRoute: NetworkRoute,
+  PeopleRoute: PeopleRoute,
+  RegisterRoute: RegisterRoute,
   ScreeningRoute: ScreeningRoute,
   SettingsRoute: SettingsRoute,
   UploadRoute: UploadRoute,
+  WelcomeRoute: WelcomeRoute,
   HandoffHandoffIdRoute: HandoffHandoffIdRoute,
   JobsJobIdRoute: JobsJobIdRoute,
   AtsBenchmarkIndexRoute: AtsBenchmarkIndexRoute,

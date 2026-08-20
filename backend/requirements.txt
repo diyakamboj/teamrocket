@@ -1,12 +1,15 @@
 fastapi==0.109.0
 uvicorn==0.27.0
+# Lets uvicorn answer WebSocket upgrade requests instead of logging
+# "No supported WebSocket library detected" and refusing them.
+websockets==17.0.1
 python-dotenv==1.0.0
 pydantic==2.6.0
 pydantic-settings==2.1.0
 email-validator==2.1.0.post1
 azure-storage-blob==12.19.0
 azure-ai-documentintelligence==1.0.0
-openai==1.12.0
+openai>=1.66.0,<2.0.0
 azure-search-documents==11.4.0
 azure-identity==1.15.0
 azure-core>=1.30.0,<2.0.0

@@ -26,6 +26,17 @@ class ValidationAppError(AppError):
         super().__init__(message=message, status_code=422, details=details)
 
 
+class UnauthorizedError(AppError):
+    def __init__(self, message: str = "Not signed in") -> None:
+        super().__init__(message=message, status_code=401)
+
+class ForbiddenError(AppError):
+    """Authenticated, but not allowed to do this."""
+
+    def __init__(self, message: str = "Not permitted", details: dict | None = None):
+        super().__init__(message=message, status_code=403, details=details)
+
+
 class AzureServiceError(AppError):
     def __init__(self, message: str = "Azure service error", details: dict | None = None):
         super().__init__(message=message, status_code=502, details=details)

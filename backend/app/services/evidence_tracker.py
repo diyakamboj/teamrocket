@@ -85,8 +85,10 @@ class EvidenceTracker:
             )
         return evidence
 
-    def persist(self, store: Store, evaluation_id, evidence_items: list[dict[str, Any]]) -> list[Evidence]:
-        rows = [
+    def build_rows(self, evaluation_id, evidence_items: list[dict[str, Any]]) -> list[Evidence]:
+        """Evidence rows for an evaluation, unsaved — lets bulk re-scoring
+        collect every candidate's rows and write them in one batch."""
+        return [
             Evidence(
                 evaluation_id=evaluation_id,
                 skill_name=item.get("skill_name"),
@@ -97,7 +99,12 @@ class EvidenceTracker:
             )
             for item in evidence_items
         ]
-        store.evidence.save_many(rows)
+
+    def persist(self, store: Store, evaluation_id, evidence_items: list[dict[str, Any]]) -> list[Evidence]:
+        # One write for the whole set: evidence is a single document per
+        # evaluation, so saving row by row would read-modify-write per row.
+        rows = self.build_rows(evaluation_id, evidence_items)
+        store.evidence.replace_for_evaluations({str(evaluation_id): rows})
         return rows
 
 

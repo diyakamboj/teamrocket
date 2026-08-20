@@ -18,6 +18,7 @@ from typing import Any, Optional
 from app.models.candidate import Candidate
 from app.services.azure_services import blob_service, doc_intelligence_service, openai_service
 from app.services.resume_parser import resume_parser
+from app.services.vector_store import index_candidate
 from app.storage.store import Store, store
 from app.utils.logger import get_logger
 from app.utils.validators import is_valid_email
@@ -60,6 +61,11 @@ def upsert_candidate_from_parsed(
     parsed: dict[str, Any],
     text: str,
     blob_path: Optional[str],
+    owner_email: Optional[str] = None,
+    job_id: Optional[uuid.UUID] = None,
+    source: str = "external",
+    current_position: Optional[str] = None,
+    current_role_duties: Optional[str] = None,
 ) -> Candidate:
     """Create-or-update a `Candidate` from a parsed resume (email-dedup
     upsert). Extracted from `resumes.py::_process_resume`'s original
@@ -71,7 +77,16 @@ def upsert_candidate_from_parsed(
         email = f"candidate.{uuid.uuid4().hex[:10]}@example.com"
         parsed["email"] = email
 
-    existing = next((c for c in active_store.candidates.list_all() if c.email == email), None)
+    # Dedup within the owner's own pool: two recruiters may each hold the
+    # same person, and neither should overwrite the other's copy.
+    existing = next(
+        (
+            c
+            for c in active_store.candidates.list_all()
+            if c.email == email and (owner_email is None or c.owner_email == owner_email)
+        ),
+        None,
+    )
     if existing:
         candidate = existing
         candidate.name = parsed.get("name") or candidate.name
@@ -88,8 +103,25 @@ def upsert_candidate_from_parsed(
         candidate.github_url = parsed.get("github_url") or candidate.github_url
         candidate.linkedin_url = parsed.get("linkedin_url") or candidate.linkedin_url
         candidate.portfolio_url = parsed.get("portfolio_url") or candidate.portfolio_url
+        # Re-uploading someone's résumé against a role is how a recruiter
+        # says "consider them for this too". Their original job is kept if
+        # this upload named none.
+        if job_id is not None:
+            candidate.job_id = job_id
+        if current_position:
+            candidate.current_assignment = current_position
+        if current_role_duties:
+            candidate.current_role_duties = current_role_duties
     else:
         candidate = Candidate(
+            owner_email=owner_email,
+            job_id=job_id,
+            source=source,
+            # An internal hire is an employee, so they start assigned rather
+            # than with no employment state at all.
+            employment_status="assigned" if source == "internal" else None,
+            current_assignment=current_position,
+            current_role_duties=current_role_duties,
             name=parsed.get("name") or "Unknown",
             email=email,
             phone=parsed.get("phone"),
@@ -107,6 +139,13 @@ def upsert_candidate_from_parsed(
             portfolio_url=parsed.get("portfolio_url"),
         )
     active_store.candidates.save(candidate)
+
+    # Index for semantic search. Best-effort: a candidate that cannot be
+    # embedded is still a candidate, just not retrievable by similarity.
+    try:
+        index_candidate(candidate)
+    except Exception as exc:
+        logger.warning("Could not index candidate %s for search: %s", candidate.id, exc)
     return candidate
 
 
@@ -129,7 +168,9 @@ def _process_attachment(attachment_id: uuid.UUID) -> None:
 
         if attachment.kind == "resume":
             parsed = asyncio.run(resume_parser.parse_resume(text))
-            candidate = upsert_candidate_from_parsed(store, parsed, text, attachment.blob_path)
+            candidate = upsert_candidate_from_parsed(
+                store, parsed, text, attachment.blob_path, owner_email=attachment.recruiter_email
+            )
             attachment.candidate_id = candidate.id
 
         attachment.status = "processed"

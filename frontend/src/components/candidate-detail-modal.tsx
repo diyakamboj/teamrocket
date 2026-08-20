@@ -11,14 +11,18 @@ import { Badge } from "@/components/ui/badge";
 import { CandidateEnrichmentSection } from "@/components/candidate-enrichment-card";
 import { CandidateReadinessSection } from "@/components/candidate-readiness-card";
 import { CandidateInterviewSection } from "@/components/interview-card";
-import { Sparkles, Eye, EyeOff, Layers, Loader2, AlertTriangle } from "lucide-react";
+import { CandidateNotes } from "@/components/candidate-notes";
+import { ShareCandidateButton } from "@/components/share-candidate-button";
+import { CandidateRolePanel } from "@/components/candidate-role-panel";
+import { Building2, Eye, EyeOff, Layers, Loader2, AlertTriangle } from "lucide-react";
+import { AtsScoreBadge } from "@/components/ats-score-badge";
+import { cn } from "@/lib/utils";
 import {
   getCandidate,
   getCandidateScore,
   type BackendCandidate,
   type CandidateScore,
 } from "@/lib/api";
-import { cn } from "@/lib/utils";
 
 export type CandidateDetailModalProps = {
   candidateId: string | null;
@@ -42,6 +46,14 @@ function skillName(entry: unknown): string {
   return String(entry ?? "");
 }
 
+/** Three groups: who they are, what is happening to them, and everything
+ *  else. The modal previously stacked ten sections in one scroll. */
+const PROFILE_TABS = [
+  { id: "profile", label: "Profile" },
+  { id: "hiring", label: "Hiring progress" },
+  { id: "more", label: "Notes & links" },
+] as const;
+
 export function CandidateDetailModal({
   candidateId,
   jobId,
@@ -53,6 +65,12 @@ export function CandidateDetailModal({
   const [score, setScore] = useState<CandidateScore | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // Declared with the other hooks, above the early return below. Placed
+  // after it, this state was only created on renders where a candidate was
+  // selected, so React saw the hook count change and tore the modal down
+  // with "rendered more hooks than during the previous render" — which is
+  // why View appeared to do nothing.
+  const [activeTab, setTab] = useState<"profile" | "hiring" | "more">("profile");
 
   useEffect(() => {
     if (!candidateId || !isOpen) return;
@@ -100,10 +118,11 @@ export function CandidateDetailModal({
   });
 
   const dimensionCards = [
-    { label: "Technical Skills", val: score?.technical_skills_score },
-    { label: "Role Experience", val: score?.experience_score },
-    { label: "Communication", val: score?.communication_score },
-    { label: "Role Alignment", val: score?.role_alignment_score },
+    { label: "Skills", val: score?.skill_score ?? score?.technical_skills_score },
+    { label: "Experience", val: score?.experience_score },
+    { label: "Education", val: score?.education_score },
+    { label: "Certifications", val: score?.certification_score },
+    { label: "Projects", val: score?.project_score },
   ];
 
   return (
@@ -112,21 +131,9 @@ export function CandidateDetailModal({
         <DialogHeader className="border-b border-border bg-secondary/40 p-6">
           <div className="flex items-start justify-between gap-4">
             <div className="min-w-0">
-              <div className="mb-1 flex flex-wrap items-center gap-2">
+              <div className="mb-3 flex flex-wrap items-center gap-2">
                 {overall !== undefined && overall !== null && (
-                  <Badge
-                    className={cn(
-                      "text-xs font-bold",
-                      overall >= 85
-                        ? "border-success/30 bg-success/15 text-success"
-                        : overall >= 65
-                          ? "border-primary/30 bg-primary-soft text-primary-soft-foreground"
-                          : "border-warning/40 bg-warning/15 text-warning-foreground dark:text-warning",
-                    )}
-                  >
-                    {overall >= 85 ? "Top Match" : overall >= 65 ? "Review" : "Low Match"} (
-                    {pct(overall)} overall fit)
-                  </Badge>
+                  <AtsScoreBadge score={overall} size={64} />
                 )}
                 {profile?.employment_status === "bench" && (
                   <Badge variant="outline" className="text-xs font-bold">
@@ -149,19 +156,30 @@ export function CandidateDetailModal({
               </DialogDescription>
             </div>
 
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => setBlindReview((v) => !v)}
-              className="shrink-0 gap-1.5 text-xs"
-            >
-              {blindReview ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
-              {blindReview ? "Blind mode on" : "Blind review"}
-            </Button>
+            <div className="flex shrink-0 items-center gap-2">
+              {/* Sharing belongs where the candidate is actually reviewed, not
+                  only on the list page. */}
+              {candidateId && (
+                <ShareCandidateButton
+                  candidateId={candidateId}
+                  candidateName={displayName || "this candidate"}
+                  jobId={jobId ?? null}
+                />
+              )}
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setBlindReview((v) => !v)}
+                className="gap-1.5 text-xs"
+              >
+                {blindReview ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
+                {blindReview ? "Blind mode on" : "Blind review"}
+              </Button>
+            </div>
           </div>
         </DialogHeader>
 
-        <div className="max-h-[70vh] space-y-6 overflow-y-auto p-6">
+        <div className="max-h-[70vh] overflow-y-auto p-6">
           {loading ? (
             <p className="flex items-center justify-center gap-2 py-12 text-sm text-muted-foreground">
               <Loader2 className="h-4 w-4 animate-spin" /> Loading candidate evaluation…
@@ -172,107 +190,175 @@ export function CandidateDetailModal({
             </p>
           ) : (
             <>
-              <section className="space-y-3">
-                <h3 className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-muted-foreground">
-                  <Sparkles className="h-4 w-4 text-primary" /> Multi-dimensional AI fit analysis
-                </h3>
-                {score ? (
-                  <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
-                    {dimensionCards.map((s) => (
-                      <div
-                        key={s.label}
-                        className="card-surface p-3.5 text-center"
-                      >
-                        <span className="block text-[10px] font-medium uppercase text-muted-foreground">
-                          {s.label}
+
+          {/* Grouped rather than stacked. Ten sections in one scroll meant
+              the thing you wanted was always somewhere below the fold, and
+              nothing said which parts were about the person and which were
+              about the hiring process. */}
+          <div className="mb-5 flex flex-wrap gap-1.5 border-b border-border pb-3">
+            {PROFILE_TABS.map((tab) => (
+              <button
+                key={tab.id}
+                type="button"
+                onClick={() => setTab(tab.id)}
+                className={cn(
+                  "press rounded-lg px-3 py-1.5 text-xs font-semibold transition-colors",
+                  tab.id === activeTab
+                    ? "bg-primary-soft text-primary-soft-foreground"
+                    : "text-muted-foreground hover:bg-secondary hover:text-foreground",
+                )}
+              >
+                {tab.label}
+              </button>
+            ))}
+          </div>
+
+          {activeTab === "profile" && (
+            <div className="space-y-6">
+                {profile?.source === "internal" && (
+                  <section className="rounded-xl border bg-secondary/40 p-4">
+                    <h3 className="flex items-center gap-2 text-sm font-semibold">
+                      <Building2 className="h-4 w-4 text-primary" />
+                      Their role in the company today
+                    </h3>
+                    <p className="mt-2 text-sm font-medium">
+                      {profile?.current_assignment || (
+                        <span className="font-normal text-muted-foreground">
+                          Not recorded — ask when their résumé is next uploaded.
                         </span>
-                        <span className="mt-1 block text-xl font-extrabold">{pct(s.val)}</span>
-                      </div>
-                    ))}
-                  </div>
-                ) : (
-                  <p className="text-xs text-muted-foreground">
-                    No evaluation for this candidate against the selected job yet.
-                  </p>
+                      )}
+                    </p>
+                    {profile?.current_role_duties && (
+                      <p className="mt-1.5 text-xs leading-relaxed text-muted-foreground">
+                        {profile.current_role_duties}
+                      </p>
+                    )}
+                    {profile?.employment_status === "bench" && (
+                      <p className="mt-2 text-xs text-muted-foreground">
+                        Currently on the bench, between assignments.
+                      </p>
+                    )}
+                  </section>
                 )}
 
-                {score?.strengths && (
-                  <p className="text-sm text-muted-foreground">
-                    <strong className="text-foreground">Strengths:</strong> {score.strengths}
-                  </p>
-                )}
-                {score?.weaknesses && (
-                  <p className="text-sm text-muted-foreground">
-                    <strong className="text-foreground">Gaps:</strong> {score.weaknesses}
-                  </p>
-                )}
-              </section>
+                <CandidateRolePanel
+                  candidateId={candidateId}
+                  candidateName={displayName}
+                  currentJobId={profile?.job_id ?? null}
+                />
 
-              {profile && profile.skills.length > 0 && (
                 <section className="space-y-3">
-                  <h3 className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
-                    Skills
+                  <h3 className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-muted-foreground">
+                    Category scores
                   </h3>
-                  <div className="flex flex-wrap gap-1.5">
-                    {profile.skills.map((s, i) => (
-                      <Badge key={`${skillName(s)}-${i}`} variant="outline" className="text-xs">
-                        {skillName(s)}
-                      </Badge>
-                    ))}
-                  </div>
-                </section>
-              )}
+                  {score ? (
+                    <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-5">
+                      {dimensionCards.map((s) => (
+                        <div
+                          key={s.label}
+                          className="card-surface p-3.5 text-center"
+                        >
+                          <span className="block text-[11px] font-medium uppercase text-muted-foreground">
+                            {s.label}
+                          </span>
+                          <span className="mt-1 block text-xl font-extrabold">{pct(s.val)}</span>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <p className="text-xs text-muted-foreground">
+                      No evaluation for this candidate against the selected job yet.
+                    </p>
+                  )}
 
-              <section className="space-y-3">
-                <h3 className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-muted-foreground">
-                  <Layers className="h-4 w-4 text-primary" /> Explainable evidence tracing (resume
-                  snippets)
-                </h3>
-                {uniqueEvidence.length === 0 ? (
-                  <p className="text-xs text-muted-foreground">
-                    No evidence snippets recorded for this candidate.
-                  </p>
-                ) : (
-                  <div className="space-y-2.5">
-                    {uniqueEvidence.map((ev, idx) => (
-                      <div key={idx} className="card-surface space-y-1 p-3.5">
-                        <div className="flex items-center justify-between gap-3 text-xs">
-                          <span className="font-semibold">✓ {ev.skill_name}</span>
-                          {ev.confidence_score !== null && ev.confidence_score !== undefined && (
-                            <Badge variant="outline" className="text-[10px]">
-                              {Math.round(ev.confidence_score * 100)}% confidence
-                            </Badge>
+                  {score?.strengths && (
+                    <p className="text-sm text-muted-foreground">
+                      <strong className="text-foreground">Strengths:</strong> {score.strengths}
+                    </p>
+                  )}
+                  {score?.weaknesses && (
+                    <p className="text-sm text-muted-foreground">
+                      <strong className="text-foreground">Gaps:</strong> {score.weaknesses}
+                    </p>
+                  )}
+                </section>
+
+                {profile && profile.skills.length > 0 && (
+                  <section className="space-y-3">
+                    <h3 className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
+                      Skills
+                    </h3>
+                    <div className="flex flex-wrap gap-1.5">
+                      {profile.skills.map((s, i) => (
+                        <Badge key={`${skillName(s)}-${i}`} variant="outline" className="text-xs">
+                          {skillName(s)}
+                        </Badge>
+                      ))}
+                    </div>
+                  </section>
+                )}
+
+                <section className="space-y-3">
+                  <h3 className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-muted-foreground">
+                    <Layers className="h-4 w-4 text-primary" /> Explainable evidence tracing (resume
+                    snippets)
+                  </h3>
+                  {uniqueEvidence.length === 0 ? (
+                    <p className="text-xs text-muted-foreground">
+                      No evidence snippets recorded for this candidate.
+                    </p>
+                  ) : (
+                    <div className="space-y-2.5">
+                      {uniqueEvidence.map((ev, idx) => (
+                        <div key={idx} className="card-surface space-y-1 p-3.5">
+                          <div className="flex items-center justify-between gap-3 text-xs">
+                            <span className="font-semibold">✓ {ev.skill_name}</span>
+                            {ev.confidence_score !== null && ev.confidence_score !== undefined && (
+                              <Badge variant="outline" className="text-[11px]">
+                                {Math.round(ev.confidence_score * 100)}% confidence
+                              </Badge>
+                            )}
+                          </div>
+                          <p className="font-mono text-xs italic text-muted-foreground">
+                            "{ev.resume_text_snippet}"
+                          </p>
+                          {ev.source_section && (
+                            <span className="text-[11px] text-muted-foreground">
+                              Source: {ev.source_section}
+                            </span>
                           )}
                         </div>
-                        <p className="font-mono text-xs italic text-muted-foreground">
-                          "{ev.resume_text_snippet}"
-                        </p>
-                        {ev.source_section && (
-                          <span className="text-[10px] text-muted-foreground">
-                            Source: {ev.source_section}
-                          </span>
-                        )}
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </section>
+                      ))}
+                    </div>
+                  )}
+                </section>
+            </div>
+          )}
 
-              <CandidateInterviewSection
-                candidateId={candidateId}
-                candidateName={displayName}
-                candidateEmail={profile?.email ?? null}
-                jobId={jobId ?? null}
-                jobTitle={null}
-              />
+          {activeTab === "hiring" && (
+            <div className="space-y-6">
+                <CandidateInterviewSection
+                  candidateId={candidateId}
+                  candidateName={displayName}
+                  candidateEmail={profile?.email ?? null}
+                  jobId={jobId ?? null}
+                  jobTitle={null}
+                />
 
+                <CandidateReadinessSection
+                  candidateId={candidateId}
+                  candidateName={displayName}
+                  jobId={jobId ?? null}
+                />
+            </div>
+          )}
+
+          {activeTab === "more" && (
+            <div className="space-y-6">
               <CandidateEnrichmentSection candidateId={candidateId} />
-
-              <CandidateReadinessSection
-                candidateId={candidateId}
-                candidateName={displayName}
-                jobId={jobId ?? null}
-              />
+              <CandidateNotes candidateId={candidateId} jobId={jobId ?? null} />
+            </div>
+          )}
             </>
           )}
         </div>

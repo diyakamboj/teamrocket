@@ -43,24 +43,65 @@ const VERDICT_META: Record<AtsVerdict, { label: string; description: string; cla
       label: "AI found a stronger fit",
       description:
         "The candidate scores meaningfully higher on semantic fit than on literal keyword matches — a keyword-only ATS would likely have under-ranked or filtered this candidate out.",
-      className: "bg-emerald-100 text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-300",
+      className: "bg-success/10 text-success dark:bg-success/15 dark:text-success",
     },
     keyword_stronger: {
       label: "Keyword score runs hot",
       description:
         "The keyword baseline is notably higher than the semantic assessment — worth a closer look at whether the resume is keyword-optimized without matching depth of experience.",
-      className: "bg-amber-100 text-amber-700 dark:bg-amber-500/15 dark:text-amber-300",
+      className: "bg-warning/10 text-warning dark:bg-warning/15 dark:text-warning",
     },
     aligned: {
       label: "Signals aligned",
       description: "The keyword baseline and semantic assessment are roughly in agreement.",
       className: "bg-secondary text-secondary-foreground",
     },
+    no_keyword_baseline: {
+      label: "No keyword baseline",
+      description:
+        "This job lists no required or nice-to-have skills, so the keyword scan had nothing to look for. Add skills to the job to get an ATS baseline worth comparing against.",
+      className: "bg-secondary text-foreground dark:bg-secondary dark:text-muted-foreground",
+    },
+    semantic_unavailable: {
+      label: "Semantic score unavailable",
+      description:
+        "The AI evaluation did not return a usable score for this run, so there is nothing to compare the keyword baseline against. Re-run to try again.",
+      className: "bg-warning/10 text-warning dark:bg-warning/15 dark:text-warning",
+    },
   };
+
+/** Tolerate a verdict the UI does not know yet rather than crashing on it. */
+function verdictMeta(verdict: AtsVerdict) {
+  return (
+    VERDICT_META[verdict] ?? {
+      label: String(verdict).replace(/_/g, " "),
+      description: "",
+      className: "bg-secondary text-secondary-foreground",
+    }
+  );
+}
 
 function num(value: string | number | null | undefined): number {
   if (value == null) return 0;
   return typeof value === "number" ? value : Number(value);
+}
+
+/** A score that may legitimately not exist -- null stays null rather than
+ *  collapsing to 0, which would render as a real "0%" result. */
+function maybeNum(value: string | number | null | undefined): number | null {
+  if (value == null || value === "") return null;
+  const parsed = typeof value === "number" ? value : Number(value);
+  return Number.isFinite(parsed) ? parsed : null;
+}
+
+/** Placeholder for a half of the benchmark that was not produced. */
+function AbsentScore({ note }: { note: string }) {
+  return (
+    <div className="flex h-[88px] w-[88px] flex-col items-center justify-center rounded-full border-2 border-dashed border-border text-center">
+      <span className="text-lg font-bold text-muted-foreground">—</span>
+      <span className="px-1 text-[9px] leading-tight text-muted-foreground">{note}</span>
+    </div>
+  );
 }
 
 function AtsBenchmarkPage() {
@@ -135,7 +176,15 @@ function AtsBenchmarkPage() {
     }
   }
 
-  const delta = useMemo(() => (benchmark ? num(benchmark.score_delta) : 0), [benchmark]);
+  const delta = useMemo(() => (benchmark ? maybeNum(benchmark.score_delta) : null), [benchmark]);
+  const keywordScore = useMemo(
+    () => (benchmark ? maybeNum(benchmark.keyword_score) : null),
+    [benchmark],
+  );
+  const semanticScore = useMemo(
+    () => (benchmark ? maybeNum(benchmark.semantic_score) : null),
+    [benchmark],
+  );
 
   return (
     <div className="mx-auto max-w-7xl space-y-6">
@@ -207,7 +256,7 @@ function AtsBenchmarkPage() {
                   >
                     <p className="truncate font-semibold">{c.candidate_name}</p>
                     <p className="truncate text-xs text-muted-foreground">
-                      Screening score {c.overall_score != null ? Math.round(c.overall_score) : "—"}
+                      ATS score {c.overall_score != null ? Math.round(c.overall_score) : "—"}
                     </p>
                   </button>
                 ))}
@@ -263,7 +312,11 @@ function AtsBenchmarkPage() {
                         <span className="inline-flex items-center gap-1.5 text-xs font-bold uppercase tracking-wide text-muted-foreground">
                           <ScanSearch className="h-3.5 w-3.5" /> ATS keyword baseline
                         </span>
-                        <ScoreRing value={Math.round(num(benchmark.keyword_score))} size={88} />
+                        {keywordScore === null ? (
+                          <AbsentScore note="job lists no skills" />
+                        ) : (
+                          <ScoreRing value={Math.round(keywordScore)} size={88} />
+                        )}
                       </div>
 
                       <div className="flex flex-col items-center gap-1 text-muted-foreground">
@@ -271,12 +324,19 @@ function AtsBenchmarkPage() {
                         <span
                           className={cn(
                             "text-sm font-bold tabular-nums",
-                            delta > 0 && "text-emerald-600 dark:text-emerald-400",
-                            delta < 0 && "text-rose-600 dark:text-rose-400",
+                            delta !== null && delta > 0 && "text-success dark:text-success",
+                            delta !== null && delta < 0 && "text-destructive dark:text-destructive",
+                            delta === null && "text-muted-foreground",
                           )}
                         >
-                          {delta > 0 ? "+" : ""}
-                          {delta.toFixed(1)} pts
+                          {delta === null ? (
+                            "no delta"
+                          ) : (
+                            <>
+                              {delta > 0 ? "+" : ""}
+                              {delta.toFixed(1)} pts
+                            </>
+                          )}
                         </span>
                       </div>
 
@@ -284,7 +344,11 @@ function AtsBenchmarkPage() {
                         <span className="inline-flex items-center gap-1.5 text-xs font-bold uppercase tracking-wide text-muted-foreground">
                           <Sparkles className="h-3.5 w-3.5" /> AI semantic score
                         </span>
-                        <ScoreRing value={Math.round(num(benchmark.semantic_score))} size={88} />
+                        {semanticScore === null ? (
+                          <AbsentScore note="not returned" />
+                        ) : (
+                          <ScoreRing value={Math.round(semanticScore)} size={88} />
+                        )}
                       </div>
                     </div>
 
@@ -292,14 +356,14 @@ function AtsBenchmarkPage() {
                       <Badge
                         className={cn(
                           "border-transparent px-3 py-1 text-xs font-semibold",
-                          VERDICT_META[benchmark.verdict].className,
+                          verdictMeta(benchmark.verdict).className,
                         )}
                       >
-                        {VERDICT_META[benchmark.verdict].label}
+                        {verdictMeta(benchmark.verdict).label}
                       </Badge>
                     </div>
                     <p className="mx-auto mt-2 max-w-xl text-center text-xs text-muted-foreground">
-                      {VERDICT_META[benchmark.verdict].description}
+                      {verdictMeta(benchmark.verdict).description}
                     </p>
                   </div>
 
@@ -315,7 +379,7 @@ function AtsBenchmarkPage() {
                           benchmark.matched_keywords.map((k) => (
                             <span
                               key={k}
-                              className="rounded-full bg-primary-soft px-2.5 py-0.5 text-[11px] font-medium text-primary-soft-foreground"
+                              className="rounded-full bg-primary-soft px-2.5 py-0.5 text-xs font-medium text-primary-soft-foreground"
                             >
                               {k}
                             </span>
@@ -334,7 +398,7 @@ function AtsBenchmarkPage() {
                           benchmark.missing_keywords.map((k) => (
                             <span
                               key={k}
-                              className="rounded-full bg-secondary px-2.5 py-0.5 text-[11px] font-medium text-secondary-foreground"
+                              className="rounded-full bg-secondary px-2.5 py-0.5 text-xs font-medium text-secondary-foreground"
                             >
                               {k}
                             </span>

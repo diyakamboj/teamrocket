@@ -40,7 +40,7 @@ export function InputBar({ suggestions }: { suggestions?: string[] | undefined }
               type="button"
               onClick={() => void submit(s)}
               disabled={loading}
-              className="rounded-full border bg-background px-3 py-1 text-[11px] font-medium text-muted-foreground transition-colors hover:border-primary/40 hover:text-foreground disabled:opacity-40"
+              className="rounded-full border bg-background px-3 py-1 text-xs font-medium text-muted-foreground transition-colors hover:border-primary/40 hover:text-foreground disabled:opacity-40"
             >
               {s}
             </button>
@@ -75,7 +75,7 @@ export function InputBar({ suggestions }: { suggestions?: string[] | undefined }
           }}
           rows={1}
           disabled={loading}
-          placeholder="Ask Copilot anything…"
+          placeholder="Ask AI anything…"
           className="max-h-36 min-h-[44px] w-full resize-none bg-transparent px-3.5 pt-3 pb-1 text-sm text-foreground caret-foreground outline-none placeholder:text-muted-foreground disabled:cursor-not-allowed disabled:opacity-60"
         />
         <div className="flex items-center justify-between gap-1 px-2 pb-2">
@@ -114,7 +114,7 @@ export function InputBar({ suggestions }: { suggestions?: string[] | undefined }
           </button>
         </div>
       </form>
-      <p className="mt-1.5 px-1.5 text-[10px] text-muted-foreground">
+      <p className="mt-1.5 px-1.5 text-[11px] text-muted-foreground">
         Enter to send · Shift+Enter for new line · drag a file to attach
       </p>
     </div>

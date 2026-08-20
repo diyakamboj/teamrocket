@@ -161,6 +161,61 @@ print("Agent Response:", data["response"])
 ```
 
 
+## Performance
+
+Two things dominate request latency: blob round-trips and the model.
+
+### Blob storage
+
+Every entity is a JSON document in Blob Storage, so a round-trip (~40ms) is
+this app's equivalent of a database query, and latency is mostly a count of
+them. Four mechanisms keep that count down:
+
+| Mechanism | Effect |
+|---|---|
+| Batched I/O | `get_many`/`put_many`/`delete_many` run on one shared pool (`BLOB_MAX_CONCURRENCY`) instead of a read per document |
+| Sized connection pool | `BLOB_CONNECTION_POOL_SIZE` must be >= concurrency, or threads queue for sockets and pay fresh TLS handshakes |
+| ETag cache | A listing returns every blob's ETag in one round-trip, so re-reading an unchanged collection downloads nothing (`BLOB_CACHE_ENABLED`) |
+| Layout | Evidence is one document per evaluation, and history is partitioned by candidate, rather than a blob per row |
+
+Measured against the 400-candidate dataset on real Blob Storage:
+
+| Endpoint | Before | After (cold process) | After (warm) |
+|---|---|---|---|
+| `GET /api/handoff/history/{id}` | 297.7s | 14.1s | 2.2s |
+| `GET /api/candidates/rank` | 60.8s | 3.6s | 2.5s |
+| `GET /api/dashboard/jobs` | 37.5s | 1.6s | 0.02s |
+| `GET /api/candidates` | 10.0s | 1.8s | 0.02s |
+
+The cache assumes this app is the only writer to its container, which holds
+for the single-worker deployment the pipeline starts. Set
+`BLOB_CACHE_ENABLED=false` if that stops being true.
+
+Two collections changed shape. Both old layouts are still read — and read
+*together* with the new ones, so nothing is hidden — which means nothing
+breaks before migrating. History stays slow until the flat documents are
+gone, because a candidate's events may be in either layout:
+
+```bash
+python3 scripts/compact_blob_documents.py            # dry run, reports only
+python3 scripts/compact_blob_documents.py --apply
+```
+
+### Copilot answers
+
+A copilot answer used to take ~85s and then return the *deterministic*
+fallback, because each model call exceeded the old hardcoded 30s timeout,
+retried, and failed. Two settings fixed that:
+`AZURE_OPENAI_REASONING_EFFORT=low` (GPT-5 defaults to medium, and these
+calls are extraction and grounded synthesis, not open problem solving) and
+`AZURE_OPENAI_TIMEOUT_SECONDS=60`. Answers now take ~20s and come from the
+agent path.
+
+`POST /api/agent/ask/stream` returns the same answer as `/ask` as server-sent
+events, reporting each step the agent takes — reading the scored pool,
+choosing a tool, running it, writing the answer — which is what the chat UI
+shows instead of a spinner. `/ask` is unchanged for non-streaming clients.
+
 ## Mock mode
 
 When `USE_MOCK_AZURE=true` (default in `.env.example`):

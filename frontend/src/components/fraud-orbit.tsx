@@ -13,20 +13,20 @@ const STATUS_META: Record<
 > = {
   verified: {
     label: "Verified",
-    badgeClass: "bg-emerald-100 text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-300",
-    iconClass: "bg-emerald-500 text-white",
+    badgeClass: "bg-success/10 text-success dark:bg-success/15 dark:text-success",
+    iconClass: "bg-success text-white",
     Icon: Check,
   },
   fraud: {
     label: "Fraud",
-    badgeClass: "bg-rose-100 text-rose-700 dark:bg-rose-500/15 dark:text-rose-300",
-    iconClass: "bg-rose-500 text-white",
+    badgeClass: "bg-destructive/10 text-destructive dark:bg-destructive/15 dark:text-destructive",
+    iconClass: "bg-destructive text-white",
     Icon: ShieldAlert,
   },
   suspicious: {
     label: "Suspicious",
-    badgeClass: "bg-amber-100 text-amber-800 dark:bg-amber-500/15 dark:text-amber-300",
-    iconClass: "bg-amber-500 text-white",
+    badgeClass: "bg-warning/10 text-warning dark:bg-warning/15 dark:text-warning",
+    iconClass: "bg-warning text-white",
     Icon: AlertTriangle,
   },
 };
@@ -61,7 +61,7 @@ export function FraudOrbit({ nodes, className }: FraudOrbitProps) {
             resume<span className="text-primary">iq</span>
             <span className="text-primary">.</span>
           </p>
-          <p className="mt-0.5 text-[10px] font-medium uppercase tracking-[0.14em] text-muted-foreground">
+          <p className="mt-0.5 text-[11px] font-medium uppercase tracking-[0.14em] text-muted-foreground">
             verify
           </p>
         </div>
