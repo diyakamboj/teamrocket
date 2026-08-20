@@ -2,14 +2,18 @@ import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
   getAtsBenchmark,
+  getJob,
   getJobPipeline,
   listJobs,
   uploadResumesToBackend,
   type AtsBenchmark,
   type JobResponse,
 } from "@/lib/api";
+
 import { rankCandidates, type Candidate } from "@/lib/candidates";
 import { useCandidatePool } from "@/lib/use-candidate-pool";
+import { useAppState } from "@/lib/app-state";
+
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -64,33 +68,53 @@ function toRow(
   stage: string | undefined,
   benchmark: AtsBenchmark | null,
 ): CandidateRow {
-  const semantic = benchmark ? Number(benchmark.semantic_score) : null;
-  const keyword = benchmark ? Number(benchmark.keyword_score) : null;
-  const delta = benchmark ? Number(benchmark.score_delta) : null;
+  if (!candidate) {
+    return {
+      id: "unknown",
+      name: "Candidate",
+      score: 0,
+      atsScore: null,
+      semanticScore: null,
+      delta: null,
+      skillsScore: 0,
+      expScore: 0,
+      statusBadge: "Low Match",
+      isBench: false,
+      skills: [],
+      stage: "Applied",
+    };
+  }
+
+  const semantic = benchmark && !isNaN(Number(benchmark.semantic_score)) ? Number(benchmark.semantic_score) : null;
+  const keyword = benchmark && !isNaN(Number(benchmark.keyword_score)) ? Number(benchmark.keyword_score) : null;
+  const delta = benchmark && !isNaN(Number(benchmark.score_delta)) ? Number(benchmark.score_delta) : null;
+  const score = typeof candidate.score === "number" && !isNaN(candidate.score) ? candidate.score : 0;
 
   return {
-    id: candidate.id,
-    name: candidate.name,
-    score: candidate.score,
+    id: candidate.id || "c-id",
+    name: candidate.name || "Candidate",
+    score,
     atsScore: keyword,
     semanticScore: semantic,
     delta: delta === null ? null : `${delta >= 0 ? "+" : ""}${delta.toFixed(1)}%`,
-    skillsScore: candidate.categories.skills,
-    expScore: candidate.categories.experience,
-    statusBadge:
-      candidate.score >= 85 ? "Top Match" : candidate.score >= 65 ? "Review Required" : "Low Match",
+    skillsScore: candidate.categories?.skills ?? 0,
+    expScore: candidate.categories?.experience ?? 0,
+    statusBadge: score >= 85 ? "Top Match" : score >= 65 ? "Review Required" : "Low Match",
     isBench: candidate.employmentStatus === "bench",
-    skills: candidate.skills,
+    skills: Array.isArray(candidate.skills) ? candidate.skills : [],
     stage: stage ?? "Applied",
   };
 }
+
+
 
 function JobWorkspacePage() {
   const { jobId } = Route.useParams();
   const navigate = useNavigate();
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const { setActiveJobId, addFiles, refreshPool } = useAppState();
 
-  const [activeTab, setActiveTab] = useState<"overview" | "candidates" | "upload" | "pipeline" | "insights">("candidates");
+  const [activeTab, setActiveTab] = useState<"overview" | "candidates" | "jd" | "upload" | "pipeline" | "insights">("candidates");
   const [searchQuery, setSearchQuery] = useState("");
   const [job, setJob] = useState<JobResponse | null>(null);
   const [stages, setStages] = useState<Record<string, string>>({});
@@ -99,10 +123,14 @@ function JobWorkspacePage() {
   const [selectedForCompare, setSelectedForCompare] = useState<string[]>([]);
   const [showWeightSliders, setShowWeightSliders] = useState(false);
   const [weights, setWeights] = useState({ skills: 35, experience: 25, education: 15, certifications: 10, projects: 15 });
-  const [blindMode, setBlindMode] = useState(false);
+  const [blindMode, setBlindMode] = useState(true);
   const [uploadedFiles, setUploadedFiles] = useState<
     Array<{ name: string; size: string; status: string; color: string }>
   >([]);
+
+  useEffect(() => {
+    if (jobId) setActiveJobId(jobId);
+  }, [jobId, setActiveJobId]);
 
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const fileList = e.target.files;
@@ -119,7 +147,8 @@ function JobWorkspacePage() {
     setUploadedFiles((prev) => [...newItems, ...prev]);
 
     try {
-      const res = await uploadResumesToBackend(fileArray);
+      await addFiles(fileArray);
+      refreshPool();
       setUploadedFiles((prev) =>
         prev.map((item) =>
           fileArray.some((f) => f.name === item.name)
@@ -127,24 +156,36 @@ function JobWorkspacePage() {
             : item
         )
       );
-      toast.success(`Uploaded & parsed ${res.files.length} resume(s) into candidates database!`);
+      toast.success(`Uploaded & parsed ${fileArray.length} resume(s) into job candidates database!`, {
+        action: {
+          label: "View Candidates",
+          onClick: () => setActiveTab("candidates"),
+        },
+      });
     } catch (err: any) {
       toast.error(`Upload error: ${err.message || "Failed to parse resume files"}`);
     }
   };
 
-
-
   const { candidates: pool, loading: poolLoading, error: poolError } = useCandidatePool();
 
   useEffect(() => {
     let cancelled = false;
-    listJobs()
-      .then((jobs) => {
-        if (!cancelled) setJob(jobs.find((j) => j.id === jobId) ?? null);
+    getJob(jobId)
+      .then((j: JobResponse) => {
+        if (!cancelled && j) setJob(j);
       })
       .catch(() => {
-        if (!cancelled) setJob(null);
+        listJobs()
+          .then((jobs: JobResponse[]) => {
+            if (!cancelled) {
+              const matched = jobs.find((j) => j.id === jobId || (j as any).job_id === jobId) ?? jobs[0] ?? null;
+              setJob(matched);
+            }
+          })
+          .catch(() => {
+            if (!cancelled) setJob(null);
+          });
       });
 
     getJobPipeline(jobId, "all")
@@ -161,37 +202,55 @@ function JobWorkspacePage() {
     };
   }, [jobId]);
 
-  const ranked = useMemo(() => rankCandidates(pool, weights), [pool, weights]);
+  const ranked = useMemo(() => rankCandidates(pool || [], weights), [pool, weights]);
 
-  // ATS benchmarks are per (candidate, job) and only exist once one has been
-  // run, so this reads what is already stored for the visible page rather
-  // than triggering scoring for the whole pool.
   useEffect(() => {
-    const visible = ranked.slice(0, 25);
+    const visible = (ranked || []).slice(0, 25);
     if (visible.length === 0) return;
     let cancelled = false;
     void Promise.all(
-      visible.map(async (c) => [c.id, await getAtsBenchmark(c.id, jobId)] as const),
-    ).then((entries) => {
-      if (!cancelled) setBenchmarks(Object.fromEntries(entries));
-    });
+      visible.map(async (c) => {
+        try {
+          const bm = await getAtsBenchmark(c.id, jobId);
+          return [c.id, bm] as const;
+        } catch {
+          return [c.id, null] as const;
+        }
+      }),
+    )
+      .then((entries) => {
+        if (!cancelled) setBenchmarks(Object.fromEntries(entries));
+      })
+      .catch(() => {});
+
     return () => {
       cancelled = true;
     };
   }, [ranked, jobId]);
 
-  const candidates = useMemo(
-    () => ranked.map((c) => toRow(c, stages[c.id], benchmarks[c.id] ?? null)),
-    [ranked, stages, benchmarks],
-  );
+  const candidates = useMemo(() => {
+    if (!Array.isArray(ranked)) return [];
+    return ranked
+      .map((c) => {
+        try {
+          return toRow(c, stages?.[c.id], benchmarks?.[c.id] ?? null);
+        } catch {
+          return null;
+        }
+      })
+      .filter((r): r is CandidateRow => r !== null);
+  }, [ranked, stages, benchmarks]);
 
-  // Filter candidates
-  const filteredCandidates = candidates.filter((c) => {
-    const matchesSearch =
-      c.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      c.skills.some((s) => s.toLowerCase().includes(searchQuery.toLowerCase()));
-    return matchesSearch;
-  });
+  // Filter candidates safely
+  const filteredCandidates = useMemo(() => {
+    const query = (searchQuery || "").toLowerCase();
+    return candidates.filter((c) => {
+      if (!c) return false;
+      const matchesName = (c.name || "").toLowerCase().includes(query);
+      const matchesSkills = (c.skills || []).some((s) => typeof s === "string" && s.toLowerCase().includes(query));
+      return matchesName || matchesSkills;
+    });
+  }, [candidates, searchQuery]);
 
   const toggleCompare = (id: string) => {
     setSelectedForCompare((prev) =>
@@ -209,8 +268,11 @@ function JobWorkspacePage() {
 
   const handleSaveWeights = () => {
     setShowWeightSliders(false);
-    toast.success("Recalculated 124 candidate scores with updated category weights!");
+    toast.success(`Recalculated ${candidates.length} candidate scores with updated category weights!`);
   };
+
+  const topMatchesCount = useMemo(() => candidates.filter((c) => c.score >= 85).length, [candidates]);
+  const readyCount = useMemo(() => candidates.filter((c) => c.score >= 70).length, [candidates]);
 
   return (
     <div className="mx-auto max-w-7xl space-y-8">
@@ -219,20 +281,20 @@ function JobWorkspacePage() {
         <div>
           <div className="flex items-center gap-2 mb-1">
             <Badge className="bg-indigo-50 text-indigo-700 border-indigo-200 text-xs uppercase font-bold">
-              External Hiring
+              {job?.sourcing_mode === "internal" ? "Internal Hiring" : "External Hiring"}
             </Badge>
             <Badge variant="outline" className="text-slate-600 border-slate-200 bg-white text-xs">
-              Seattle, WA (Hybrid)
+              📍 {(job as any)?.location || "Flexible / Remote"}
             </Badge>
             <Badge className="bg-emerald-50 text-emerald-700 border-emerald-200 text-xs font-bold">
-              Active Hiring
+              {job?.status ? job.status.toUpperCase() : "ACTIVE HIRING"}
             </Badge>
           </div>
           <h1 className="text-2xl font-bold tracking-tight text-slate-900 flex items-center gap-3 mt-1">
-            Senior Software Engineer
+            {job ? job.title : "Job Workspace"}
           </h1>
           <p className="text-slate-500 text-xs mt-1">
-            Central Hiring Workspace • 124 Candidates • 18 Top Matches • 7 Ready for Interview
+            Central Hiring Workspace • {candidates.length} Candidate{candidates.length === 1 ? "" : "s"} • {topMatchesCount} Top Match{topMatchesCount === 1 ? "" : "es"} • {readyCount} Ready for Review
           </p>
         </div>
 
@@ -261,6 +323,7 @@ function JobWorkspacePage() {
         <div className="flex items-center gap-2">
           {[
             { id: "candidates", label: `Candidates (${candidates.length})` },
+            { id: "jd", label: "Original JD & Requirements" },
             { id: "overview", label: "Pipeline Overview" },
             { id: "upload", label: "Bulk Resume Upload" },
             { id: "pipeline", label: "Stage Kanban Board" },
@@ -305,6 +368,7 @@ function JobWorkspacePage() {
       </div>
 
       {/* WEIGHT SLIDERS DRAWER IF OPEN */}
+
       {showWeightSliders && (
         <Card className="bg-white border-blue-200 p-5 space-y-4 shadow-sm rounded-xl">
           <div className="flex items-center justify-between">
@@ -318,12 +382,13 @@ function JobWorkspacePage() {
 
           <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
             {[
-              { key: "skills", label: "Skills (35%)", val: weights.skills },
-              { key: "experience", label: "Experience (25%)", val: weights.experience },
-              { key: "education", label: "Education (15%)", val: weights.education },
-              { key: "certifications", label: "Certs (10%)", val: weights.certifications },
-              { key: "projects", label: "Projects (15%)", val: weights.projects },
+              { key: "skills", label: `Skills (${weights.skills}%)`, val: weights.skills },
+              { key: "experience", label: `Experience (${weights.experience}%)`, val: weights.experience },
+              { key: "education", label: `Education (${weights.education}%)`, val: weights.education },
+              { key: "certifications", label: `Certs (${weights.certifications}%)`, val: weights.certifications },
+              { key: "projects", label: `Projects (${weights.projects}%)`, val: weights.projects },
             ].map((item) => (
+
               <div key={item.key} className="space-y-1 text-xs">
                 <span className="text-slate-700 font-medium">{item.label}</span>
                 <Slider
@@ -339,8 +404,86 @@ function JobWorkspacePage() {
         </Card>
       )}
 
+      {/* TAB: ORIGINAL JD & REQUIREMENTS */}
+      {activeTab === "jd" && (
+        <div className="space-y-6">
+          <Card className="bg-white border-slate-200 p-6 space-y-6 rounded-xl shadow-xs">
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-slate-100 pb-4">
+              <div>
+                <h3 className="text-base font-bold text-slate-900 flex items-center gap-2">
+                  <FileText className="w-4 h-4 text-blue-600" /> Original Job Description & Requirements Spec
+                </h3>
+                <p className="text-xs text-slate-500 mt-0.5">
+                  Verbatim text and extracted technical/soft skill criteria powering candidate evaluation.
+                </p>
+              </div>
+              <Badge className="bg-blue-50 text-blue-700 border-blue-200 text-xs px-3 py-1 font-semibold">
+                {job?.sourcing_mode === "internal" ? "Internal Bench Workspace" : "External Sourcing Workspace"}
+              </Badge>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+              <div className="md:col-span-2 space-y-3">
+                <h4 className="text-xs font-bold text-slate-700 uppercase tracking-wider">Job Description Text</h4>
+                <div className="p-4 rounded-xl bg-slate-50 border border-slate-200 text-xs text-slate-800 font-sans leading-relaxed whitespace-pre-wrap max-h-96 overflow-y-auto">
+                  {job?.description || "No job description text recorded for this role."}
+                </div>
+              </div>
+
+              <div className="space-y-5">
+                <div className="space-y-2">
+                  <h4 className="text-xs font-bold text-slate-700 uppercase tracking-wider">Required Mandatory Skills</h4>
+                  <div className="flex flex-wrap gap-1.5">
+                    {(job?.required_skills || []).length === 0 ? (
+                      <span className="text-xs text-slate-400 italic">None specified</span>
+                    ) : (
+                      (job?.required_skills || []).map((sk) => (
+                        <Badge key={String(sk)} className="bg-blue-50 text-blue-700 border-blue-200 text-xs px-2.5 py-1">
+                          ✓ {String(sk)}
+                        </Badge>
+                      ))
+                    )}
+                  </div>
+                </div>
+
+                <div className="space-y-2">
+                  <h4 className="text-xs font-bold text-slate-700 uppercase tracking-wider">Preferred Nice-to-Have Skills</h4>
+                  <div className="flex flex-wrap gap-1.5">
+                    {(job?.nice_to_have_skills || []).length === 0 ? (
+                      <span className="text-xs text-slate-400 italic">None specified</span>
+                    ) : (
+                      (job?.nice_to_have_skills || []).map((sk) => (
+                        <Badge key={String(sk)} variant="outline" className="bg-white text-slate-700 border-slate-200 text-xs px-2.5 py-1">
+                          + {String(sk)}
+                        </Badge>
+                      ))
+                    )}
+                  </div>
+                </div>
+
+                <div className="p-4 rounded-xl bg-slate-50 border border-slate-200 space-y-2 text-xs">
+                  <div className="flex justify-between">
+                    <span className="text-slate-500 font-medium">Required Experience:</span>
+                    <span className="font-bold text-slate-900">{job?.required_experience_years ? `${job.required_experience_years}+ Years` : "Not specified"}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-slate-500 font-medium">Education Requirement:</span>
+                    <span className="font-bold text-slate-900">{job?.education_requirements || "Flexible"}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-slate-500 font-medium">Target Location:</span>
+                    <span className="font-bold text-slate-900">{(job as any)?.location || "Flexible / Remote"}</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </Card>
+        </div>
+      )}
+
       {/* TAB 2: CANDIDATES SPREADSHEET TABLE */}
       {activeTab === "candidates" && (
+
         <div className="space-y-4">
           <div className="flex items-center justify-between gap-4">
             <div className="relative max-w-md w-full">

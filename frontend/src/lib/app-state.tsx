@@ -90,7 +90,8 @@ const AppCtx = createContext<Ctx | null>(null);
 export function AppStateProvider({ children }: { children: ReactNode }) {
   const [files, setFiles] = useState<UploadFile[]>([]);
   const [weights, setWeights] = useState<Weights>(DEFAULT_WEIGHTS);
-  const [blindMode, setBlindMode] = useState(false);
+  const [blindMode, setBlindMode] = useState(true);
+
   const [compareIds, setCompareIds] = useState<string[]>([]);
   const [activeJobId, setActiveJobId] = useState<string | null>(null);
   const [backendReady, setBackendReady] = useState(false);

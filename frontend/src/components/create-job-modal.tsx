@@ -18,14 +18,52 @@ import {
   ListChecks,
 } from "lucide-react";
 import { toast } from "sonner";
-import { analyzeJob, createJob } from "@/lib/api";
+import { analyzeJob, createJob, generateJobDescription } from "@/lib/api";
 
-export type CreateJobModalProps = {
-  isOpen: boolean;
-  onClose: () => void;
-};
+function getDynamicBenchmark(title: string) {
+  const t = (title || "").toLowerCase();
+  if (t.includes("cto") || t.includes("chief") || t.includes("vp") || t.includes("director") || t.includes("head") || t.includes("executive")) {
+    return {
+      roleTitle: title || "Chief Technology Officer",
+      applicants: 42,
+      topMatchScore: "94%",
+      timeToHire: "28 Days",
+      cycles: "14 Executive Cycles",
+      insight: `Historical benchmarks for executive & ${title || "CTO"} roles show 48% higher offer acceptance when Strategic Planning, Team Leadership, and System Architecture are explicitly balanced.`,
+    };
+  }
+  if (t.includes("data") || t.includes("ml") || t.includes("ai") || t.includes("scientist") || t.includes("machine learning")) {
+    return {
+      roleTitle: title || "Data / Machine Learning Engineer",
+      applicants: 94,
+      topMatchScore: "88%",
+      timeToHire: "21 Days",
+      cycles: "18 Data Cycles",
+      insight: `Data & ML engineering roles benchmarked across past cycles show 38% higher match precision when Python, SQL, and Cloud Data Platforms are explicitly specified.`,
+    };
+  }
+  if (t.includes("manager") || t.includes("lead") || t.includes("product")) {
+    return {
+      roleTitle: title || "Engineering / Product Leadership",
+      applicants: 76,
+      topMatchScore: "90%",
+      timeToHire: "22 Days",
+      cycles: "15 Management Cycles",
+      insight: `Leadership and management roles achieve faster candidate convergence when Team Management, Stakeholder Communication, and Roadmap Execution are tagged.`,
+    };
+  }
+  return {
+    roleTitle: title || "Software Engineer",
+    applicants: 118,
+    topMatchScore: "87%",
+    timeToHire: "16 Days",
+    cycles: "24 Hiring Cycles",
+    insight: `Software Engineering roles benchmarked against past hiring cycles show top talent is secured fastest when mandatory coding skills and system architecture are balanced with clear preferred skills.`,
+  };
+}
 
 export function CreateJobModal({ isOpen, onClose }: CreateJobModalProps) {
+
   const navigate = useNavigate();
   const [step, setStep] = useState(1);
   const [hiringType, setHiringType] = useState<"internal" | "external">("external");
@@ -39,6 +77,7 @@ export function CreateJobModal({ isOpen, onClose }: CreateJobModalProps) {
   const [descriptionText, setDescriptionText] = useState("");
   const [copilotFeedback, setCopilotFeedback] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [jdMode, setJdMode] = useState<"paste" | "generate">("paste");
 
   // Extracted skills
   const [requiredSkills, setRequiredSkills] = useState<string[]>([]);
@@ -90,6 +129,29 @@ export function CreateJobModal({ isOpen, onClose }: CreateJobModalProps) {
     }
   };
 
+  const handleGenerateJD = async () => {
+    if (!jobTitle.trim()) {
+      toast.error("Enter a job title first.");
+      return;
+    }
+    setAnalyzing(true);
+    setDescriptionText("");
+    try {
+      const res = await generateJobDescription({
+        title: jobTitle,
+        department: department || undefined,
+        location: location || undefined,
+        employment_type: employmentType || undefined,
+      });
+      setDescriptionText(res.description);
+      toast.success("JD generated! Review and edit below.");
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Generation failed");
+    } finally {
+      setAnalyzing(false);
+    }
+  };
+
   const handleCreateJob = async () => {
     if (!jobTitle.trim()) {
       toast.error("A job title is required.");
@@ -103,17 +165,23 @@ export function CreateJobModal({ isOpen, onClose }: CreateJobModalProps) {
         description: descriptionText,
         required_skills: requiredSkills,
         nice_to_have_skills: preferredSkills,
+        sourcing_mode: hiringType,
+        location: location || undefined,
+        department: department || undefined,
       });
+      window.dispatchEvent(new CustomEvent("job-created", { detail: job }));
       onClose();
       setStep(1);
       toast.success(`Job "${job.title}" created.`);
-      await navigate({ to: "/jobs/$jobId", params: { jobId: job.id } });
+      await navigate({ to: "/jobs/$jobId", params: { jobId: String(job.id || (job as any).job_id || "") } });
+
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Could not create the job");
     } finally {
       setIsSubmitting(false);
     }
   };
+
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
@@ -125,11 +193,11 @@ export function CreateJobModal({ isOpen, onClose }: CreateJobModalProps) {
                 <Sparkles className="w-4 h-4 text-blue-600" /> Create New Job Description
               </DialogTitle>
               <DialogDescription className="text-slate-500 text-xs mt-0.5">
-                Step {step} of 6 — Guided AI Job Creation & Optimization Workflow
+                Step {step} of 5 — Guided AI Job Creation & Historical Intelligence Workflow
               </DialogDescription>
             </div>
             <div className="flex items-center gap-1.5">
-              {[1, 2, 3, 4, 5, 6].map((i) => (
+              {[1, 2, 3, 4, 5].map((i) => (
                 <div
                   key={i}
                   className={`w-6 h-1.5 rounded-full transition-all ${
@@ -146,7 +214,7 @@ export function CreateJobModal({ isOpen, onClose }: CreateJobModalProps) {
           {step === 1 && (
             <div className="space-y-6">
               <div>
-                <h3 className="text-base font-semibold text-slate-900">Step 1 — Select Hiring Category</h3>
+                <h3 className="text-base font-semibold text-slate-900">Step 1 — Select Sourcing Category</h3>
                 <p className="text-xs text-slate-500 mt-1">
                   Choose whether this role prioritizes internal talent/bench matching or external candidate recruitment.
                 </p>
@@ -168,9 +236,9 @@ export function CreateJobModal({ isOpen, onClose }: CreateJobModalProps) {
                     </div>
                     {hiringType === "internal" && <CheckCircle2 className="w-5 h-5 text-blue-600" />}
                   </div>
-                  <h4 className="font-bold text-slate-900 text-base mt-4">Internal Hiring</h4>
+                  <h4 className="font-bold text-slate-900 text-base mt-4">Internal Hiring Workspace</h4>
                   <p className="text-xs text-slate-500 mt-1 leading-relaxed">
-                    Prioritize internal mobility, existing employees, and bench resources. Enables automatic bench auto-matching.
+                    Prioritize internal mobility, existing employees, and bench resources. Enables bench auto-matching.
                   </p>
                 </button>
 
@@ -189,7 +257,7 @@ export function CreateJobModal({ isOpen, onClose }: CreateJobModalProps) {
                     </div>
                     {hiringType === "external" && <CheckCircle2 className="w-5 h-5 text-indigo-600" />}
                   </div>
-                  <h4 className="font-bold text-slate-900 text-base mt-4">External Hiring</h4>
+                  <h4 className="font-bold text-slate-900 text-base mt-4">External Sourcing Workspace</h4>
                   <p className="text-xs text-slate-500 mt-1 leading-relaxed">
                     Recruit external applicants via job portals, direct uploads, and public profile enrichment.
                   </p>
@@ -202,7 +270,7 @@ export function CreateJobModal({ isOpen, onClose }: CreateJobModalProps) {
           {step === 2 && (
             <div className="space-y-4">
               <div>
-                <h3 className="text-base font-semibold text-slate-900">Step 2 — Job Information & Metadata</h3>
+                <h3 className="text-base font-semibold text-slate-900">Step 2 — Role Parameters & Metadata</h3>
                 <p className="text-xs text-slate-500 mt-1">Specify target role parameters and organizational details.</p>
               </div>
 
@@ -247,8 +315,12 @@ export function CreateJobModal({ isOpen, onClose }: CreateJobModalProps) {
                   <label className="text-xs font-semibold text-slate-700">Target Openings</label>
                   <Input
                     type="number"
+                    min={1}
                     value={openings}
-                    onChange={(e) => setOpenings(parseInt(e.target.value) || 1)}
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      setOpenings(val === "" ? "" : Math.max(1, parseInt(val) || 1));
+                    }}
                     className="bg-white border-slate-200 text-slate-900 text-xs focus:border-blue-500"
                   />
                 </div>
@@ -256,52 +328,71 @@ export function CreateJobModal({ isOpen, onClose }: CreateJobModalProps) {
             </div>
           )}
 
-          {/* STEP 3: Job Description & Copilot */}
+          {/* STEP 3: Job Description */}
           {step === 3 && (
-            <div className="space-y-4">
+            <div className="space-y-5">
               <div>
-                <h3 className="text-base font-semibold text-slate-900">Step 3 — Job Description & Copilot Assistant</h3>
-                <p className="text-xs text-slate-500 mt-1">Paste or edit your job description text with real-time Copilot assistance.</p>
+                <h3 className="text-base font-semibold text-slate-900">Step 3 — Job Description</h3>
+                <p className="text-xs text-slate-500 mt-1">Paste an existing JD or generate one with AI.</p>
               </div>
 
-              <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-                <div className="lg:col-span-2 space-y-2">
-                  <label className="text-xs font-semibold text-slate-700">Job Description Text</label>
+              {/* Mode toggle — clicking Generate immediately fires the request */}
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => setJdMode("paste")}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-semibold border transition-all ${
+                    jdMode === "paste"
+                      ? "bg-blue-600 text-white border-blue-600"
+                      : "bg-white text-slate-600 border-slate-200 hover:border-blue-300"
+                  }`}
+                >
+                  📋 Paste JD
+                </button>
+                <button
+                  type="button"
+                  disabled={analyzing}
+                  onClick={() => {
+                    setJdMode("generate");
+                    void handleGenerateJD();
+                  }}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-semibold border transition-all ${
+                    jdMode === "generate"
+                      ? "bg-blue-600 text-white border-blue-600"
+                      : "bg-white text-slate-600 border-slate-200 hover:border-blue-300"
+                  }`}
+                >
+                  {analyzing && jdMode === "generate" ? "⏳ Generating…" : "✨ Generate with AI"}
+                </button>
+                {jdMode === "generate" && !analyzing && descriptionText && (
+                  <button
+                    type="button"
+                    onClick={() => void handleGenerateJD()}
+                    className="px-3 py-1.5 rounded-lg text-xs font-semibold border border-slate-200 bg-white text-slate-600 hover:border-blue-300 transition-all"
+                  >
+                    🔄 Regenerate
+                  </button>
+                )}
+              </div>
+
+              <div className="space-y-2">
+                <label className="text-xs font-semibold text-slate-700">
+                  {jdMode === "generate" && descriptionText ? "Generated JD (editable)" : "Job Description Text"}
+                </label>
+                {analyzing && jdMode === "generate" ? (
+                  <div className="flex items-center gap-3 p-4 rounded-xl bg-blue-50/70 border border-blue-200 text-blue-700 text-xs">
+                    <span className="animate-spin">&#9654;</span>
+                    Generating job description with AI…
+                  </div>
+                ) : (
                   <Textarea
                     value={descriptionText}
                     onChange={(e) => setDescriptionText(e.target.value)}
-                    rows={10}
+                    rows={12}
+                    placeholder={jdMode === "paste" ? "Paste your job description here…" : "Click \u2728 Generate with AI above to generate a JD, or type manually…"}
                     className="bg-white border-slate-200 text-slate-900 text-xs font-sans leading-relaxed"
                   />
-                </div>
-
-                <div className="p-4 rounded-xl bg-blue-50/50 border border-blue-200 space-y-3">
-                  <div className="flex items-center gap-2 text-blue-700 text-xs font-bold">
-                    <Bot className="w-4 h-4" /> Copilot Assistant
-                  </div>
-                  <p className="text-[11px] text-slate-600">
-                    I can analyze your job description to detect restrictive requirements or suggest improvements.
-                  </p>
-
-                  <div className="space-y-2">
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="sm"
-                      disabled={analyzing}
-                      onClick={() => void handleAskCopilot()}
-                      className="w-full justify-start text-[11px]"
-                    >
-                      {analyzing ? "Analyzing description…" : "Extract requirements from this JD"}
-                    </Button>
-                  </div>
-
-                  {copilotFeedback && (
-                    <div className="p-3 rounded-lg bg-white border border-blue-200 text-blue-900 text-xs leading-relaxed animate-in fade-in shadow-xs">
-                      {copilotFeedback}
-                    </div>
-                  )}
-                </div>
+                )}
               </div>
             </div>
           )}
@@ -311,99 +402,107 @@ export function CreateJobModal({ isOpen, onClose }: CreateJobModalProps) {
             <div className="space-y-4">
               <div>
                 <h3 className="text-base font-semibold text-slate-900">Step 4 — Required & Preferred Skills Tagging</h3>
-                <p className="text-xs text-slate-500 mt-1">Add, edit, or remove required and preferred skills for automated matching.</p>
+                <p className="text-xs text-slate-500 mt-1">Add, edit, or remove required and preferred skills for candidate match scoring.</p>
               </div>
 
               <div className="flex items-center gap-2 mb-2">
                 <Input
                   value={newSkillInput}
                   onChange={(e) => setNewSkillInput(e.target.value)}
-                  placeholder="Type a skill (e.g. FastAPI, AWS, Docker) and add..."
+                  onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); handleAddSkill("required"); } }}
+                  placeholder="Type a skill and press Enter or Add…"
                   className="bg-white border-slate-200 text-xs"
+                  list="skill-suggestions"
                 />
+                <datalist id="skill-suggestions">
+                  {["Python","JavaScript","TypeScript","React","Node.js","Java","Go","Rust","C++","SQL","PostgreSQL","MongoDB","Redis","AWS","Azure","GCP","Docker","Kubernetes","Terraform","FastAPI","Django","Spring Boot","GraphQL","REST APIs","CI/CD","Git","Machine Learning","TensorFlow","PyTorch","LLMs"].map(s => (
+                    <option key={s} value={s} />
+                  ))}
+                </datalist>
                 <Button size="sm" onClick={() => handleAddSkill("required")} className="bg-blue-600 text-white text-xs whitespace-nowrap">
-                  + Add Required
+                  + Required
                 </Button>
                 <Button size="sm" variant="outline" onClick={() => handleAddSkill("preferred")} className="border-slate-200 text-xs whitespace-nowrap">
-                  + Add Preferred
+                  + Preferred
                 </Button>
               </div>
 
               <div className="space-y-4">
                 <div className="space-y-2">
-                  <label className="text-xs font-semibold text-slate-700">Required Skills ({requiredSkills.length})</label>
+                  <label className="text-xs font-semibold text-slate-700">Required Mandatory Skills ({requiredSkills.length})</label>
                   <div className="flex flex-wrap gap-2">
-                    {requiredSkills.map((sk) => (
-                      <Badge key={sk} className="bg-blue-50 text-blue-700 border-blue-200 text-xs px-2.5 py-1 flex items-center gap-1.5">
-                        ✓ {sk}
-                        <span onClick={() => handleRemoveSkill(sk, "required")} className="hover:text-rose-600 cursor-pointer font-bold ml-1">×</span>
-                      </Badge>
-                    ))}
+                    {requiredSkills.length === 0 ? (
+                      <span className="text-xs text-slate-400 italic">No required skills tagged yet.</span>
+                    ) : (
+                      requiredSkills.map((sk) => (
+                        <Badge key={sk} className="bg-blue-50 text-blue-700 border-blue-200 text-xs px-2.5 py-1 flex items-center gap-1.5">
+                          ✓ {sk}
+                          <span onClick={() => handleRemoveSkill(sk, "required")} className="hover:text-rose-600 cursor-pointer font-bold ml-1">×</span>
+                        </Badge>
+                      ))
+                    )}
                   </div>
                 </div>
 
                 <div className="space-y-2">
-                  <label className="text-xs font-semibold text-slate-700">Preferred Skills ({preferredSkills.length})</label>
+                  <label className="text-xs font-semibold text-slate-700">Preferred Nice-to-Have Skills ({preferredSkills.length})</label>
                   <div className="flex flex-wrap gap-2">
-                    {preferredSkills.map((sk) => (
-                      <Badge key={sk} variant="outline" className="text-slate-700 bg-white border-slate-200 text-xs px-2.5 py-1 flex items-center gap-1.5">
-                        + {sk}
-                        <span onClick={() => handleRemoveSkill(sk, "preferred")} className="hover:text-rose-600 cursor-pointer font-bold ml-1">×</span>
-                      </Badge>
-                    ))}
+                    {preferredSkills.length === 0 ? (
+                      <span className="text-xs text-slate-400 italic">No preferred skills tagged yet.</span>
+                    ) : (
+                      preferredSkills.map((sk) => (
+                        <Badge key={sk} variant="outline" className="text-slate-700 bg-white border-slate-200 text-xs px-2.5 py-1 flex items-center gap-1.5">
+                          + {sk}
+                          <span onClick={() => handleRemoveSkill(sk, "preferred")} className="hover:text-rose-600 cursor-pointer font-bold ml-1">×</span>
+                        </Badge>
+                      ))
+                    )}
                   </div>
                 </div>
               </div>
             </div>
           )}
 
-          {/* STEP 5: Historical JD Intelligence */}
+          {/* STEP 5: Final Review & Multi-Channel Distribution */}
           {step === 5 && (
             <div className="space-y-4">
               <div>
-                <h3 className="text-base font-semibold text-slate-900">Step 5 — Historical Hiring Cycle Intelligence</h3>
-                <p className="text-xs text-slate-500 mt-1">Copilot benchmarked this position against similar historical hiring cycles.</p>
-              </div>
-
-              <div className="p-4 rounded-xl bg-white border border-slate-200 space-y-3 shadow-xs">
-                <div className="flex items-center gap-2 text-indigo-700 text-xs font-semibold">
-                  <History className="w-4 h-4" /> Similar Past Role: Senior Backend Engineer (March 2026)
-                </div>
-                <div className="grid grid-cols-3 gap-3 pt-2 text-center">
-                  <div className="p-3 rounded-lg bg-slate-50 border border-slate-200">
-                    <div className="text-lg font-bold text-slate-900">86</div>
-                    <div className="text-[10px] text-slate-500">Total Applicants</div>
-                  </div>
-                  <div className="p-3 rounded-lg bg-slate-50 border border-slate-200">
-                    <div className="text-lg font-bold text-blue-600">89%</div>
-                    <div className="text-[10px] text-slate-500">Top Candidate Score</div>
-                  </div>
-                  <div className="p-3 rounded-lg bg-slate-50 border border-slate-200">
-                    <div className="text-lg font-bold text-emerald-600">18 Days</div>
-                    <div className="text-[10px] text-slate-500">Avg Time-to-Hire</div>
-                  </div>
-                </div>
-              </div>
-            </div>
-          )}
-
-          {/* STEP 6: Auto Job Posting Simulation */}
-          {step === 6 && (
-            <div className="space-y-4">
-              <div>
-                <h3 className="text-base font-semibold text-slate-900">Step 6 — Final Review & Multi-Channel Distribution</h3>
-                <p className="text-xs text-slate-500 mt-1">Confirm job creation and automated portal posting.</p>
+                <h3 className="text-base font-semibold text-slate-900">Step 5 — Final Review & Publishing</h3>
+                <p className="text-xs text-slate-500 mt-1">Confirm job details before creating job posting and opening the JD workspace.</p>
               </div>
 
               <div className="p-4 rounded-xl bg-white border border-slate-200 space-y-4 shadow-xs">
                 <div className="flex items-center justify-between">
                   <div>
-                    <h4 className="font-bold text-slate-900 text-base">{jobTitle}</h4>
-                    <p className="text-xs text-slate-500">{department} • {location} • {employmentType}</p>
+                    <h4 className="font-bold text-slate-900 text-base">{jobTitle || "Untitled Job"}</h4>
+                    <p className="text-xs text-slate-500">{department || "Engineering"} • {location || "Seattle, WA"} • {hiringType.toUpperCase()} SOURCING</p>
                   </div>
                   <Badge className="bg-emerald-50 text-emerald-700 border-emerald-200 text-xs font-bold">
                     Ready to Publish
                   </Badge>
+                </div>
+
+                <div className="grid grid-cols-2 gap-4 text-xs pt-2 border-t border-slate-100">
+                  <div>
+                    <span className="text-slate-500 font-medium">Required Skills ({requiredSkills.length}):</span>
+                    <div className="flex flex-wrap gap-1 mt-1">
+                      {requiredSkills.map((s) => (
+                        <Badge key={s} className="bg-blue-50 text-blue-700 border-blue-200 text-[10px]">
+                          {s}
+                        </Badge>
+                      ))}
+                    </div>
+                  </div>
+                  <div>
+                    <span className="text-slate-500 font-medium">Preferred Skills ({preferredSkills.length}):</span>
+                    <div className="flex flex-wrap gap-1 mt-1">
+                      {preferredSkills.map((s) => (
+                        <Badge key={s} variant="outline" className="text-slate-700 bg-white border-slate-200 text-[10px]">
+                          {s}
+                        </Badge>
+                      ))}
+                    </div>
+                  </div>
                 </div>
               </div>
             </div>
@@ -422,7 +521,7 @@ export function CreateJobModal({ isOpen, onClose }: CreateJobModalProps) {
             <ArrowLeft className="w-4 h-4" /> Back
           </Button>
 
-          {step < 6 ? (
+          {step < 5 ? (
             <Button
               type="button"
               onClick={() => setStep((s) => s + 1)}
@@ -445,4 +544,3 @@ export function CreateJobModal({ isOpen, onClose }: CreateJobModalProps) {
     </Dialog>
   );
 }
-

@@ -1,7 +1,5 @@
 import { Link, useRouterState } from "@tanstack/react-router";
 import {
-
-  Bell,
   ChevronsLeft,
   ChevronsRight,
   LayoutDashboard,
@@ -9,20 +7,11 @@ import {
   Globe,
   Zap,
   Settings,
-  PlusCircle,
-  Search,
-  Bot,
-  User,
-  LogOut,
-  Building2,
 } from "lucide-react";
 import { useEffect, useState, type ReactNode } from "react";
 import { useAppState } from "@/lib/app-state";
 import { useTheme } from "@/lib/theme";
 import { cn } from "@/lib/utils";
-import { Input } from "@/components/ui/input";
-import { Button } from "@/components/ui/button";
-import { getSession, logoutSession } from "@/lib/auth";
 import { CreateJobModal } from "@/components/create-job-modal";
 import { listJobPipelines, type JobPipelineSummary } from "@/lib/api";
 
@@ -40,23 +29,31 @@ export function AppShell({ children }: { children: ReactNode }) {
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const { active, counts, overallProgress } = useAppState();
   const pathname = useRouterState({ select: (s) => s.location.pathname });
-  const session = getSession();
   const [recentJobs, setRecentJobs] = useState<JobPipelineSummary[]>([]);
 
   // Real open jobs and their live candidate counts, from the backend store.
   useEffect(() => {
     let cancelled = false;
-    listJobPipelines()
-      .then((jobs) => {
-        if (!cancelled) setRecentJobs(jobs.slice(0, 5));
-      })
-      .catch(() => {
-        if (!cancelled) setRecentJobs([]);
-      });
+    const fetchJobs = () => {
+      listJobPipelines()
+        .then((jobs) => {
+          if (!cancelled) setRecentJobs(jobs.slice(0, 5));
+        })
+        .catch(() => {
+          if (!cancelled) setRecentJobs([]);
+        });
+    };
+
+    fetchJobs();
+
+    const handleJobCreated = () => fetchJobs();
+    window.addEventListener("job-created", handleJobCreated);
     return () => {
       cancelled = true;
+      window.removeEventListener("job-created", handleJobCreated);
     };
   }, []);
+
 
 
   return (
@@ -114,11 +111,12 @@ export function AppShell({ children }: { children: ReactNode }) {
                 ) : (
                   recentJobs.map((job) => (
                     <Link
-                      key={job.job_id}
+                      key={(job as any).job_id || job.id}
                       to="/jobs/$jobId"
-                      params={{ jobId: job.job_id }}
+                      params={{ jobId: String((job as any).job_id || (job as any).id || "") }}
                       className="group block rounded-lg p-2 transition-all hover:bg-accent"
                     >
+
                       <div className="truncate text-xs font-semibold text-foreground group-hover:text-primary">
                         {job.title}
                       </div>
@@ -170,49 +168,6 @@ export function AppShell({ children }: { children: ReactNode }) {
       </aside>
 
       <div className="flex min-w-0 flex-1 flex-col">
-        <header className="sticky top-0 z-30 flex items-center justify-between gap-4 border-b border-border bg-card/90 px-6 py-3 shadow-xs backdrop-blur-md">
-          <div className="relative min-w-0 max-w-md w-full">
-            <Search className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
-            <Input
-              placeholder="Search candidates, active jobs, skills..."
-              className="rounded-lg text-xs"
-              aria-label="Global Search"
-            />
-          </div>
-
-          <div className="flex shrink-0 items-center gap-3">
-            <Button
-              onClick={() => setIsCreateModalOpen(true)}
-              className="bg-blue-600 hover:bg-blue-700 text-white font-medium text-xs flex items-center gap-1.5 shadow-sm rounded-lg px-3 py-1.5"
-            >
-              <PlusCircle className="w-3.5 h-3.5" />
-              Create New Job
-            </Button>
-
-            <Link to="/actions">
-              <button
-                aria-label="Actions Center"
-                className="relative grid h-8 w-8 place-items-center rounded-lg border border-border text-muted-foreground transition-colors hover:bg-accent"
-              >
-                <Zap className="h-4 w-4 text-amber-500" />
-                <span className="absolute right-1 top-1 h-2 w-2 rounded-full bg-amber-500" />
-              </button>
-            </Link>
-
-            <Link to="/settings">
-              <div className="flex items-center gap-2 cursor-pointer border-l border-border pl-2 hover:opacity-90 transition-all">
-                <span className="grid h-8 w-8 place-items-center rounded-full bg-blue-100 border border-blue-200 text-xs font-bold text-blue-700">
-                  {session.name ? session.name.substring(0, 2) : "AS"}
-                </span>
-                <div className="hidden md:block text-left">
-                  <div className="text-xs font-semibold leading-none text-foreground">{session.name}</div>
-                  <div className="mt-0.5 text-[10px] text-muted-foreground">{session.role}</div>
-                </div>
-              </div>
-            </Link>
-          </div>
-        </header>
-
         <main className="flex-1 bg-background p-8">{children}</main>
 
         <CreateJobModal

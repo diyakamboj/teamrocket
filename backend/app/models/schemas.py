@@ -111,7 +111,10 @@ class JobCreate(BaseModel):
     required_experience_years: Optional[int] = None
     education_requirements: Optional[str] = None
     nice_to_have_skills: list[str] = Field(default_factory=list)
+    sourcing_mode: Optional[str] = "both"
     created_by: Optional[str] = None
+    location: Optional[str] = None
+
 
 
 class JobDraftAnalyzeRequest(BaseModel):
@@ -130,6 +133,7 @@ class JobUpdate(BaseModel):
     nice_to_have_skills: Optional[list[str]] = None
     status: Optional[str] = None  # "open" | "paused" | "closed"
     sourcing_mode: Optional[str] = None  # "internal" | "external" | "both"
+    location: Optional[str] = None
 
 
 class JobResponse(ORMModel):
@@ -371,12 +375,14 @@ class JobPipelineSummary(BaseModel):
     job_id: UUID
     title: str
     status: str
+    sourcing_mode: str = "both"
     created_at: datetime
     total_candidates: int
     internal_candidates: int
     external_candidates: int
     average_score: float
     stage_counts: dict[str, int]
+
 
 
 class PipelineCandidate(BaseModel):
