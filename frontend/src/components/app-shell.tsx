@@ -3,6 +3,7 @@ import {
 
   Bell,
   ChevronsLeft,
+  Command,
   ChevronsRight,
   LayoutDashboard,
   Briefcase,
@@ -26,7 +27,7 @@ import { Button } from "@/components/ui/button";
 import { getSession, logoutSession } from "@/lib/auth";
 import { CreateJobModal } from "@/components/create-job-modal";
 import { GlobalSearch } from "@/components/global-search";
-import { CommandPalette } from "@/components/command-palette";
+import { CommandPalette, openCommandPalette } from "@/components/command-palette";
 import { listJobPipelines, type JobPipelineSummary } from "@/lib/api";
 
 /**
@@ -113,7 +114,7 @@ export function AppShell({ children }: { children: ReactNode }) {
         )}
       >
         <div className="flex items-center gap-3 px-4 py-5 border-b border-border">
-          <span className="grid h-8 w-8 shrink-0 place-items-center rounded-md bg-foreground text-[13px] font-bold text-background">
+          <span className="grid h-8 w-8 shrink-0 place-items-center rounded-md bg-gradient-to-br from-chart-1 via-chart-2 to-chart-3 text-[13px] font-bold text-white shadow-[0_4px_14px_-4px_var(--color-primary)]">
             R
           </span>
           {!collapsed && (
@@ -149,10 +150,10 @@ export function AppShell({ children }: { children: ReactNode }) {
                     title={item.label}
                     className={cn(
                       "group relative flex items-center gap-2.5 rounded-md px-3 py-2 text-[13px]",
-                      "transition-colors duration-150",
+                      "transition-all duration-200 ease-[cubic-bezier(0.22,1,0.36,1)]",
                       isActive
-                        ? "bg-secondary font-medium text-foreground"
-                        : "text-muted-foreground hover:bg-secondary/60 hover:text-foreground",
+                        ? "bg-primary-soft font-medium text-primary-soft-foreground"
+                        : "text-muted-foreground hover:translate-x-0.5 hover:bg-secondary/70 hover:text-foreground",
                     )}
                   >
                     {/* A quiet 2px rail marks the active row instead of a
@@ -160,14 +161,19 @@ export function AppShell({ children }: { children: ReactNode }) {
                     <span
                       aria-hidden
                       className={cn(
-                        "absolute left-0 top-1/2 w-[2px] -translate-y-1/2 rounded-r-full bg-primary transition-all duration-150",
-                        isActive ? "h-5 opacity-100" : "h-0 opacity-0",
+                        "absolute left-0 top-1/2 w-[3px] -translate-y-1/2 rounded-r-full bg-primary",
+                        "transition-all duration-300 ease-[cubic-bezier(0.22,1,0.36,1)]",
+                        isActive
+                          ? "h-6 opacity-100 shadow-[0_0_10px_1px_var(--color-primary)]"
+                          : "h-0 opacity-0",
                       )}
                     />
                     <item.icon
                       className={cn(
-                        "h-4 w-4 shrink-0 transition-colors duration-150",
-                        isActive ? "text-primary" : "text-muted-foreground",
+                        "icon-nudge h-4 w-4 shrink-0 transition-colors duration-200",
+                        isActive
+                          ? "text-primary"
+                          : "text-muted-foreground group-hover:text-primary",
                       )}
                     />
                     {!collapsed && <span className="truncate">{item.label}</span>}
@@ -248,15 +254,22 @@ export function AppShell({ children }: { children: ReactNode }) {
         <header className="sticky top-0 z-30 flex items-center justify-between gap-4 border-b border-border bg-background px-6 py-2.5">
           <div className="flex min-w-0 flex-1 items-center gap-3">
             <GlobalSearch />
-            <kbd className="hidden shrink-0 items-center gap-1 rounded border border-border bg-secondary px-1.5 py-0.5 font-mono text-[10px] text-muted-foreground lg:inline-flex">
-              ⌘K
-            </kbd>
+            <button
+              type="button"
+              onClick={openCommandPalette}
+              aria-label="Open command palette"
+              title="Jump to anything (⌘K)"
+              className="hidden shrink-0 items-center gap-1.5 rounded-md border border-border bg-secondary/60 px-2 py-1 text-[11px] text-muted-foreground transition-all duration-200 hover:border-primary/40 hover:bg-secondary hover:text-foreground active:scale-95 lg:inline-flex"
+            >
+              <Command className="h-3 w-3" />
+              <span className="font-mono">⌘K</span>
+            </button>
           </div>
 
           <div className="flex shrink-0 items-center gap-3">
             <Button
               onClick={() => setIsCreateModalOpen(true)}
-              className="flex items-center gap-1.5 rounded-md bg-primary px-3 py-1.5 text-xs font-medium text-primary-foreground transition-colors hover:bg-primary/90"
+              className="group flex items-center gap-1.5 rounded-md bg-gradient-to-r from-chart-1 to-chart-2 px-3 py-1.5 text-xs font-medium text-white shadow-[0_4px_14px_-6px_var(--color-primary)] transition-all duration-200 hover:shadow-[0_8px_22px_-6px_var(--color-primary)] active:scale-95"
             >
               <PlusCircle className="w-3.5 h-3.5" />
               Create New Job
@@ -268,7 +281,7 @@ export function AppShell({ children }: { children: ReactNode }) {
                 className="relative grid h-8 w-8 place-items-center rounded-lg border border-border text-muted-foreground transition-colors hover:bg-accent"
               >
                 <Zap className="h-4 w-4" />
-                <span className="absolute right-1 top-1 h-1.5 w-1.5 rounded-full bg-primary" />
+                <span className="pulse-ring absolute right-1 top-1 h-1.5 w-1.5 rounded-full bg-primary" />
               </button>
             </Link>
 

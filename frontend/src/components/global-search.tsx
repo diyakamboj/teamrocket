@@ -63,16 +63,28 @@ export function GlobalSearch() {
     return () => clearTimeout(timer);
   }, [query]);
 
-  // ⌘K / Ctrl-K focuses search from anywhere — the shortcut people already
-  // try first in a tool like this.
+  /**
+   * "/" focuses search from anywhere.
+   *
+   * This used to be ⌘K, which now belongs to the command palette — the
+   * convention everywhere else — and having both bound to ⌘K meant one
+   * press did two things at once. "/" is the usual second shortcut for
+   * focusing a search field, and is ignored while the caret is already in
+   * an input so it can still be typed.
+   */
   useEffect(() => {
     function onKey(event: KeyboardEvent) {
-      if (event.key === "k" && (event.metaKey || event.ctrlKey)) {
-        event.preventDefault();
-        inputRef.current?.focus();
-        inputRef.current?.select();
-        setOpen(true);
-      }
+      if (event.key !== "/" || event.metaKey || event.ctrlKey || event.altKey) return;
+      const el = document.activeElement as HTMLElement | null;
+      const typing =
+        el instanceof HTMLInputElement ||
+        el instanceof HTMLTextAreaElement ||
+        el?.isContentEditable;
+      if (typing) return;
+      event.preventDefault();
+      inputRef.current?.focus();
+      inputRef.current?.select();
+      setOpen(true);
     }
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
@@ -138,9 +150,17 @@ export function GlobalSearch() {
           <X className="h-3.5 w-3.5" />
         </button>
       ) : (
-        <kbd className="pointer-events-none absolute right-2.5 top-1/2 hidden -translate-y-1/2 rounded border border-border px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground sm:block">
-          ⌘K
-        </kbd>
+        <button
+          type="button"
+          aria-label="Focus search"
+          onClick={() => {
+            inputRef.current?.focus();
+            setOpen(true);
+          }}
+          className="absolute right-2.5 top-1/2 hidden -translate-y-1/2 rounded border border-border px-1.5 py-0.5 font-mono text-[10px] font-medium text-muted-foreground transition-colors hover:border-primary/40 hover:text-foreground sm:block"
+        >
+          /
+        </button>
       )}
       <Input
         ref={inputRef}

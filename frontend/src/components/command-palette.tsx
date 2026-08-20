@@ -49,6 +49,17 @@ const DESTINATIONS = [
   { to: "/settings", label: "Settings & Context", icon: Settings, keywords: "preferences" },
 ];
 
+/**
+ * Opens the palette from anywhere — the header button dispatches this rather
+ * than the shell owning palette state, matching how the app already signals
+ * across the tree (see the "job-created" listener in the shell).
+ */
+export const OPEN_COMMAND_PALETTE = "open-command-palette";
+
+export function openCommandPalette() {
+  window.dispatchEvent(new CustomEvent(OPEN_COMMAND_PALETTE));
+}
+
 export function CommandPalette() {
   const [open, setOpen] = useState(false);
   const [jobs, setJobs] = useState<JobPipelineSummary[]>([]);
@@ -62,8 +73,13 @@ export function CommandPalette() {
         setOpen((v) => !v);
       }
     };
+    const onOpen = () => setOpen(true);
     document.addEventListener("keydown", onKey);
-    return () => document.removeEventListener("keydown", onKey);
+    window.addEventListener(OPEN_COMMAND_PALETTE, onOpen);
+    return () => {
+      document.removeEventListener("keydown", onKey);
+      window.removeEventListener(OPEN_COMMAND_PALETTE, onOpen);
+    };
   }, []);
 
   // Jobs are only needed once the palette is opened, so the list is not
@@ -95,8 +111,9 @@ export function CommandPalette() {
               key={item.to}
               value={`${item.label} ${item.keywords}`}
               onSelect={() => go(item.to)}
+              className="group"
             >
-              <item.icon className="mr-2 h-4 w-4 text-muted-foreground" />
+              <item.icon className="icon-nudge mr-2 h-4 w-4 text-muted-foreground group-hover:text-primary" />
               {item.label}
             </CommandItem>
           ))}
@@ -111,8 +128,9 @@ export function CommandPalette() {
                   key={job.job_id}
                   value={`job ${job.title}`}
                   onSelect={() => go("/jobs/$jobId", { jobId: String(job.job_id) })}
+                  className="group"
                 >
-                  <Search className="mr-2 h-4 w-4 text-muted-foreground" />
+                  <Search className="icon-nudge mr-2 h-4 w-4 text-muted-foreground" />
                   <span className="truncate">{job.title}</span>
                   <CommandShortcut>{job.total_candidates} in pipeline</CommandShortcut>
                 </CommandItem>

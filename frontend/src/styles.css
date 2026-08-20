@@ -74,39 +74,39 @@
   --card-foreground: oklch(0.21 0.012 265);
   --popover: oklch(1 0 0);
   --popover-foreground: oklch(0.21 0.012 265);
-  --primary: oklch(0.48 0.15 264);
+  --primary: oklch(0.55 0.23 268);
   --primary-foreground: oklch(0.99 0.002 265);
-  --primary-soft: oklch(0.955 0.022 264);
-  --primary-soft-foreground: oklch(0.42 0.15 264);
+  --primary-soft: oklch(0.95 0.045 268);
+  --primary-soft-foreground: oklch(0.45 0.22 268);
   --secondary: oklch(0.965 0.003 265);
   --secondary-foreground: oklch(0.31 0.012 265);
   --muted: oklch(0.968 0.003 265);
   --muted-foreground: oklch(0.53 0.011 265);
   --accent: oklch(0.958 0.004 265);
   --accent-foreground: oklch(0.28 0.013 265);
-  --destructive: oklch(0.55 0.19 25);
+  --destructive: oklch(0.58 0.23 25);
   --destructive-foreground: oklch(0.99 0.002 25);
-  --success: oklch(0.55 0.13 156);
+  --success: oklch(0.6 0.17 158);
   --success-foreground: oklch(0.99 0.002 156);
-  --warning: oklch(0.7 0.14 70);
+  --warning: oklch(0.75 0.17 70);
   --warning-foreground: oklch(0.26 0.05 70);
   --border: oklch(0.912 0.004 265);
   --input: oklch(0.912 0.004 265);
-  --ring: oklch(0.48 0.15 264);
+  --ring: oklch(0.55 0.23 268);
   /* Chart ramp: distinguishable at a glance without shouting. */
-  --chart-1: oklch(0.48 0.15 264);
-  --chart-2: oklch(0.58 0.11 218);
-  --chart-3: oklch(0.55 0.13 156);
-  --chart-4: oklch(0.7 0.14 70);
-  --chart-5: oklch(0.55 0.16 12);
+  --chart-1: oklch(0.55 0.23 268);
+  --chart-2: oklch(0.65 0.17 205);
+  --chart-3: oklch(0.62 0.18 158);
+  --chart-4: oklch(0.75 0.17 70);
+  --chart-5: oklch(0.6 0.22 8);
   --sidebar: oklch(0.978 0.002 265);
   --sidebar-foreground: oklch(0.32 0.012 265);
-  --sidebar-primary: oklch(0.48 0.15 264);
+  --sidebar-primary: oklch(0.55 0.23 268);
   --sidebar-primary-foreground: oklch(0.99 0.002 265);
   --sidebar-accent: oklch(0.945 0.005 265);
   --sidebar-accent-foreground: oklch(0.26 0.013 265);
   --sidebar-border: oklch(0.912 0.004 265);
-  --sidebar-ring: oklch(0.48 0.15 264);
+  --sidebar-ring: oklch(0.55 0.23 268);
 }
 
 .dark {
@@ -118,38 +118,38 @@
   --card-foreground: oklch(0.96 0.003 265);
   --popover: oklch(0.205 0.005 265);
   --popover-foreground: oklch(0.96 0.003 265);
-  --primary: oklch(0.72 0.14 264);
+  --primary: oklch(0.72 0.19 268);
   --primary-foreground: oklch(0.17 0.02 264);
-  --primary-soft: oklch(0.29 0.06 264);
-  --primary-soft-foreground: oklch(0.87 0.08 264);
+  --primary-soft: oklch(0.32 0.11 268);
+  --primary-soft-foreground: oklch(0.88 0.12 268);
   --secondary: oklch(0.253 0.005 265);
   --secondary-foreground: oklch(0.93 0.003 265);
   --muted: oklch(0.253 0.005 265);
   --muted-foreground: oklch(0.7 0.008 265);
   --accent: oklch(0.27 0.006 265);
   --accent-foreground: oklch(0.94 0.003 265);
-  --destructive: oklch(0.66 0.17 25);
+  --destructive: oklch(0.68 0.2 25);
   --destructive-foreground: oklch(0.16 0.03 25);
-  --success: oklch(0.68 0.13 156);
+  --success: oklch(0.72 0.16 158);
   --success-foreground: oklch(0.16 0.03 156);
-  --warning: oklch(0.78 0.13 70);
+  --warning: oklch(0.8 0.16 70);
   --warning-foreground: oklch(0.2 0.04 70);
   --border: oklch(0.283 0.006 265);
   --input: oklch(0.3 0.006 265);
-  --ring: oklch(0.72 0.14 264);
-  --chart-1: oklch(0.72 0.14 264);
-  --chart-2: oklch(0.72 0.11 218);
-  --chart-3: oklch(0.68 0.13 156);
-  --chart-4: oklch(0.78 0.13 70);
-  --chart-5: oklch(0.68 0.15 12);
+  --ring: oklch(0.72 0.19 268);
+  --chart-1: oklch(0.72 0.19 268);
+  --chart-2: oklch(0.75 0.15 205);
+  --chart-3: oklch(0.72 0.16 158);
+  --chart-4: oklch(0.8 0.16 70);
+  --chart-5: oklch(0.72 0.19 8);
   --sidebar: oklch(0.185 0.004 265);
   --sidebar-foreground: oklch(0.9 0.004 265);
-  --sidebar-primary: oklch(0.72 0.14 264);
+  --sidebar-primary: oklch(0.72 0.19 268);
   --sidebar-primary-foreground: oklch(0.17 0.02 264);
   --sidebar-accent: oklch(0.253 0.005 265);
   --sidebar-accent-foreground: oklch(0.95 0.003 265);
   --sidebar-border: oklch(0.283 0.006 265);
-  --sidebar-ring: oklch(0.72 0.14 264);
+  --sidebar-ring: oklch(0.72 0.19 268);
 }
 
 @layer base {
@@ -384,9 +384,11 @@
   will-change: transform;
 }
 .lift:hover {
-  transform: translate3d(0, -1px, 0);
-  border-color: var(--color-foreground);
-  box-shadow: var(--shadow-lift);
+  transform: translate3d(0, -2px, 0);
+  border-color: color-mix(in oklch, var(--color-primary) 40%, transparent);
+  box-shadow:
+    0 0 0 1px color-mix(in oklch, var(--color-primary) 14%, transparent),
+    0 14px 34px -16px color-mix(in oklch, var(--color-primary) 55%, transparent);
 }
 
 .gradient-text {
@@ -545,8 +547,16 @@
   top: 0;
   height: 2px;
   border-radius: inherit;
-  background: var(--color-primary);
-  opacity: 0.9;
+  background: linear-gradient(
+    90deg,
+    var(--color-chart-1),
+    var(--color-chart-2) 40%,
+    var(--color-chart-3) 70%,
+    var(--color-chart-1)
+  );
+  background-size: 250% 100%;
+  animation: gradient-pan 8s ease infinite;
+  opacity: 0.95;
 }
 
 /* Stage colours, used by the pipeline and candidate rows so a stage means the
@@ -851,6 +861,157 @@ button:active:not(:disabled),
   }
 
   .press:active {
+    transform: none;
+  }
+}
+
+/* ---------------------------------------------------------------------------
+   Motion & vibrancy
+   Effects meant to be composed onto existing surfaces. Everything here is
+   decorative, so it all yields to prefers-reduced-motion at the bottom of
+   this file and never carries meaning on its own.
+--------------------------------------------------------------------------- */
+
+/* A coloured halo on hover — the accent bleeding past the border. */
+.glow-hover {
+  transition:
+    transform 0.25s cubic-bezier(0.22, 1, 0.36, 1),
+    box-shadow 0.25s cubic-bezier(0.22, 1, 0.36, 1),
+    border-color 0.25s ease;
+}
+.glow-hover:hover {
+  transform: translate3d(0, -2px, 0);
+  border-color: color-mix(in oklch, var(--color-primary) 45%, transparent);
+  box-shadow:
+    0 0 0 1px color-mix(in oklch, var(--color-primary) 18%, transparent),
+    0 12px 32px -14px color-mix(in oklch, var(--color-primary) 60%, transparent);
+}
+
+/* Animated gradient hairline that runs around a surface on hover. */
+.gradient-border {
+  position: relative;
+  isolation: isolate;
+}
+.gradient-border::after {
+  content: "";
+  position: absolute;
+  inset: -1px;
+  z-index: -1;
+  border-radius: inherit;
+  opacity: 0;
+  background: linear-gradient(
+    115deg,
+    var(--color-chart-1),
+    var(--color-chart-2) 35%,
+    var(--color-chart-3) 65%,
+    var(--color-chart-1)
+  );
+  background-size: 300% 300%;
+  transition: opacity 0.3s ease;
+  animation: gradient-pan 6s ease infinite;
+}
+.gradient-border:hover::after {
+  opacity: 1;
+}
+
+@keyframes gradient-pan {
+  0% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
+  100% { background-position: 0% 50%; }
+}
+
+/* Entrance for things that appear in place: menus, cards, popovers. */
+@keyframes pop-in {
+  from {
+    opacity: 0;
+    transform: translate3d(0, 6px, 0) scale(0.97);
+  }
+  to {
+    opacity: 1;
+    transform: translate3d(0, 0, 0) scale(1);
+  }
+}
+.pop-in {
+  animation: pop-in 0.28s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+/* A pulsing ring for live/active indicators. */
+@keyframes pulse-ring {
+  0% { box-shadow: 0 0 0 0 color-mix(in oklch, var(--color-primary) 55%, transparent); }
+  70% { box-shadow: 0 0 0 8px transparent; }
+  100% { box-shadow: 0 0 0 0 transparent; }
+}
+.pulse-ring {
+  animation: pulse-ring 2.2s cubic-bezier(0.22, 1, 0.36, 1) infinite;
+}
+
+/* Underline that grows from the left — for nav and tab hovers. */
+.underline-grow {
+  position: relative;
+}
+.underline-grow::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  bottom: -2px;
+  height: 2px;
+  width: 100%;
+  border-radius: 2px;
+  background: var(--color-primary);
+  transform: scaleX(0);
+  transform-origin: left;
+  transition: transform 0.28s cubic-bezier(0.22, 1, 0.36, 1);
+}
+.underline-grow:hover::after,
+.underline-grow[data-active="true"]::after {
+  transform: scaleX(1);
+}
+
+/* Icons that lean in when their row is hovered. */
+.icon-nudge {
+  transition: transform 0.25s cubic-bezier(0.22, 1, 0.36, 1);
+}
+.group:hover .icon-nudge {
+  transform: translate3d(2px, 0, 0);
+}
+
+/* A slow aurora wash for hero surfaces. */
+.aurora-surface {
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+}
+.aurora-surface::before {
+  content: "";
+  position: absolute;
+  inset: -40%;
+  z-index: -1;
+  background:
+    radial-gradient(35% 45% at 20% 30%, color-mix(in oklch, var(--color-chart-1) 30%, transparent), transparent 70%),
+    radial-gradient(35% 45% at 80% 20%, color-mix(in oklch, var(--color-chart-2) 26%, transparent), transparent 70%),
+    radial-gradient(40% 50% at 60% 80%, color-mix(in oklch, var(--color-chart-3) 22%, transparent), transparent 70%);
+  filter: blur(24px);
+  animation: aurora-drift 18s ease-in-out infinite alternate;
+}
+
+@keyframes aurora-drift {
+  0% { transform: translate3d(-4%, -2%, 0) scale(1); }
+  50% { transform: translate3d(3%, 2%, 0) scale(1.06); }
+  100% { transform: translate3d(-2%, 3%, 0) scale(1.02); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .glow-hover,
+  .gradient-border::after,
+  .pop-in,
+  .pulse-ring,
+  .underline-grow::after,
+  .icon-nudge,
+  .aurora-surface::before {
+    animation: none !important;
+    transition: none !important;
+  }
+  .glow-hover:hover {
     transform: none;
   }
 }
