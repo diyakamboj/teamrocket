@@ -67,6 +67,11 @@ class CandidatePlacement(BaseModel):
     round_sequence: Optional[int] = None
     #: Who last moved them, and why — surfaced on the board card.
     moved_by: Optional[str] = None
+    #: Display name and role at the time of the move, so the board can show
+    #: "fardeen · IT Admin" without another lookup, and still can if the
+    #: account is later renamed or removed.
+    moved_by_name: Optional[str] = None
+    moved_by_role: Optional[str] = None
     note: Optional[str] = None
     created_at: datetime = Field(default_factory=_utcnow)
     updated_at: datetime = Field(default_factory=_utcnow)

@@ -5,7 +5,7 @@ from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, EmailStr, Field, model_validator
 
-from app.models.job_posting import InterviewRound
+from app.models.job_posting import InterviewRound, ScoringWeights
 
 
 
@@ -117,6 +117,7 @@ class JobCreate(BaseModel):
     #: The interview loop. Omitted means the default loop, so a job always has
     #: rounds for the pipeline board to render.
     rounds: Optional[list[InterviewRound]] = None
+    scoring_weights: Optional[ScoringWeights] = None
     created_by: Optional[str] = None
 
 
@@ -155,6 +156,7 @@ class JobResponse(ORMModel):
     sourcing_mode: str = "both"
     #: The interview loop, so the workspace can render the pipeline and board.
     rounds: list[InterviewRound] = Field(default_factory=list)
+    scoring_weights: ScoringWeights = Field(default_factory=ScoringWeights)
     created_by: Optional[str] = None
     created_at: datetime
     updated_at: datetime
@@ -410,6 +412,8 @@ class PipelineCandidate(BaseModel):
     round_sequence: Optional[int] = None
     #: Who last moved them — blank for a stage that was derived, not chosen.
     moved_by: Optional[str] = None
+    moved_by_name: Optional[str] = None
+    moved_by_role: Optional[str] = None
     updated_at: datetime
 
 
@@ -430,6 +434,8 @@ class CandidatePlacementResponse(BaseModel):
     round_name: Optional[str] = None
     round_sequence: Optional[int] = None
     moved_by: Optional[str] = None
+    moved_by_name: Optional[str] = None
+    moved_by_role: Optional[str] = None
     note: Optional[str] = None
     updated_at: datetime
 

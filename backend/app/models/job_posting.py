@@ -41,6 +41,21 @@ DEFAULT_ROUNDS: list[dict[str, Any]] = [
 ]
 
 
+class ScoringWeights(BaseModel):
+    """How this role ranks candidates, as percentages.
+
+    Same five knobs as Settings → Scoring defaults. Stored per job so a
+    staff-engineer search can weigh skills more heavily than an intern role
+    without changing the recruiter's global defaults.
+    """
+
+    skills: int = 40
+    experience: int = 25
+    education: int = 15
+    certifications: int = 10
+    projects: int = 10
+
+
 class JobPosting(BaseModel):
     id: uuid.UUID = Field(default_factory=uuid.uuid4)
     title: str
@@ -55,6 +70,7 @@ class JobPosting(BaseModel):
     sourcing_mode: str = "both"
     #: The interview loop for this role, in order.
     rounds: list[InterviewRound] = Field(default_factory=list)
+    scoring_weights: ScoringWeights = Field(default_factory=ScoringWeights)
     created_by: Optional[str] = None
     created_at: datetime = Field(default_factory=_utcnow)
     updated_at: datetime = Field(default_factory=_utcnow)

@@ -26,12 +26,12 @@ import { Input } from "@/components/ui/input";
 import { Slider } from "@/components/ui/slider";
 import { CandidateDetailModal } from "@/components/candidate-detail-modal";
 import { atsTierLabel, atsToneClass, atsVerdictLabel } from "@/lib/ats-score";
+import { CandidateStatusTab } from "@/components/pipeline-progress";
 import { cn } from "@/lib/utils";
 import {
   Briefcase,
   Users,
   Search,
-  CheckCircle2,
   Sparkles,
   ArrowRight,
   TrendingUp,
@@ -126,7 +126,7 @@ function JobWorkspacePage() {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { setActiveJobId, addFiles, refreshPool, blindMode, setBlindMode } = useAppState();
 
-  const [activeTab, setActiveTab] = useState<"overview" | "candidates" | "jd" | "upload" | "pipeline" | "insights">("candidates");
+  const [activeTab, setActiveTab] = useState<"overview" | "candidates" | "status" | "jd" | "upload" | "pipeline" | "insights">("candidates");
   const [searchQuery, setSearchQuery] = useState("");
   const [job, setJob] = useState<JobResponse | null>(null);
   // Full pipeline rows, keyed by candidate — the board needs the round a
@@ -214,6 +214,17 @@ function JobWorkspacePage() {
       cancelled = true;
     };
   }, [jobId]);
+
+  useEffect(() => {
+    if (!job?.scoring_weights) return;
+    setWeights({
+      skills: job.scoring_weights.skills,
+      experience: job.scoring_weights.experience,
+      education: job.scoring_weights.education,
+      certifications: job.scoring_weights.certifications,
+      projects: job.scoring_weights.projects,
+    });
+  }, [job?.id, job?.scoring_weights]);
 
   /** Re-read what the backend persisted, rather than guessing locally — the
    * board must show the stored placement, not an optimistic one. */
@@ -337,6 +348,7 @@ function JobWorkspacePage() {
         <div className="flex items-center gap-2">
           {[
             { id: "candidates", label: `Candidates (${candidates.length})` },
+            { id: "status", label: "Candidate Status" },
             { id: "jd", label: "Original JD & Requirements" },
             { id: "overview", label: "Pipeline Overview" },
             { id: "upload", label: "Bulk Resume Upload" },
@@ -363,6 +375,7 @@ function JobWorkspacePage() {
               Candidates tab, which meant switching to a board left names on
               screen with no way to turn masking back on. */}
           {(activeTab === "candidates" ||
+            activeTab === "status" ||
             activeTab === "overview" ||
             activeTab === "pipeline") && (
             <Button
@@ -641,6 +654,18 @@ function JobWorkspacePage() {
               </tbody>
             </table>
           </div>
+        </div>
+      )}
+
+      {activeTab === "status" && (
+        <div className="animate-rise">
+          <CandidateStatusTab
+            rounds={job?.rounds}
+            candidates={candidates}
+            placements={placements}
+            blindMode={blindMode}
+            onOpen={setSelectedCandidateId}
+          />
         </div>
       )}
 

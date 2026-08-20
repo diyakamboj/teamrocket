@@ -133,6 +133,8 @@ def move_pipeline_candidate(
         round_name=round_name,
         round_sequence=placement.round_sequence,
         moved_by=placement.moved_by,
+        moved_by_name=placement.moved_by_name,
+        moved_by_role=placement.moved_by_role,
         note=placement.note,
         updated_at=placement.updated_at,
     )

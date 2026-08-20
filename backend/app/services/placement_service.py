@@ -18,7 +18,8 @@ from typing import Optional
 
 from app.models.job_posting import JobPosting
 from app.models.placement import STAGE_ORDER, CandidatePlacement
-from app.services import handoff_service
+from app.models.roles import label_for
+from app.services import auth_service, handoff_service
 from app.storage.store import Store
 from app.utils.error_handlers import AppError, ValidationAppError
 
@@ -29,6 +30,22 @@ def _utcnow() -> datetime:
 
 def _normalize(email: str | None) -> str:
     return (email or "").strip().lower()
+
+
+def actor_snapshot(store: Store, email: str | None) -> tuple[str | None, str | None, str | None]:
+    """Email, display name and role label for whoever just moved a candidate.
+
+    The board shows the name and role ("fardeen · IT Admin") so another
+    recruiter can see who acted. Falls back to the local part of the address
+    when the actor has no account yet.
+    """
+    actor = _normalize(email)
+    if not actor:
+        return None, None, None
+    user = auth_service.find_by_email(store, actor)
+    if user:
+        return user.email, user.name, label_for(user.role)
+    return actor, actor.split("@")[0], None
 
 
 def may_move(store: Store, job: JobPosting, candidate_id: str, actor_email: str) -> bool:
@@ -104,6 +121,7 @@ def move_candidate(
     resolved_round_id, resolved_sequence = _resolve_round(job, stage, round_id)
     existing = get_placement(store, job.id, candidate_id)
     previous_stage = existing.stage if existing else None
+    actor_email_norm, actor_name, actor_role = actor_snapshot(store, actor_email)
 
     placement = CandidatePlacement.create(
         job_id=job.id,
@@ -112,7 +130,9 @@ def move_candidate(
         stage=stage,
         round_id=resolved_round_id,
         round_sequence=resolved_sequence,
-        moved_by=_normalize(actor_email),
+        moved_by=actor_email_norm,
+        moved_by_name=actor_name,
+        moved_by_role=actor_role,
         note=(note or "").strip() or None,
         # Keep the original creation time when re-moving someone.
         created_at=existing.created_at if existing else _utcnow(),

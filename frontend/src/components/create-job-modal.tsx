@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
+import { Slider } from "@/components/ui/slider";
 import {
   ArrowLeft,
   ArrowRight,
@@ -13,9 +14,11 @@ import {
   CheckCircle2,
   Globe,
   History,
+  Info,
   ListChecks,
   Loader2,
   Share2,
+  Sliders,
   Sparkles,
   Wand2,
 } from "lucide-react";
@@ -28,6 +31,8 @@ import {
   polishJobDescription,
   type InternalEmployee,
 } from "@/lib/api";
+import { DEFAULT_WEIGHTS, type Weights } from "@/lib/candidates";
+import { getRecruiterSettings } from "@/lib/settings";
 
 function getDynamicBenchmark(title: string) {
   const t = (title || "").toLowerCase();
@@ -77,6 +82,16 @@ type JobRoundDraft = {
   interview_type: string;
   duration_minutes: number;
 };
+
+const WEIGHT_FIELDS = [
+  { key: "skills", label: "Technical skills" },
+  { key: "experience", label: "Role experience" },
+  { key: "education", label: "Education" },
+  { key: "certifications", label: "Certifications" },
+  { key: "projects", label: "Portfolio projects" },
+] as const;
+
+const STEPS = 6;
 
 type CreateJobModalProps = {
   isOpen: boolean;
@@ -133,6 +148,10 @@ export function CreateJobModal({ isOpen, onClose }: CreateJobModalProps) {
   const [preferredSkills, setPreferredSkills] = useState<string[]>([]);
   const [analyzing, setAnalyzing] = useState(false);
   const [postToLinkedIn, setPostToLinkedIn] = useState(true);
+  const [weights, setWeights] = useState<Weights>(() => ({
+    ...DEFAULT_WEIGHTS,
+    ...getRecruiterSettings().defaultWeights,
+  }));
 
   const handleAddSkill = (type: "required" | "preferred") => {
     if (!newSkillInput.trim()) return;
@@ -219,6 +238,7 @@ export function CreateJobModal({ isOpen, onClose }: CreateJobModalProps) {
         rounds: rounds
           .filter((r) => r.name.trim())
           .map((r, i) => ({ ...r, name: r.name.trim(), sequence: i + 1 })),
+        scoring_weights: weights,
       });
       const newJobId = String(job.id || (job as any).job_id || "");
       if (hiringType === "internal" && chosenEmployees.length > 0 && newJobId) {
@@ -263,11 +283,11 @@ export function CreateJobModal({ isOpen, onClose }: CreateJobModalProps) {
                 <Sparkles className="w-4 h-4 text-blue-600" /> Create New Job Description
               </DialogTitle>
               <DialogDescription className="text-slate-500 text-xs mt-0.5">
-                Step {step} of 5 — Guided AI Job Creation & Historical Intelligence Workflow
+                Step {step} of {STEPS} — Guided AI Job Creation & Historical Intelligence Workflow
               </DialogDescription>
             </div>
             <div className="flex items-center gap-1.5">
-              {[1, 2, 3, 4, 5].map((i) => (
+              {Array.from({ length: STEPS }, (_, i) => i + 1).map((i) => (
                 <div
                   key={i}
                   className={`w-6 h-1.5 rounded-full transition-all ${
@@ -682,11 +702,59 @@ Pick from the bench
             </div>
           )}
 
-          {/* STEP 5: Final Review & Multi-Channel Distribution */}
+          {/* STEP 5: Scoring weights for this role */}
           {step === 5 && (
             <div className="space-y-4">
               <div>
-                <h3 className="text-base font-semibold text-slate-900">Step 5 — Interview Loop & Publishing</h3>
+                <h3 className="text-base font-semibold text-slate-900 flex items-center gap-2">
+                  <Sliders className="h-4 w-4 text-blue-600" /> Step 5 — Default scoring weights
+                </h3>
+                <p className="text-xs text-slate-500 mt-1">
+                  How this role ranks candidates. Seeded from your Settings defaults; still
+                  adjustable later from the job workspace.
+                </p>
+              </div>
+
+              <div className="rounded-xl border border-slate-200 bg-white p-5 space-y-5 shadow-xs">
+                {WEIGHT_FIELDS.map((item) => (
+                  <div key={item.key} className="space-y-2">
+                    <div className="flex items-center justify-between text-xs">
+                      <span className="font-medium text-slate-800">{item.label}</span>
+                      <span className="font-semibold tabular-nums text-blue-700">
+                        {weights[item.key]}%
+                      </span>
+                    </div>
+                    <Slider
+                      min={0}
+                      max={50}
+                      step={5}
+                      value={[weights[item.key]]}
+                      onValueChange={([v]) =>
+                        setWeights((prev) => ({ ...prev, [item.key]: v ?? prev[item.key] }))
+                      }
+                    />
+                  </div>
+                ))}
+
+                <div className="flex items-start gap-2.5 rounded-xl border bg-blue-50/70 border-blue-100 p-3.5">
+                  <Info className="mt-0.5 h-4 w-4 shrink-0 text-blue-600" />
+                  <p className="text-[11px] leading-relaxed text-slate-600">
+                    Total{" "}
+                    <strong className="text-slate-900 tabular-nums">
+                      {Object.values(weights).reduce((a, b) => a + b, 0)}%
+                    </strong>{" "}
+                    — weights are normalized, so they need not add up to 100.
+                  </p>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* STEP 6: Final Review & Multi-Channel Distribution */}
+          {step === 6 && (
+            <div className="space-y-4">
+              <div>
+                <h3 className="text-base font-semibold text-slate-900">Step 6 — Interview Loop & Publishing</h3>
                 <p className="text-xs text-slate-500 mt-1">Set the rounds a candidate goes through, then create the job.</p>
               </div>
 
@@ -780,6 +848,12 @@ Pick from the bench
                       ))}
                     </div>
                   </div>
+                  <div className="col-span-2">
+                    <span className="text-slate-500 font-medium">Scoring weights:</span>
+                    <p className="mt-1 text-slate-700">
+                      {WEIGHT_FIELDS.map((item) => `${item.label} ${weights[item.key]}%`).join(" · ")}
+                    </p>
+                  </div>
                 </div>
               </div>
             </div>
@@ -798,7 +872,7 @@ Pick from the bench
             <ArrowLeft className="w-4 h-4" /> Back
           </Button>
 
-          {step < 5 ? (
+          {step < STEPS ? (
             <Button
               type="button"
               onClick={() => setStep((s) => s + 1)}
