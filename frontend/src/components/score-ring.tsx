@@ -51,7 +51,7 @@ export function ScoreRing({
 export function MiniBar({ label, value }: { label: string; value: number }) {
   return (
     <div className="min-w-0">
-      <div className="flex items-center justify-between gap-2 text-[11px] text-muted-foreground">
+      <div className="flex items-center justify-between gap-2 text-xs text-muted-foreground">
         <span className="truncate">{label}</span>
         <span className="tabular-nums">{value}</span>
       </div>

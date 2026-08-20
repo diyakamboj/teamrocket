@@ -208,7 +208,7 @@ function Field({
 }) {
   return (
     <label className="block space-y-1">
-      <span className="text-[11px] font-medium">
+      <span className="text-xs font-medium">
         {label}
         {required && <span className="ml-0.5 text-destructive">*</span>}
       </span>

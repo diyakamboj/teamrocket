@@ -51,7 +51,7 @@ export function MovedByTag({ placement }: { placement?: Mover | null }) {
   if (!text) return null;
   return (
     <p
-      className="mt-1.5 flex items-center gap-1 truncate text-[10px] text-muted-foreground"
+      className="mt-1.5 flex items-center gap-1 truncate text-[11px] text-muted-foreground"
       title={placement?.moved_by || undefined}
     >
       <UserRound className="h-3 w-3 shrink-0" />
@@ -98,7 +98,7 @@ export function PipelineProgress({
                         : step.label
                   }
                   className={cn(
-                    "grid h-5 w-5 shrink-0 place-items-center rounded-full border text-[10px]",
+                    "grid h-5 w-5 shrink-0 place-items-center rounded-full border text-[11px]",
                     state === "passed" && "border-emerald-500 bg-emerald-500 text-white",
                     state === "current" && "border-primary bg-primary text-primary-foreground",
                     state === "upcoming" && "border-slate-200 bg-white text-slate-300",
@@ -137,7 +137,7 @@ export function PipelineProgress({
         })}
       </ol>
       {rejected && (
-        <p className="mt-1.5 inline-flex items-center gap-1 rounded-full bg-red-50 px-2 py-0.5 text-[10px] font-semibold text-red-700">
+        <p className="mt-1.5 inline-flex items-center gap-1 rounded-full bg-red-50 px-2 py-0.5 text-[11px] font-semibold text-red-700">
           <X className="h-3 w-3" /> Rejected
         </p>
       )}
@@ -225,16 +225,16 @@ export function CandidateStatusTab({
                         {blindMode ? `Candidate #${index + 1}` : candidate.name}
                       </button>
                       {candidate.isBench && (
-                        <Badge className="bg-blue-50 text-[10px] font-bold text-blue-700 border-blue-200">
+                        <Badge className="bg-blue-50 text-[11px] font-bold text-blue-700 border-blue-200">
                           Bench
                         </Badge>
                       )}
-                      <Badge variant="outline" className="text-[10px] font-semibold">
+                      <Badge variant="outline" className="text-[11px] font-semibold">
                         {stage}
                       </Badge>
                     </div>
                     <MovedByTag placement={placement ?? null} />
-                    <p className="mt-1 text-[11px] text-muted-foreground">
+                    <p className="mt-1 text-xs text-muted-foreground">
                       ATS {candidate.score}
                       {candidate.skills.slice(0, 3).length > 0
                         ? ` · ${candidate.skills.slice(0, 3).join(" · ")}`

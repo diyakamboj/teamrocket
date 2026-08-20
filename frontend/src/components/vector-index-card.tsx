@@ -54,7 +54,7 @@ export function VectorIndexCard() {
         </div>
         <span
           className={cn(
-            "ml-auto shrink-0 rounded-full px-2.5 py-1 text-[11px] font-semibold",
+            "ml-auto shrink-0 rounded-full px-2.5 py-1 text-xs font-semibold",
             status.reachable
               ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-300"
               : "bg-destructive/10 text-destructive",
@@ -81,11 +81,11 @@ export function VectorIndexCard() {
               />
               <span className="min-w-0 flex-1">
                 <span className="block truncate text-xs font-semibold">{engine.name}</span>
-                <span className="block truncate text-[10px] text-muted-foreground">
+                <span className="block truncate text-[11px] text-muted-foreground">
                   {engine.role}
                 </span>
               </span>
-              <span className="metric shrink-0 text-[11px] font-bold text-muted-foreground">
+              <span className="metric shrink-0 text-xs font-bold text-muted-foreground">
                 {engine.documents_indexed ?? "—"}
               </span>
             </li>
@@ -110,13 +110,13 @@ export function VectorIndexCard() {
             <dd className="metric truncate text-sm font-bold" title={item.value}>
               {item.value}
             </dd>
-            <dt className="mt-0.5 text-[10px] leading-tight text-muted-foreground">{item.label}</dt>
+            <dt className="mt-0.5 text-[11px] leading-tight text-muted-foreground">{item.label}</dt>
           </div>
         ))}
       </dl>
 
       {!coverageComplete && (
-        <p className="rounded-lg bg-amber-50 px-3 py-2 text-[11px] text-amber-900 dark:bg-amber-500/10 dark:text-amber-200">
+        <p className="rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-900 dark:bg-amber-500/10 dark:text-amber-200">
           {status.my_candidates - status.indexed_for_me} of your candidates are not in the index
           yet, so semantic search will not return them. They are indexed on upload and backfilled
           at startup.
@@ -124,7 +124,7 @@ export function VectorIndexCard() {
       )}
 
       {!status.is_external && (
-        <p className="text-[11px] text-muted-foreground">
+        <p className="text-xs text-muted-foreground">
           Semantic search is running on the built-in index. Set <code>VECTOR_BACKEND</code> to{" "}
           <code>search</code> or <code>qdrant</code> to use a dedicated vector store.
         </p>

@@ -185,7 +185,7 @@ function HandoffView() {
             {b.matched_skills.map((s, i) => (
               <span
                 key={i}
-                className="rounded-full bg-primary-soft px-2.5 py-0.5 text-[11px] font-medium text-primary-soft-foreground"
+                className="rounded-full bg-primary-soft px-2.5 py-0.5 text-xs font-medium text-primary-soft-foreground"
               >
                 {skillLabel(s)}
               </span>
@@ -268,7 +268,7 @@ function HandoffView() {
           {handoff.status === "acknowledged" ? "Update acknowledgement" : "Acknowledge briefing"}
         </Button>
         {handoff.acknowledged_at && (
-          <p className="text-[11px] text-muted-foreground">
+          <p className="text-xs text-muted-foreground">
             Last acknowledged {new Date(`${handoff.acknowledged_at}Z`).toLocaleString()}
           </p>
         )}

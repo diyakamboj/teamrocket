@@ -120,17 +120,17 @@ function BenchPage() {
       <section className="stagger grid gap-3 sm:grid-cols-3">
         <div className="lift edge-accent rounded-2xl border bg-card p-5">
           <p className="metric text-2xl font-bold">{bench.length}</p>
-          <p className="mt-1 text-[11px] font-medium text-muted-foreground">On the bench</p>
+          <p className="mt-1 text-xs font-medium text-muted-foreground">On the bench</p>
         </div>
         <div className="lift edge-accent rounded-2xl border bg-card p-5">
           <p className={cn("metric text-2xl font-bold", longWaiting > 0 && "text-destructive")}>
             {longWaiting}
           </p>
-          <p className="mt-1 text-[11px] font-medium text-muted-foreground">Waiting 30+ days</p>
+          <p className="mt-1 text-xs font-medium text-muted-foreground">Waiting 30+ days</p>
         </div>
         <div className="lift edge-accent rounded-2xl border bg-card p-5">
           <p className="metric text-2xl font-bold">{jobs.length}</p>
-          <p className="mt-1 text-[11px] font-medium text-muted-foreground">Open roles to match</p>
+          <p className="mt-1 text-xs font-medium text-muted-foreground">Open roles to match</p>
         </div>
       </section>
 
@@ -184,7 +184,7 @@ function BenchPage() {
               Best fits for {matchLabel}
               <button
                 onClick={() => setMatches(null)}
-                className="ml-2 text-[11px] font-normal text-muted-foreground hover:text-foreground"
+                className="ml-2 text-xs font-normal text-muted-foreground hover:text-foreground"
               >
                 clear
               </button>
@@ -197,17 +197,17 @@ function BenchPage() {
               <ul className="stagger mt-3 space-y-2">
                 {matches.map((match) => (
                   <li key={match.candidate_id} className="lift flex items-center gap-3 rounded-xl border p-3">
-                    <span className="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-primary/10 text-[11px] font-bold text-primary">
+                    <span className="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-primary/10 text-xs font-bold text-primary">
                       {initials(match.name)}
                     </span>
                     <div className="min-w-0 flex-1">
                       <p className="truncate text-sm font-semibold">{match.name}</p>
-                      <p className="truncate text-[11px] text-muted-foreground">
+                      <p className="truncate text-xs text-muted-foreground">
                         {match.title || "—"} · {benchAge(match.days_on_bench).label}
                       </p>
                     </div>
                     {match.similarity !== null && match.similarity !== undefined && (
-                      <span className="metric shrink-0 rounded-full bg-primary/10 px-2 py-0.5 text-[11px] font-bold text-primary">
+                      <span className="metric shrink-0 rounded-full bg-primary/10 px-2 py-0.5 text-xs font-bold text-primary">
                         {Math.round(match.similarity * 100)}% fit
                       </span>
                     )}
@@ -259,14 +259,14 @@ function BenchPage() {
                         {person.skills.slice(0, 6).map((skill) => (
                           <span
                             key={skill}
-                            className="rounded-full bg-secondary px-2 py-0.5 text-[10px] font-medium text-secondary-foreground"
+                            className="rounded-full bg-secondary px-2 py-0.5 text-[11px] font-medium text-secondary-foreground"
                           >
                             {skill}
                           </span>
                         ))}
                       </div>
                     </div>
-                    <span className={cn("flex shrink-0 items-center gap-1 text-[11px] font-medium", age.tone)}>
+                    <span className={cn("flex shrink-0 items-center gap-1 text-xs font-medium", age.tone)}>
                       <Clock className="h-3 w-3" /> {age.label}
                     </span>
                     <Button

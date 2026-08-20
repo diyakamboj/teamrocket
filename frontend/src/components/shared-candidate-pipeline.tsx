@@ -61,12 +61,12 @@ export function SharedCandidatePipeline({
   return (
     <div className="mt-3 rounded-xl border bg-background p-3">
       <div className="flex flex-wrap items-center gap-2">
-        <span className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
+        <span className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
           In {candidate.job_title || "their pipeline"}
         </span>
         <span
           className={cn(
-            "rounded-full px-2 py-0.5 text-[10px] font-semibold",
+            "rounded-full px-2 py-0.5 text-[11px] font-semibold",
             current?.tone ?? "text-muted-foreground",
             "bg-secondary",
           )}
@@ -86,7 +86,7 @@ export function SharedCandidatePipeline({
               e.currentTarget.value = "";
               if (next) void move(next);
             }}
-            className="h-7 flex-1 rounded-lg border bg-background px-2 text-[11px] font-medium text-muted-foreground transition-colors hover:border-primary/40 disabled:opacity-50"
+            className="h-7 flex-1 rounded-lg border bg-background px-2 text-xs font-medium text-muted-foreground transition-colors hover:border-primary/40 disabled:opacity-50"
           >
             <option value="">{moving ? "Moving…" : "Move to…"}</option>
             {columns
@@ -100,7 +100,7 @@ export function SharedCandidatePipeline({
           {moving && <Loader2 className="h-3.5 w-3.5 shrink-0 animate-spin text-muted-foreground" />}
         </div>
       ) : (
-        <p className="mt-2 text-[11px] text-muted-foreground">
+        <p className="mt-2 text-xs text-muted-foreground">
           Shared read-only, so you can see where they are but not move them.
         </p>
       )}

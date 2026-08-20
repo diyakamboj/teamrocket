@@ -44,7 +44,7 @@ export function CandidateSkillBadges({ badges }: { badges: SkillBadge[] }) {
             <TooltipTrigger asChild>
               <Badge
                 variant="secondary"
-                className="flex items-center gap-1 text-[11px] font-medium py-0 px-2 bg-secondary/80 text-secondary-foreground hover:bg-secondary cursor-help"
+                className="flex items-center gap-1 text-xs font-medium py-0 px-2 bg-secondary/80 text-secondary-foreground hover:bg-secondary cursor-help"
               >
                 <ShieldCheck className="h-3 w-3 text-emerald-600 dark:text-emerald-400 shrink-0" />
                 <span>{b.name}</span>
@@ -53,12 +53,12 @@ export function CandidateSkillBadges({ badges }: { badges: SkillBadge[] }) {
             <TooltipContent className="max-w-xs text-xs space-y-1">
               <div className="flex items-center justify-between gap-2">
                 <span className="font-semibold">{b.name}</span>
-                <span className="text-[10px] text-emerald-600 font-semibold">
+                <span className="text-[11px] text-emerald-600 font-semibold">
                   Verified ({Math.round(b.confidence * 100)}%)
                 </span>
               </div>
               {b.evidence.map((ev, i) => (
-                <p key={i} className="text-[11px] text-muted-foreground border-t pt-1">
+                <p key={i} className="text-xs text-muted-foreground border-t pt-1">
                   <span className="font-medium text-foreground">{ev.label}:</span> "{ev.detail}"
                 </p>
               ))}

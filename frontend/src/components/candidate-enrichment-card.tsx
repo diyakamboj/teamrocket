@@ -170,16 +170,16 @@ export function CandidateEnrichmentCard({ candidate, onEnriched }: CandidateEnri
                       {repo.name} <ExternalLinkIcon className="h-3 w-3 opacity-50" />
                     </span>
                     {repo.stars > 0 && (
-                      <span className="text-[11px] text-amber-600 font-medium flex items-center gap-0.5">
+                      <span className="text-xs text-amber-600 font-medium flex items-center gap-0.5">
                         <Star className="h-3 w-3 fill-amber-500 text-amber-500" /> {repo.stars}
                       </span>
                     )}
                   </div>
                   {repo.description && (
-                    <p className="text-[11px] text-muted-foreground line-clamp-1">{repo.description}</p>
+                    <p className="text-xs text-muted-foreground line-clamp-1">{repo.description}</p>
                   )}
                   {repo.language && (
-                    <Badge variant="outline" className="text-[10px] py-0 px-1.5 bg-secondary/50">
+                    <Badge variant="outline" className="text-[11px] py-0 px-1.5 bg-secondary/50">
                       {repo.language}
                     </Badge>
                   )}
@@ -201,7 +201,7 @@ export function CandidateEnrichmentCard({ candidate, onEnriched }: CandidateEnri
                 <Badge
                   key={i}
                   variant="secondary"
-                  className="flex items-center gap-1 text-[11px] py-0.5 px-2 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border-emerald-500/20"
+                  className="flex items-center gap-1 text-xs py-0.5 px-2 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border-emerald-500/20"
                 >
                   <span>{skill.name}</span>
                   <span className="text-[9px] uppercase font-semibold text-emerald-600/80 bg-emerald-500/20 px-1 rounded">

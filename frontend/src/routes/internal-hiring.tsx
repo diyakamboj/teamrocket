@@ -242,7 +242,7 @@ function InternalHiringPage() {
                                 <Badge
                                   key={`${skillName(sk)}-${i}`}
                                   variant="outline"
-                                  className="text-[11px]"
+                                  className="text-xs"
                                 >
                                   {skillName(sk)}
                                 </Badge>

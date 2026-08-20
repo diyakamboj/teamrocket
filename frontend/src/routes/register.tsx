@@ -131,7 +131,7 @@ function RegisterPage() {
               </option>
             ))}
           </select>
-          <p className="text-[11px] text-muted-foreground">
+          <p className="text-xs text-muted-foreground">
             {ROLES.find((r) => r.value === role)?.description}
           </p>
         </div>
@@ -156,7 +156,7 @@ function RegisterPage() {
                 <li
                   key={check.label}
                   className={cn(
-                    "flex items-center gap-1.5 text-[11px] transition-colors",
+                    "flex items-center gap-1.5 text-xs transition-colors",
                     check.ok ? "text-emerald-600 dark:text-emerald-400" : "text-muted-foreground",
                   )}
                 >

@@ -379,7 +379,7 @@ function AtsBenchmarkPage() {
                           benchmark.matched_keywords.map((k) => (
                             <span
                               key={k}
-                              className="rounded-full bg-primary-soft px-2.5 py-0.5 text-[11px] font-medium text-primary-soft-foreground"
+                              className="rounded-full bg-primary-soft px-2.5 py-0.5 text-xs font-medium text-primary-soft-foreground"
                             >
                               {k}
                             </span>
@@ -398,7 +398,7 @@ function AtsBenchmarkPage() {
                           benchmark.missing_keywords.map((k) => (
                             <span
                               key={k}
-                              className="rounded-full bg-secondary px-2.5 py-0.5 text-[11px] font-medium text-secondary-foreground"
+                              className="rounded-full bg-secondary px-2.5 py-0.5 text-xs font-medium text-secondary-foreground"
                             >
                               {k}
                             </span>

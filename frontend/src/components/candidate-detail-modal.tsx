@@ -185,7 +185,7 @@ export function CandidateDetailModal({
                         key={s.label}
                         className="card-surface p-3.5 text-center"
                       >
-                        <span className="block text-[10px] font-medium uppercase text-muted-foreground">
+                        <span className="block text-[11px] font-medium uppercase text-muted-foreground">
                           {s.label}
                         </span>
                         <span className="mt-1 block text-xl font-extrabold">{pct(s.val)}</span>
@@ -241,7 +241,7 @@ export function CandidateDetailModal({
                         <div className="flex items-center justify-between gap-3 text-xs">
                           <span className="font-semibold">✓ {ev.skill_name}</span>
                           {ev.confidence_score !== null && ev.confidence_score !== undefined && (
-                            <Badge variant="outline" className="text-[10px]">
+                            <Badge variant="outline" className="text-[11px]">
                               {Math.round(ev.confidence_score * 100)}% confidence
                             </Badge>
                           )}
@@ -250,7 +250,7 @@ export function CandidateDetailModal({
                           "{ev.resume_text_snippet}"
                         </p>
                         {ev.source_section && (
-                          <span className="text-[10px] text-muted-foreground">
+                          <span className="text-[11px] text-muted-foreground">
                             Source: {ev.source_section}
                           </span>
                         )}

@@ -116,7 +116,7 @@ export function CandidateRoleActions({
           disabled={busy !== null}
           onChange={(e) => void changeRole(e.target.value)}
           className={cn(
-            "truncate rounded-lg border border-input bg-background py-1 pl-7 pr-2 text-[11px] disabled:opacity-50",
+            "truncate rounded-lg border border-input bg-background py-1 pl-7 pr-2 text-xs disabled:opacity-50",
             compact ? "max-w-[9.5rem]" : "max-w-[14rem]",
           )}
         >
@@ -136,7 +136,7 @@ export function CandidateRoleActions({
           disabled={busy !== null}
           title="Take them off this role — they stay in your pool"
           className={cn(
-            "press inline-flex items-center gap-1 rounded-lg border px-2 py-1 text-[11px] font-medium transition-colors",
+            "press inline-flex items-center gap-1 rounded-lg border px-2 py-1 text-xs font-medium transition-colors",
             "hover:border-destructive/50 hover:bg-destructive/10 hover:text-destructive",
             busy !== null && "opacity-50",
           )}
@@ -156,7 +156,7 @@ export function CandidateRoleActions({
         disabled={busy !== null || onBench}
         title={onBench ? `${candidateName} is already on the bench` : "Place on the internal bench"}
         className={cn(
-          "inline-flex items-center gap-1 rounded-lg border px-2 py-1 text-[11px] font-medium transition-colors",
+          "inline-flex items-center gap-1 rounded-lg border px-2 py-1 text-xs font-medium transition-colors",
           onBench
             ? "cursor-default border-transparent bg-secondary text-muted-foreground"
             : "hover:border-primary hover:bg-primary/10 hover:text-primary",

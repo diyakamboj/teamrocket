@@ -251,7 +251,7 @@ export function CandidateInterviewSection({
           <div className="space-y-4 rounded-xl border border-primary/20 bg-primary/5 p-4">
             <div className="flex items-center justify-between border-b pb-2">
               <h4 className="font-medium text-foreground">AI Scheduling Assistant</h4>
-              <Badge variant="outline" className="text-[11px] bg-background">
+              <Badge variant="outline" className="text-xs bg-background">
                 Microsoft Outlook & Teams
               </Badge>
             </div>
@@ -309,7 +309,7 @@ export function CandidateInterviewSection({
                         >
                           <div>
                             <p className="font-semibold text-foreground">{inv.name}</p>
-                            <p className="text-[11px] text-muted-foreground">{inv.title}</p>
+                            <p className="text-xs text-muted-foreground">{inv.title}</p>
                           </div>
                           {isSelected && <UserCheck className="h-4 w-4 text-primary shrink-0" />}
                         </button>
@@ -355,13 +355,13 @@ export function CandidateInterviewSection({
                     <Button
                       size="sm"
                       variant="ghost"
-                      className="h-6 text-[11px] text-muted-foreground"
+                      className="h-6 text-xs text-muted-foreground"
                       onClick={() => setProposal(null)}
                     >
                       Change parameters
                     </Button>
                   </div>
-                  <p className="mt-1 text-[11px] text-muted-foreground">
+                  <p className="mt-1 text-xs text-muted-foreground">
                     Required participants: {proposal.required_interviewers.join(", ")}
                   </p>
                 </div>
@@ -391,12 +391,12 @@ export function CandidateInterviewSection({
                               {slot.label}
                             </span>
                             {slot.is_recommended && (
-                              <Badge className="h-4 bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 border-emerald-500/30 text-[10px]">
+                              <Badge className="h-4 bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 border-emerald-500/30 text-[11px]">
                                 Recommended
                               </Badge>
                             )}
                           </div>
-                          <div className="mt-1 flex items-center gap-1.5 text-[11px] text-muted-foreground">
+                          <div className="mt-1 flex items-center gap-1.5 text-xs text-muted-foreground">
                             <UserCheck className="h-3 w-3 text-emerald-600 dark:text-emerald-400" />
                             <span>Interviewers free: {slot.available_interviewers.join(", ")}</span>
                           </div>
@@ -407,7 +407,7 @@ export function CandidateInterviewSection({
                           href={slot.outlook_url}
                           target="_blank"
                           rel="noreferrer"
-                          className="flex items-center gap-1 text-[11px] text-primary hover:underline shrink-0"
+                          className="flex items-center gap-1 text-xs text-primary hover:underline shrink-0"
                           onClick={(e) => e.stopPropagation()}
                         >
                           Outlook <ExternalLink className="h-3 w-3" />
@@ -470,7 +470,7 @@ export function CandidateInterviewSection({
                       </span>
                       <Badge
                         variant="outline"
-                        className={`text-[10px] ${
+                        className={`text-[11px] ${
                           item.status === "confirmed"
                             ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/30"
                             : item.status === "rescheduled"
@@ -515,7 +515,7 @@ export function CandidateInterviewSection({
                     {item.interviewers.join(", ")}
                   </p>
                   {item.teams_meeting_id && (
-                    <p className="mt-0.5 text-[11px]">
+                    <p className="mt-0.5 text-xs">
                       Meeting ID: <span className="font-mono">{item.teams_meeting_id}</span> | Passcode:{" "}
                       <span className="font-mono">{item.teams_passcode}</span>
                     </p>
@@ -530,7 +530,7 @@ export function CandidateInterviewSection({
                         href={item.outlook_deeplink}
                         target="_blank"
                         rel="noreferrer"
-                        className="inline-flex items-center gap-1 text-[11px] text-primary hover:underline"
+                        className="inline-flex items-center gap-1 text-xs text-primary hover:underline"
                       >
                         <CalendarIcon className="h-3 w-3" /> Outlook Calendar Deeplink
                       </a>
@@ -606,7 +606,7 @@ export function CandidateInterviewSection({
                           <Button
                             size="sm"
                             variant="outline"
-                            className="h-7 gap-1 text-[11px]"
+                            className="h-7 gap-1 text-xs"
                             onClick={() => void handleStartReschedule(item.id)}
                           >
                             <RefreshCw className="h-3 w-3" /> Reschedule
@@ -614,7 +614,7 @@ export function CandidateInterviewSection({
                           <Button
                             size="sm"
                             variant="ghost"
-                            className="h-7 gap-1 text-[11px] text-rose-600 hover:text-rose-700 hover:bg-rose-50"
+                            className="h-7 gap-1 text-xs text-rose-600 hover:text-rose-700 hover:bg-rose-50"
                             onClick={() => setCancelingId(item.id)}
                           >
                             <XCircle className="h-3 w-3" /> Cancel

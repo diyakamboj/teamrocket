@@ -126,7 +126,7 @@ export function InternalRoster({
                   person.on_bench && "border-emerald-300 bg-emerald-50/50 dark:bg-emerald-500/5",
                 )}
               >
-                <span className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-primary/10 text-[11px] font-bold text-primary">
+                <span className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-primary/10 text-xs font-bold text-primary">
                   {person.name
                     .split(" ")
                     .map((w) => w[0])
@@ -137,7 +137,7 @@ export function InternalRoster({
 
                 <div className="min-w-0 flex-1">
                   <p className="truncate text-sm font-semibold">{person.name}</p>
-                  <p className="truncate text-[11px] text-muted-foreground">
+                  <p className="truncate text-xs text-muted-foreground">
                     {person.title || "No title"}
                   </p>
                 </div>
@@ -146,7 +146,7 @@ export function InternalRoster({
                     know before pulling someone onto something else. */}
                 <span
                   className={cn(
-                    "inline-flex shrink-0 items-center gap-1 rounded-full px-2.5 py-1 text-[11px] font-medium",
+                    "inline-flex shrink-0 items-center gap-1 rounded-full px-2.5 py-1 text-xs font-medium",
                     person.on_bench
                       ? "bg-emerald-100 text-emerald-800 dark:bg-emerald-500/15 dark:text-emerald-300"
                       : "bg-secondary text-secondary-foreground",
@@ -179,11 +179,11 @@ export function InternalRoster({
                         value={assignment}
                         onChange={(e) => setAssignment(e.target.value)}
                         placeholder="New assignment"
-                        className="h-7 w-40 rounded-lg text-[11px]"
+                        className="h-7 w-40 rounded-lg text-xs"
                       />
                       <Button
                         size="sm"
-                        className="h-7 rounded-lg text-[11px]"
+                        className="h-7 rounded-lg text-xs"
                         disabled={busy === person.candidate_id}
                         onClick={() => void assign(person)}
                       >
@@ -192,7 +192,7 @@ export function InternalRoster({
                       <Button
                         size="sm"
                         variant="ghost"
-                        className="h-7 rounded-lg text-[11px]"
+                        className="h-7 rounded-lg text-xs"
                         onClick={() => setAssigningTo(null)}
                       >
                         Cancel
@@ -202,7 +202,7 @@ export function InternalRoster({
                     <Button
                       size="sm"
                       variant="outline"
-                      className="h-7 shrink-0 rounded-lg text-[11px]"
+                      className="h-7 shrink-0 rounded-lg text-xs"
                       onClick={() => {
                         setAssigningTo(person.candidate_id);
                         setAssignment("");
@@ -215,7 +215,7 @@ export function InternalRoster({
                   <Button
                     size="sm"
                     variant="outline"
-                    className="h-7 shrink-0 gap-1 rounded-lg text-[11px]"
+                    className="h-7 shrink-0 gap-1 rounded-lg text-xs"
                     disabled={busy === person.candidate_id}
                     onClick={() => void bench(person)}
                   >

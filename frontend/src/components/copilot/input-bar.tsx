@@ -40,7 +40,7 @@ export function InputBar({ suggestions }: { suggestions?: string[] | undefined }
               type="button"
               onClick={() => void submit(s)}
               disabled={loading}
-              className="rounded-full border bg-background px-3 py-1 text-[11px] font-medium text-muted-foreground transition-colors hover:border-primary/40 hover:text-foreground disabled:opacity-40"
+              className="rounded-full border bg-background px-3 py-1 text-xs font-medium text-muted-foreground transition-colors hover:border-primary/40 hover:text-foreground disabled:opacity-40"
             >
               {s}
             </button>
@@ -114,7 +114,7 @@ export function InputBar({ suggestions }: { suggestions?: string[] | undefined }
           </button>
         </div>
       </form>
-      <p className="mt-1.5 px-1.5 text-[10px] text-muted-foreground">
+      <p className="mt-1.5 px-1.5 text-[11px] text-muted-foreground">
         Enter to send · Shift+Enter for new line · drag a file to attach
       </p>
     </div>

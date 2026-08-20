@@ -80,7 +80,7 @@ export function MessageBubble({
           <button
             type="button"
             onClick={() => setSourcesOpen((v) => !v)}
-            className="flex items-center gap-1 text-[11px] font-medium text-muted-foreground hover:text-foreground"
+            className="flex items-center gap-1 text-xs font-medium text-muted-foreground hover:text-foreground"
           >
             <ChevronDown
               className={cn("h-3 w-3 transition-transform", sourcesOpen && "rotate-180")}

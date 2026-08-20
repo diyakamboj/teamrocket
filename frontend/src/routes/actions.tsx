@@ -354,7 +354,7 @@ function ActionsPage() {
                         <div className="flex flex-wrap items-center gap-3">
                           <h3 className="text-base font-bold">{item.title}</h3>
                           {item.urgency === "high" && (
-                            <Badge className="border-destructive/30 bg-destructive/15 text-[10px] uppercase text-destructive">
+                            <Badge className="border-destructive/30 bg-destructive/15 text-[11px] uppercase text-destructive">
                               High priority
                             </Badge>
                           )}

@@ -422,7 +422,7 @@ function Candidates() {
               ))}
             </select>
             <div className="min-w-0">
-              <p className="mb-1 text-[11px] text-muted-foreground">Min score: {minScore}</p>
+              <p className="mb-1 text-xs text-muted-foreground">Min score: {minScore}</p>
               <Slider
                 value={[minScore]}
                 max={100}
@@ -436,7 +436,7 @@ function Candidates() {
           </div>
 
           <div className="card-surface divide-y overflow-hidden">
-            <div className="hidden grid-cols-[52px_minmax(0,1fr)_148px_minmax(0,1.4fr)_44px] items-center gap-4 px-5 py-3 text-[11px] font-bold uppercase tracking-wide text-muted-foreground md:grid">
+            <div className="hidden grid-cols-[52px_minmax(0,1fr)_148px_minmax(0,1.4fr)_44px] items-center gap-4 px-5 py-3 text-xs font-bold uppercase tracking-wide text-muted-foreground md:grid">
               <span>Rank</span>
               <span>Candidate</span>
               <span>ATS score</span>
@@ -588,7 +588,7 @@ function Candidates() {
                         {c.evidence.map((e, i) => (
                           <span
                             key={i}
-                            className="rounded-full bg-primary-soft px-3 py-1 text-[11px] font-medium text-primary-soft-foreground"
+                            className="rounded-full bg-primary-soft px-3 py-1 text-xs font-medium text-primary-soft-foreground"
                           >
                             {e.skill} — {e.detail} | Source: {e.source}
                           </span>
@@ -626,7 +626,7 @@ function Candidates() {
                                   href={s.outlook_url}
                                   target="_blank"
                                   rel="noreferrer"
-                                  className="inline-flex items-center gap-1.5 rounded-full border bg-background px-3 py-1 text-[11px] font-medium text-muted-foreground hover:border-primary/40 hover:text-foreground"
+                                  className="inline-flex items-center gap-1.5 rounded-full border bg-background px-3 py-1 text-xs font-medium text-muted-foreground hover:border-primary/40 hover:text-foreground"
                                 >
                                   <Calendar className="h-3 w-3" /> {s.label}
                                 </a>
@@ -731,7 +731,7 @@ function Candidates() {
                 <EyeOff className="h-4 w-4 shrink-0 text-muted-foreground" />
                 <div className="min-w-0">
                   <p className="truncate text-sm font-semibold">Blind review</p>
-                  <p className="truncate text-[11px] text-muted-foreground">
+                  <p className="truncate text-xs text-muted-foreground">
                     Hides names & contact info
                   </p>
                 </div>

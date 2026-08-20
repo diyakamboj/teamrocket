@@ -16,6 +16,7 @@ import { AppStateProvider } from "@/lib/app-state";
 import { CopilotProvider } from "@/lib/copilot-state";
 import { AppShell } from "@/components/app-shell";
 import { PointerFX } from "@/components/pointer-fx";
+import { PageTransition } from "@/components/page-transition";
 import { isSignedIn, verifySession } from "@/lib/auth";
 import { CopilotLauncher } from "@/components/copilot/copilot-launcher";
 import { Toaster } from "@/components/ui/sonner";
@@ -153,7 +154,9 @@ function RootComponent() {
           <>
             {/* No shell, no app state: these pages must render for someone
                 who has no account yet. */}
-            <Outlet />
+            <PageTransition>
+              <Outlet />
+            </PageTransition>
             <Toaster position="bottom-center" richColors />
           </>
         ) : (
@@ -162,7 +165,9 @@ function RootComponent() {
               <CopilotProvider>
                 <AppShell>
                   {/* Required: nested routes render here. */}
-                  <Outlet />
+                  <PageTransition>
+                    <Outlet />
+                  </PageTransition>
                 </AppShell>
                 <CopilotLauncher />
                 <Toaster position="bottom-center" richColors />

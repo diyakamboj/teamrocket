@@ -100,7 +100,7 @@ function LandingPage() {
             <p className="text-sm tracking-tight">
               <ProductName />
             </p>
-            <p className="text-[11px] text-muted-foreground">Recruiting intelligence</p>
+            <p className="text-xs text-muted-foreground">Recruiting intelligence</p>
           </div>
         </div>
         <div className="animate-fade flex items-center gap-2">
@@ -164,7 +164,7 @@ function LandingPage() {
                 <p className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
                   Candidate ranking
                 </p>
-                <span className="rounded-full bg-secondary px-2 py-0.5 text-[10px] font-semibold">
+                <span className="rounded-full bg-secondary px-2 py-0.5 text-[11px] font-semibold">
                   Weighted to this role
                 </span>
               </div>
@@ -178,12 +178,12 @@ function LandingPage() {
                     <span className="text-xs font-extrabold tabular-nums text-muted-foreground">
                       #{row.rank}
                     </span>
-                    <span className="grid h-8 w-8 place-items-center rounded-full bg-primary/10 text-[11px] font-bold text-primary">
+                    <span className="grid h-8 w-8 place-items-center rounded-full bg-primary/10 text-xs font-bold text-primary">
                       {row.name.split(" ").map((p) => p[0]).join("")}
                     </span>
                     <div className="min-w-0 flex-1">
                       <p className="truncate text-sm font-semibold">{row.name}</p>
-                      <p className={`text-[11px] font-medium ${row.tone}`}>{row.flag}</p>
+                      <p className={`text-xs font-medium ${row.tone}`}>{row.flag}</p>
                     </div>
                     <div className="hidden flex-1 sm:block">
                       <div className="h-1.5 overflow-hidden rounded-full bg-secondary">
@@ -194,7 +194,7 @@ function LandingPage() {
                       </div>
                     </div>
                     <div className="text-right">
-                      <p className="text-[10px] font-bold uppercase text-muted-foreground">ATS</p>
+                      <p className="text-[11px] font-bold uppercase text-muted-foreground">ATS</p>
                       <span className="text-lg font-extrabold tabular-nums">{row.score}</span>
                     </div>
                   </li>

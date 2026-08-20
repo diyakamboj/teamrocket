@@ -63,20 +63,20 @@ const FILTERS: Array<{ id: "all" | FraudStatus; label: string }> = [
 function StatusPill({ status }: { status: FraudStatus }) {
   if (status === "verified") {
     return (
-      <span className="inline-flex items-center gap-1 rounded-full bg-emerald-100 px-2.5 py-1 text-[11px] font-semibold text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-300">
+      <span className="inline-flex items-center gap-1 rounded-full bg-emerald-100 px-2.5 py-1 text-xs font-semibold text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-300">
         <BadgeCheck className="h-3.5 w-3.5" /> Verified
       </span>
     );
   }
   if (status === "fraud") {
     return (
-      <span className="inline-flex items-center gap-1 rounded-full bg-rose-100 px-2.5 py-1 text-[11px] font-semibold text-rose-700 dark:bg-rose-500/15 dark:text-rose-300">
+      <span className="inline-flex items-center gap-1 rounded-full bg-rose-100 px-2.5 py-1 text-xs font-semibold text-rose-700 dark:bg-rose-500/15 dark:text-rose-300">
         <ShieldAlert className="h-3.5 w-3.5" /> Fraud
       </span>
     );
   }
   return (
-    <span className="inline-flex items-center gap-1 rounded-full bg-amber-100 px-2.5 py-1 text-[11px] font-semibold text-amber-800 dark:bg-amber-500/15 dark:text-amber-300">
+    <span className="inline-flex items-center gap-1 rounded-full bg-amber-100 px-2.5 py-1 text-xs font-semibold text-amber-800 dark:bg-amber-500/15 dark:text-amber-300">
       <AlertTriangle className="h-3.5 w-3.5" /> Suspicious
     </span>
   );
@@ -315,7 +315,7 @@ function FraudDetectionPage() {
                 Candidates circulate as background checks resolve — verified, suspicious, or fraud.
               </p>
             </div>
-            <span className="shrink-0 rounded-full bg-secondary px-2.5 py-1 text-[11px] font-semibold text-muted-foreground">
+            <span className="shrink-0 rounded-full bg-secondary px-2.5 py-1 text-xs font-semibold text-muted-foreground">
               Streaming
             </span>
           </div>
@@ -407,7 +407,7 @@ function FraudDetectionPage() {
                 >
                   <span
                     className={cn(
-                      "mr-2 inline-flex rounded-full px-2 py-0.5 text-[10px] font-bold uppercase",
+                      "mr-2 inline-flex rounded-full px-2 py-0.5 text-[11px] font-bold uppercase",
                       signal.severity === "high"
                         ? "bg-rose-100 text-rose-700"
                         : signal.severity === "medium"
@@ -462,7 +462,7 @@ function FraudDetectionPage() {
                       >
                         <span
                           className={cn(
-                            "mr-2 inline-flex rounded-full px-2 py-0.5 text-[10px] font-bold uppercase",
+                            "mr-2 inline-flex rounded-full px-2 py-0.5 text-[11px] font-bold uppercase",
                             flag.severity === "high"
                               ? "bg-rose-100 text-rose-700"
                               : flag.severity === "medium"

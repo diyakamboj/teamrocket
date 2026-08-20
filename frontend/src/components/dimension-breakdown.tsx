@@ -29,14 +29,14 @@ export function DimensionBreakdown({ scores }: { scores: CategoryScore[] }) {
               <span className="font-medium text-foreground">{s.category}</span>
               <span className="font-semibold text-primary">
                 {s.score.toFixed(0)}/100{" "}
-                <span className="text-[10px] text-muted-foreground font-normal">
+                <span className="text-[11px] text-muted-foreground font-normal">
                   (weight {(s.weight * 100).toFixed(0)}%)
                 </span>
               </span>
             </div>
             <Progress value={s.score} className="h-1.5" />
             {s.highlights && s.highlights.length > 0 && (
-              <p className="text-[11px] text-muted-foreground italic">
+              <p className="text-xs text-muted-foreground italic">
                 {s.highlights.join(" · ")}
               </p>
             )}

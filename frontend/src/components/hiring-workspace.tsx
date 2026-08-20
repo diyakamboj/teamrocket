@@ -136,10 +136,10 @@ export function JobGrid({
         <Card key={job.job_id} className="card-surface transition-all hover:border-primary">
           <CardHeader className="pb-3">
             <div className="flex items-center justify-between gap-2">
-              <Badge variant="outline" className="text-[10px] font-bold uppercase">
+              <Badge variant="outline" className="text-[11px] font-bold uppercase">
                 {job.status}
               </Badge>
-              <span className="rounded border border-success/30 bg-success/15 px-2 py-0.5 text-[10px] font-bold text-success">
+              <span className="rounded border border-success/30 bg-success/15 px-2 py-0.5 text-[11px] font-bold text-success">
                 avg {Math.round(job.average_score)}%
               </span>
             </div>
@@ -149,7 +149,7 @@ export function JobGrid({
             <div className="grid grid-cols-3 gap-2 rounded-lg border border-border bg-secondary/40 p-3 text-center text-xs">
               {metrics(job).map((m) => (
                 <div key={m.label}>
-                  <span className="block text-[10px] font-semibold text-muted-foreground">
+                  <span className="block text-[11px] font-semibold text-muted-foreground">
                     {m.label}
                   </span>
                   <span className={cn("font-bold", m.tone ?? "text-foreground")}>{m.value}</span>

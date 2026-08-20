@@ -77,7 +77,7 @@ export function CopilotPanel() {
           </span>
           <div className="min-w-0 flex-1">
             <p className="truncate text-sm font-semibold">AI assistant</p>
-            <p className="truncate text-[11px] text-muted-foreground">
+            <p className="truncate text-xs text-muted-foreground">
               {backendReady ? "Connected" : "Offline"}
             </p>
           </div>

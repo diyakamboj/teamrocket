@@ -141,13 +141,13 @@ export function CandidateScreeningSection({ candidateId, candidateName, jobId }:
                 <p className="font-semibold text-xs text-foreground">
                   Review for {activeSession.candidate_name} ({activeSession.job_title || "General Role"})
                 </p>
-                <p className="text-[11px] text-muted-foreground">
+                <p className="text-xs text-muted-foreground">
                   Progress: {activeSession.answers.length} of {activeSession.questions.length} questions answered
                 </p>
               </div>
               <Badge
                 variant="outline"
-                className={`text-[10px] ${
+                className={`text-[11px] ${
                   activeSession.status === "completed"
                     ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/30"
                     : "bg-blue-500/10 text-blue-600 dark:text-blue-400 border-blue-500/30"
@@ -178,7 +178,7 @@ export function CandidateScreeningSection({ candidateId, candidateName, jobId }:
                   <div key={q.id} className="rounded-xl border border-border bg-card p-3.5 space-y-2">
                     <div className="flex items-start justify-between">
                       <div className="flex items-center gap-2">
-                        <Badge variant="outline" className="text-[10px] bg-background">
+                        <Badge variant="outline" className="text-[11px] bg-background">
                           Q{idx + 1} · {q.category}
                         </Badge>
                       </div>
@@ -190,7 +190,7 @@ export function CandidateScreeningSection({ candidateId, candidateName, jobId }:
                     </div>
 
                     <p className="font-semibold text-xs text-foreground">{q.question}</p>
-                    <p className="text-[11px] text-muted-foreground italic">Intent: {q.intent}</p>
+                    <p className="text-xs text-muted-foreground italic">Intent: {q.intent}</p>
 
                     <div className="pt-1">
                       <Textarea
@@ -202,7 +202,7 @@ export function CandidateScreeningSection({ candidateId, candidateName, jobId }:
                       />
                       <div className="mt-2 flex items-center justify-between">
                         {existingAns?.feedback ? (
-                          <p className="text-[11px] text-muted-foreground">
+                          <p className="text-xs text-muted-foreground">
                             <span className="font-medium text-foreground">AI Feedback:</span> {existingAns.feedback}
                           </p>
                         ) : (

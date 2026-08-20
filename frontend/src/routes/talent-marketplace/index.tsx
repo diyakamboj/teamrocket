@@ -263,7 +263,7 @@ function TalentMarketplacePage() {
                 <div className="flex items-center justify-between gap-3 rounded-xl bg-secondary/60 px-3">
                   <div className="min-w-0">
                     <p className="truncate text-sm font-semibold">Bench only</p>
-                    <p className="truncate text-[11px] text-muted-foreground">
+                    <p className="truncate text-xs text-muted-foreground">
                       Only show candidates on the bench
                     </p>
                   </div>
@@ -271,7 +271,7 @@ function TalentMarketplacePage() {
                 </div>
 
                 <div className="min-w-0">
-                  <p className="mb-1 text-[11px] text-muted-foreground">Min score: {minScore}</p>
+                  <p className="mb-1 text-xs text-muted-foreground">Min score: {minScore}</p>
                   <Slider
                     value={[minScore]}
                     max={100}
@@ -331,7 +331,7 @@ function TalentMarketplacePage() {
                                 {card.skills.slice(0, 5).map((s) => (
                                   <span
                                     key={s}
-                                    className="rounded-full bg-primary-soft px-2 py-0.5 text-[10px] font-medium text-primary-soft-foreground"
+                                    className="rounded-full bg-primary-soft px-2 py-0.5 text-[11px] font-medium text-primary-soft-foreground"
                                   >
                                     {s}
                                   </span>

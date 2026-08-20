@@ -97,7 +97,7 @@ function StatCard({
           <Icon className="h-5 w-5" />
         </span>
         {delta && (
-          <span className="inline-flex items-center gap-0.5 rounded-full bg-secondary px-2 py-0.5 text-[11px] font-semibold text-muted-foreground">
+          <span className="inline-flex items-center gap-0.5 rounded-full bg-secondary px-2 py-0.5 text-xs font-semibold text-muted-foreground">
             {delta}
           </span>
         )}
@@ -512,14 +512,14 @@ function Insights() {
             {topFlag ? (
               <span
                 className={cn(
-                  "inline-flex items-center rounded-full px-2.5 py-0.5 text-[11px] font-semibold",
+                  "inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold",
                   CLASSIFICATION_META[topFlag].className,
                 )}
               >
                 {CLASSIFICATION_META[topFlag].label}
               </span>
             ) : null}
-            <span className="rounded-full bg-secondary px-2.5 py-0.5 text-[11px] font-semibold text-muted-foreground">
+            <span className="rounded-full bg-secondary px-2.5 py-0.5 text-xs font-semibold text-muted-foreground">
               {feed.length} pending
             </span>
           </div>
@@ -556,7 +556,7 @@ function Insights() {
                     </div>
                     <span
                       className={cn(
-                        "inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-[10px] font-bold",
+                        "inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-[11px] font-bold",
                         meta.className,
                       )}
                     >

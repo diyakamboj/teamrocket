@@ -21,7 +21,7 @@ export function AttachmentChip({
   return (
     <span
       className={cn(
-        "inline-flex max-w-full items-center gap-1.5 rounded-full border bg-background px-2.5 py-1 text-[11px] font-medium",
+        "inline-flex max-w-full items-center gap-1.5 rounded-full border bg-background px-2.5 py-1 text-xs font-medium",
         failed ? "border-destructive/40 text-destructive" : "text-foreground",
       )}
       title={attachment.error ?? attachment.extracted_summary ?? attachment.filename}

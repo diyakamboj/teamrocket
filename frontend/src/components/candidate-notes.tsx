@@ -70,7 +70,7 @@ export function CandidateNotes({
       <header className="flex items-center gap-2 border-b px-4 py-3">
         <MessagesSquare className="h-4 w-4 text-primary" />
         <h3 className="text-sm font-semibold">Shared notes</h3>
-        <span className="metric ml-auto rounded-full bg-secondary px-2 py-0.5 text-[10px] font-bold">
+        <span className="metric ml-auto rounded-full bg-secondary px-2 py-0.5 text-[11px] font-bold">
           {notes.length}
         </span>
       </header>
@@ -88,11 +88,11 @@ export function CandidateNotes({
           notes.map((note) => (
             <div key={note.id} className="rounded-xl border bg-background px-3 py-2">
               <div className="flex items-baseline justify-between gap-2">
-                <p className="truncate text-[11px] font-semibold">
+                <p className="truncate text-xs font-semibold">
                   {note.mine ? "You" : note.author_name}
                 </p>
                 <time
-                  className="shrink-0 text-[10px] text-muted-foreground"
+                  className="shrink-0 text-[11px] text-muted-foreground"
                   dateTime={note.created_at}
                 >
                   {new Date(note.created_at).toLocaleDateString()}
@@ -122,7 +122,7 @@ export function CandidateNotes({
           </Button>
         </form>
       ) : (
-        <p className="border-t px-4 py-2.5 text-[11px] text-muted-foreground">
+        <p className="border-t px-4 py-2.5 text-xs text-muted-foreground">
           Shared with you read-only, so you can read the thread but not add to it.
         </p>
       )}

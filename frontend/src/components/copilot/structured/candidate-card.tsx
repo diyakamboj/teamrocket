@@ -46,14 +46,14 @@ export function CandidateCard({
 
       {card.skills?.length > 0 && (
         <div>
-          <p className="text-[10px] font-bold uppercase tracking-wide text-muted-foreground">
+          <p className="text-[11px] font-bold uppercase tracking-wide text-muted-foreground">
             Skills
           </p>
           <div className="mt-1.5 flex flex-wrap gap-1.5">
             {card.skills.map((s) => (
               <span
                 key={s}
-                className="rounded-full bg-primary-soft px-2 py-0.5 text-[10px] font-medium text-primary-soft-foreground"
+                className="rounded-full bg-primary-soft px-2 py-0.5 text-[11px] font-medium text-primary-soft-foreground"
               >
                 {s}
               </span>
@@ -66,7 +66,7 @@ export function CandidateCard({
         <div className="grid gap-3 sm:grid-cols-2">
           {card.strengths?.length > 0 && (
             <div>
-              <p className="text-[10px] font-bold uppercase tracking-wide text-muted-foreground">
+              <p className="text-[11px] font-bold uppercase tracking-wide text-muted-foreground">
                 Strengths
               </p>
               <ul className="mt-1 space-y-1 text-xs text-muted-foreground">
@@ -78,7 +78,7 @@ export function CandidateCard({
           )}
           {card.gaps?.length > 0 && (
             <div>
-              <p className="text-[10px] font-bold uppercase tracking-wide text-muted-foreground">
+              <p className="text-[11px] font-bold uppercase tracking-wide text-muted-foreground">
                 Gaps
               </p>
               <ul className="mt-1 space-y-1 text-xs text-muted-foreground">

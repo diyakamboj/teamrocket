@@ -72,7 +72,7 @@ function StateBadge({ state }: { state: DirectoryRecruiter["connection_state"] }
   return (
     <span
       className={cn(
-        "rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide",
+        "rounded-full px-2 py-0.5 text-[11px] font-semibold uppercase tracking-wide",
         state === "connected"
           ? "bg-success/15 text-success dark:text-success"
           : "bg-secondary text-secondary-foreground",
@@ -91,7 +91,7 @@ function PermissionBadge({ permission }: { permission: SharedCandidate["permissi
   return (
     <span
       className={cn(
-        "mt-2 inline-block rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide",
+        "mt-2 inline-block rounded-full px-2 py-0.5 text-[11px] font-semibold uppercase tracking-wide",
         collaborate
           ? "bg-success/15 text-success dark:text-success"
           : "bg-secondary text-secondary-foreground",
@@ -154,12 +154,12 @@ function Conversation({
     <section className="animate-rise rounded-2xl border bg-card shadow-sm">
       <header className="flex items-center justify-between border-b px-5 py-3.5">
         <div className="flex items-center gap-2.5">
-          <span className="grid h-8 w-8 place-items-center rounded-full bg-primary/10 text-[11px] font-bold text-primary">
+          <span className="grid h-8 w-8 place-items-center rounded-full bg-primary/10 text-xs font-bold text-primary">
             {initials(name)}
           </span>
           <div>
             <p className="text-sm font-semibold">{name}</p>
-            <p className="text-[11px] text-muted-foreground">{email}</p>
+            <p className="text-xs text-muted-foreground">{email}</p>
           </div>
         </div>
         <Button variant="ghost" size="icon" aria-label="Close conversation" className="h-8 w-8" onClick={onClose}>
@@ -290,7 +290,7 @@ function NetworkPage() {
         <section className="animate-rise rounded-2xl border bg-card p-5 shadow-sm">
           <h2 className="text-sm font-semibold">
             Requests waiting on you
-            <span className="ml-2 rounded-full bg-primary/10 px-2 py-0.5 text-[11px] font-bold text-primary">
+            <span className="ml-2 rounded-full bg-primary/10 px-2 py-0.5 text-xs font-bold text-primary">
               {incoming.length}
             </span>
           </h2>
@@ -300,7 +300,7 @@ function NetworkPage() {
                 key={request.id}
                 className="lift flex flex-wrap items-center gap-3 rounded-xl border p-3.5"
               >
-                <span className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-primary/10 text-[11px] font-bold text-primary">
+                <span className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-primary/10 text-xs font-bold text-primary">
                   {initials(request.counterpart_name)}
                 </span>
                 <div className="min-w-0 flex-1">
@@ -381,7 +381,7 @@ function NetworkPage() {
                     </p>
                   </div>
                   {candidate.screening_score != null && (
-                    <span className="metric shrink-0 rounded-full bg-primary/10 px-2 py-0.5 text-[11px] font-bold text-primary">
+                    <span className="metric shrink-0 rounded-full bg-primary/10 px-2 py-0.5 text-xs font-bold text-primary">
                       {Math.round(candidate.screening_score)}
                     </span>
                   )}
@@ -392,12 +392,12 @@ function NetworkPage() {
                 )}
                 <SharedCandidatePipeline candidate={candidate} onMoved={() => void refresh()} />
                 {candidate.screening_summary && (
-                  <p className="mt-2 line-clamp-3 text-[11px] leading-relaxed text-muted-foreground">
+                  <p className="mt-2 line-clamp-3 text-xs leading-relaxed text-muted-foreground">
                     {candidate.screening_summary}
                   </p>
                 )}
                 <div className="mt-3 flex flex-wrap items-center justify-between gap-2">
-                  <span className="text-[11px] text-muted-foreground">
+                  <span className="text-xs text-muted-foreground">
                     from {candidate.shared_by_name}
                   </span>
                   <div className="flex gap-1">
@@ -483,7 +483,7 @@ function NetworkPage() {
                         )
                       }
                       className={cn(
-                        "rounded-lg border px-2 py-1 text-[11px] font-medium transition-colors disabled:opacity-50",
+                        "rounded-lg border px-2 py-1 text-xs font-medium transition-colors disabled:opacity-50",
                         candidate.permission === option.id
                           ? "border-primary/40 bg-primary/10 text-primary"
                           : "text-muted-foreground hover:border-primary/40 hover:text-foreground",
@@ -539,7 +539,7 @@ function NetworkPage() {
                   }
                   className="flex w-full items-center gap-3 px-5 py-3.5 text-left transition-colors hover:bg-secondary/50"
                 >
-                  <span className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-primary/10 text-[11px] font-bold text-primary">
+                  <span className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-primary/10 text-xs font-bold text-primary">
                     {initials(thread.counterpart_name)}
                   </span>
                   <div className="min-w-0 flex-1">
@@ -547,7 +547,7 @@ function NetworkPage() {
                     <p className="truncate text-xs text-muted-foreground">{thread.last_message}</p>
                   </div>
                   {thread.unread_count > 0 && (
-                    <span className="metric shrink-0 rounded-full bg-primary px-2 py-0.5 text-[10px] font-bold text-primary-foreground">
+                    <span className="metric shrink-0 rounded-full bg-primary px-2 py-0.5 text-[11px] font-bold text-primary-foreground">
                       {thread.unread_count}
                     </span>
                   )}

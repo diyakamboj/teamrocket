@@ -35,7 +35,7 @@ export function SourceBadge({
     <span
       title={detail}
       className={cn(
-        "inline-flex shrink-0 items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-semibold",
+        "inline-flex shrink-0 items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-semibold",
         internal
           ? "bg-violet-100 text-violet-700 dark:bg-violet-500/15 dark:text-violet-300"
           : "bg-sky-100 text-sky-700 dark:bg-sky-500/15 dark:text-sky-300",
@@ -77,7 +77,7 @@ export function CurrentRoleButton({
           : `Their current role in the company: ${label}`
       }
       className={cn(
-        "inline-flex shrink-0 items-center gap-1 rounded-lg border px-2 py-1 text-[11px] font-medium transition-colors",
+        "inline-flex shrink-0 items-center gap-1 rounded-lg border px-2 py-1 text-xs font-medium transition-colors",
         onBench
           ? "border-emerald-300 bg-emerald-50 text-emerald-800 dark:border-emerald-500/30 dark:bg-emerald-500/10 dark:text-emerald-300"
           : "hover:border-primary hover:bg-primary/5",

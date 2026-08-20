@@ -177,7 +177,7 @@ function MoveMenu({
         if (next) onMove(next);
         e.currentTarget.value = "";
       }}
-      className="w-full rounded-md border bg-background px-1.5 py-1 text-[10px] font-medium text-muted-foreground transition-colors hover:border-primary/40 disabled:opacity-40"
+      className="w-full rounded-md border bg-background px-1.5 py-1 text-[11px] font-medium text-muted-foreground transition-colors hover:border-primary/40 disabled:opacity-40"
     >
       <option value="">{disabled ? "Moving…" : "Move to…"}</option>
       {columns
@@ -204,7 +204,7 @@ function InterviewerTag({ column }: { column: PipelineColumn }) {
   return (
     <span
       className={cn(
-        "mt-1 flex items-center gap-1 text-[10px]",
+        "mt-1 flex items-center gap-1 text-[11px]",
         name ? "text-muted-foreground" : "text-muted-foreground/60 italic",
       )}
       title={column.interviewerEmail || undefined}
@@ -307,7 +307,7 @@ export function PipelineOverviewTab({
                   <h4 className={cn("text-xs font-bold uppercase tracking-wide", column.tone)}>
                     {column.label}
                   </h4>
-                  <span className="metric ml-auto rounded-full bg-secondary px-2 py-0.5 text-[10px] font-bold">
+                  <span className="metric ml-auto rounded-full bg-secondary px-2 py-0.5 text-[11px] font-bold">
                     {(byColumn[column.key] ?? []).length}
                   </span>
                 </div>
@@ -439,11 +439,11 @@ export function PipelineOverviewTab({
                 ) : (
                   <>
                     <div className="flex items-center gap-2">
-                      <span className="grid h-6 w-6 shrink-0 place-items-center rounded-lg bg-primary/10 text-[11px] font-bold text-primary">
+                      <span className="grid h-6 w-6 shrink-0 place-items-center rounded-lg bg-primary/10 text-xs font-bold text-primary">
                         {index + 1}
                       </span>
                       <p className="text-sm font-semibold">{round.name}</p>
-                      <span className="ml-auto text-[11px] text-muted-foreground">
+                      <span className="ml-auto text-xs text-muted-foreground">
                         {round.duration_minutes}m
                       </span>
                     </div>
@@ -454,7 +454,7 @@ export function PipelineOverviewTab({
                     )}
                     <p
                       className={cn(
-                        "mt-1 flex items-center gap-1 pl-8 text-[11px]",
+                        "mt-1 flex items-center gap-1 pl-8 text-xs",
                         round.interviewer_name
                           ? "text-muted-foreground"
                           : "text-muted-foreground/60 italic",
@@ -514,7 +514,7 @@ export function PipelineOverviewTab({
               <p className={cn("metric text-2xl font-bold", stage.tone)}>
                 {counts[stage.id] ?? 0}
               </p>
-              <p className="mt-1 text-[11px] font-medium text-muted-foreground">{stage.label}</p>
+              <p className="mt-1 text-xs font-medium text-muted-foreground">{stage.label}</p>
             </div>
           ))}
         </div>
@@ -549,7 +549,7 @@ function RoundRoster({
 }) {
   if (occupants.length === 0) {
     return (
-      <p className="mt-3 rounded-lg border border-dashed px-3 py-3 text-center text-[11px] text-muted-foreground">
+      <p className="mt-3 rounded-lg border border-dashed px-3 py-3 text-center text-xs text-muted-foreground">
         Nobody here yet
       </p>
     );
@@ -568,7 +568,7 @@ function RoundRoster({
             <p className="truncate text-xs font-semibold">
               {blindLabel(candidate, order, blindMode)}
             </p>
-            <p className="truncate text-[11px] text-muted-foreground">{candidate.title || "—"}</p>
+            <p className="truncate text-xs text-muted-foreground">{candidate.title || "—"}</p>
             <MovedByTag placement={placements[candidate.id] ?? null} />
           </div>
           <span className="metric shrink-0 text-xs font-bold text-primary">{candidate.score}</span>
@@ -579,7 +579,7 @@ function RoundRoster({
               size="sm"
               variant="outline"
               disabled={moving === candidate.id}
-              className="h-7 shrink-0 rounded-lg text-[11px]"
+              className="h-7 shrink-0 rounded-lg text-xs"
               title={`Advance to ${advanceTo.label}`}
               onClick={() => onMove(candidate, advanceTo)}
             >
@@ -671,7 +671,7 @@ export function StageBoardTab({
 
   return (
     <div className="flow-tight">
-      <p className="px-1 text-[11px] text-muted-foreground">
+      <p className="px-1 text-xs text-muted-foreground">
         Drag a candidate between columns, or use the menu on a card. Moving someone never emails
         them on its own — the toast offers that separately.
       </p>
@@ -705,7 +705,7 @@ export function StageBoardTab({
               >
                 {column.label}
               </h3>
-              <span className="metric shrink-0 rounded-full bg-secondary px-2 py-0.5 text-[10px] font-bold">
+              <span className="metric shrink-0 rounded-full bg-secondary px-2 py-0.5 text-[11px] font-bold">
                 {grouped[column.key]?.length ?? 0}
               </span>
             </header>
@@ -734,7 +734,7 @@ export function StageBoardTab({
                       <p className="truncate text-xs font-semibold">
                         {blindLabel(candidate, order, blindMode)}
                       </p>
-                      <p className="truncate text-[11px] text-muted-foreground">
+                      <p className="truncate text-xs text-muted-foreground">
                         {candidate.title || "—"}
                       </p>
                       <MovedByTag placement={placements[candidate.id] ?? null} />
@@ -755,7 +755,7 @@ export function StageBoardTab({
                 </li>
               ))}
               {(grouped[column.key] ?? []).length === 0 && (
-                <li className="rounded-xl border border-dashed px-2 py-6 text-center text-[11px] text-muted-foreground">
+                <li className="rounded-xl border border-dashed px-2 py-6 text-center text-xs text-muted-foreground">
                   {dragOver === column.key ? "Drop here" : "Empty"}
                 </li>
               )}
@@ -866,7 +866,7 @@ export function JdInsightsTab({ jobId }: { jobId: string }) {
         ].map((tile) => (
           <div key={tile.label} className="lift edge-accent rounded-2xl border bg-card p-5">
             <p className="metric text-2xl font-bold">{tile.value}</p>
-            <p className="mt-1 text-[11px] font-medium text-muted-foreground">{tile.label}</p>
+            <p className="mt-1 text-xs font-medium text-muted-foreground">{tile.label}</p>
           </div>
         ))}
       </section>
@@ -908,7 +908,7 @@ export function JdInsightsTab({ jobId }: { jobId: string }) {
                   </div>
                   <span
                     className={cn(
-                      "rounded-full px-2 py-0.5 text-[10px] font-semibold",
+                      "rounded-full px-2 py-0.5 text-[11px] font-semibold",
                       pct >= 80
                         ? "bg-secondary text-muted-foreground"
                         : pct <= 20
@@ -954,13 +954,13 @@ export function JdInsightsTab({ jobId }: { jobId: string }) {
                     <div className="flex flex-wrap items-center gap-2">
                       <p className="text-sm font-semibold">{rec.skill}</p>
                       <span
-                        className="rounded-full bg-secondary px-2 py-0.5 text-[10px] font-semibold text-muted-foreground"
+                        className="rounded-full bg-secondary px-2 py-0.5 text-[11px] font-semibold text-muted-foreground"
                         title={verdictFor(rec.classification).meaning}
                       >
                         {verdictFor(rec.classification).label}
                       </span>
                       {rec.is_must_have && (
-                        <span className="rounded-full bg-primary/10 px-2 py-0.5 text-[10px] font-semibold text-primary">
+                        <span className="rounded-full bg-primary/10 px-2 py-0.5 text-[11px] font-semibold text-primary">
                           Must have
                         </span>
                       )}
@@ -971,7 +971,7 @@ export function JdInsightsTab({ jobId }: { jobId: string }) {
                     <p className="mt-1 text-xs font-medium leading-relaxed">
                       {rec.suggested_modification}
                     </p>
-                    <p className="metric mt-1.5 text-[11px] text-muted-foreground/80">
+                    <p className="metric mt-1.5 text-xs text-muted-foreground/80">
                       {rec.candidates_matching} of {rec.total_candidates} candidates meet this (
                       {Math.round(rec.coverage_pct)}%)
                     </p>
@@ -993,7 +993,7 @@ export function JdInsightsTab({ jobId }: { jobId: string }) {
             {(insights.common_missing_skills ?? []).slice(0, 10).map((gap) => (
               <span
                 key={gap.skill}
-                className="rounded-full bg-destructive/10 px-2.5 py-0.5 text-[11px] font-medium text-destructive"
+                className="rounded-full bg-destructive/10 px-2.5 py-0.5 text-xs font-medium text-destructive"
               >
                 {gap.skill} <span className="metric opacity-70">×{gap.count}</span>
               </span>
@@ -1002,7 +1002,7 @@ export function JdInsightsTab({ jobId }: { jobId: string }) {
         </section>
       )}
 
-      <p className="flex items-center gap-1.5 px-1 text-[11px] text-muted-foreground">
+      <p className="flex items-center gap-1.5 px-1 text-xs text-muted-foreground">
         <ArrowRight className="h-3 w-3" /> These figures come from candidates already scored
         against this role, so they get more reliable as you screen more people.
       </p>

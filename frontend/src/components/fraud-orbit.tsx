@@ -61,7 +61,7 @@ export function FraudOrbit({ nodes, className }: FraudOrbitProps) {
             resume<span className="text-primary">iq</span>
             <span className="text-primary">.</span>
           </p>
-          <p className="mt-0.5 text-[10px] font-medium uppercase tracking-[0.14em] text-muted-foreground">
+          <p className="mt-0.5 text-[11px] font-medium uppercase tracking-[0.14em] text-muted-foreground">
             verify
           </p>
         </div>

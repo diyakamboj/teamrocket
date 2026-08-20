@@ -74,7 +74,7 @@ export function ShareCandidateButton({
       <PopoverContent align="end" className="w-80 space-y-3">
         <div>
           <p className="text-sm font-semibold">Share {candidateName}</p>
-          <p className="mt-0.5 text-[11px] text-muted-foreground">
+          <p className="mt-0.5 text-xs text-muted-foreground">
             {permission === "collaborate"
               ? "They can add notes and move this candidate in your pipeline. The record stays yours and you can revoke it."
               : "Read-only. They see the profile and screening result, and it stays in your pool."}
@@ -95,7 +95,7 @@ export function ShareCandidateButton({
               type="button"
               onClick={() => setPermission(option.id)}
               className={cn(
-                "rounded-md px-2 py-1 text-[11px] font-medium transition-colors",
+                "rounded-md px-2 py-1 text-xs font-medium transition-colors",
                 permission === option.id
                   ? "bg-background text-foreground shadow-sm"
                   : "text-muted-foreground hover:text-foreground",
@@ -114,7 +114,7 @@ export function ShareCandidateButton({
         />
 
         {connections.length === 0 ? (
-          <p className="rounded-lg border border-dashed px-3 py-4 text-center text-[11px] text-muted-foreground">
+          <p className="rounded-lg border border-dashed px-3 py-4 text-center text-xs text-muted-foreground">
             No connections yet. Connect with a recruiter first on the Recruiter Network page.
           </p>
         ) : (
@@ -128,7 +128,7 @@ export function ShareCandidateButton({
                 >
                   <span className="min-w-0">
                     <span className="block truncate font-medium">{person.name}</span>
-                    <span className="block truncate text-[11px] text-muted-foreground">
+                    <span className="block truncate text-xs text-muted-foreground">
                       {person.role}
                     </span>
                   </span>

@@ -255,7 +255,7 @@ function InterviewHandoffPage() {
                     : "hover:bg-secondary",
                 )}
               >
-                <span className="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-secondary text-[11px] font-bold">
+                <span className="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-secondary text-xs font-bold">
                   {c.initials}
                 </span>
                 <span className="min-w-0">
@@ -321,7 +321,7 @@ function InterviewHandoffPage() {
                         {event.summary && (
                           <p className="text-xs text-muted-foreground">{event.summary}</p>
                         )}
-                        <p className="text-[11px] text-muted-foreground">
+                        <p className="text-xs text-muted-foreground">
                           {timeAgo(event.created_at)}
                           {event.actor_email ? ` · ${event.actor_email}` : ""}
                         </p>

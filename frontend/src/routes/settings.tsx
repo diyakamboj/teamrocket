@@ -88,7 +88,7 @@ function SectionCard({
           <Icon className="h-4.5 w-4.5" />
         </span>
         <div className="min-w-0">
-          <p className="text-[11px] font-semibold uppercase tracking-wider text-primary">
+          <p className="text-xs font-semibold uppercase tracking-wider text-primary">
             {eyebrow}
           </p>
           <h2 className="mt-0.5 text-base font-semibold tracking-tight">{title}</h2>
@@ -113,7 +113,7 @@ function Field({
     <div className="space-y-1.5">
       <label className="text-xs font-medium text-foreground">{label}</label>
       {children}
-      {hint && <p className="text-[11px] text-muted-foreground">{hint}</p>}
+      {hint && <p className="text-xs text-muted-foreground">{hint}</p>}
     </div>
   );
 }
@@ -136,21 +136,21 @@ function DocumentRow({
       <div className="min-w-0 flex-1">
         <div className="flex flex-wrap items-center gap-2">
           <span className="truncate text-sm font-semibold">{doc.filename}</span>
-          <span className="rounded-full bg-secondary px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-secondary-foreground">
+          <span className="rounded-full bg-secondary px-2 py-0.5 text-[11px] font-semibold uppercase tracking-wide text-secondary-foreground">
             {category?.label ?? doc.category}
           </span>
           {pending && (
-            <span className="inline-flex items-center gap-1 text-[11px] text-muted-foreground">
+            <span className="inline-flex items-center gap-1 text-xs text-muted-foreground">
               <Loader2 className="h-3 w-3 animate-spin" /> Extracting…
             </span>
           )}
           {doc.status === "processed" && (
-            <span className="inline-flex items-center gap-1 text-[11px] font-medium text-emerald-600 dark:text-emerald-400">
+            <span className="inline-flex items-center gap-1 text-xs font-medium text-emerald-600 dark:text-emerald-400">
               <CheckCircle2 className="h-3 w-3" /> Ready for AI
             </span>
           )}
           {doc.status === "failed" && (
-            <span className="rounded-full bg-destructive/10 px-2 py-0.5 text-[10px] font-semibold text-destructive">
+            <span className="rounded-full bg-destructive/10 px-2 py-0.5 text-[11px] font-semibold text-destructive">
               Extraction failed
             </span>
           )}
@@ -162,7 +162,7 @@ function DocumentRow({
             : (doc.extracted_summary ?? "Reading the document…")}
         </p>
 
-        <p className="mt-2 text-[11px] text-muted-foreground/80">
+        <p className="mt-2 text-xs text-muted-foreground/80">
           {formatSize(doc.size_bytes)} · uploaded {new Date(doc.created_at).toLocaleDateString()}
         </p>
       </div>
@@ -388,7 +388,7 @@ function SettingsPage() {
                     )}
                   >
                     <span className="block text-xs font-semibold">{c.label}</span>
-                    <span className="mt-0.5 block text-[11px] text-muted-foreground">{c.hint}</span>
+                    <span className="mt-0.5 block text-xs text-muted-foreground">{c.hint}</span>
                   </button>
                 ))}
               </div>
@@ -463,7 +463,7 @@ function SettingsPage() {
 
               <div className="flex items-start gap-2.5 rounded-xl border bg-secondary/40 p-3.5">
                 <ShieldCheck className="mt-0.5 h-4 w-4 shrink-0 text-primary" />
-                <p className="text-[11px] leading-relaxed text-muted-foreground">
+                <p className="text-xs leading-relaxed text-muted-foreground">
                   <span className="font-medium text-foreground">How these are handled.</span>{" "}
                   Documents are stored in your own Azure blob container and are readable only by
                   this account — another recruiter cannot list or open them, even with the id. File
@@ -485,20 +485,20 @@ function SettingsPage() {
             <div className="space-y-4">
               <div className="grid gap-3 sm:grid-cols-3">
                 <div className="rounded-xl border p-4">
-                  <p className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
+                  <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
                     Model
                   </p>
                   <p className="mt-1 text-sm font-semibold">GPT-5</p>
-                  <p className="mt-1 text-[11px] text-muted-foreground">
+                  <p className="mt-1 text-xs text-muted-foreground">
                     Set by the Azure deployment, not per recruiter.
                   </p>
                 </div>
                 <div className="rounded-xl border p-4">
-                  <p className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
+                  <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
                     Company documents
                   </p>
                   <p className="mt-1 text-sm font-semibold tabular-nums">{readyDocs} in context</p>
-                  <p className="mt-1 text-[11px] text-muted-foreground">
+                  <p className="mt-1 text-xs text-muted-foreground">
                     {failedDocs > 0
                       ? `${failedDocs} could not be read.`
                       : pendingCount > 0
@@ -507,11 +507,11 @@ function SettingsPage() {
                   </p>
                 </div>
                 <div className="rounded-xl border p-4">
-                  <p className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
+                  <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
                     Evidence
                   </p>
                   <p className="mt-1 text-sm font-semibold">Stored verdicts</p>
-                  <p className="mt-1 text-[11px] text-muted-foreground">
+                  <p className="mt-1 text-xs text-muted-foreground">
                     Answers cite screening results, not the raw résumé text.
                   </p>
                 </div>
@@ -519,7 +519,7 @@ function SettingsPage() {
 
               <div className="flex items-start gap-2.5 rounded-xl border bg-secondary/40 p-3.5">
                 <Lock className="mt-0.5 h-4 w-4 shrink-0 text-primary" />
-                <p className="text-[11px] leading-relaxed text-muted-foreground">
+                <p className="text-xs leading-relaxed text-muted-foreground">
                   Blind review is toggled per session on the ranking page, and applies to AI
                   too — names and contact details are withheld from prompts while it is on.
                 </p>
@@ -574,7 +574,7 @@ function SettingsPage() {
 
               <div className="flex items-start gap-2.5 rounded-xl border bg-secondary/40 p-3.5">
                 <Info className="mt-0.5 h-4 w-4 shrink-0 text-primary" />
-                <p className="text-[11px] leading-relaxed text-muted-foreground">
+                <p className="text-xs leading-relaxed text-muted-foreground">
                   Total <strong className="text-foreground tabular-nums">{totalWeight}%</strong> —
                   weights are normalized, so they need not add up to 100.
                 </p>

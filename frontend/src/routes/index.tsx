@@ -156,7 +156,7 @@ function DashboardPage() {
 
   const metrics = [
     {
-      label: "Active Job Openings",
+      label: "Open roles",
       val: `${stats.openRoles} Role${stats.openRoles === 1 ? "" : "s"}`,
       sub: `${stats.internalRoles} Internal • ${stats.externalRoles} External`,
 
@@ -164,23 +164,23 @@ function DashboardPage() {
       color: "text-primary",
     },
     {
-      label: "Total Candidates",
+      label: "People in your pool",
       val: `${stats.totalCandidates}`,
       sub: `${stats.internalCandidates} internal • ${stats.externalCandidates} external`,
       icon: Users,
       color: "text-muted-foreground",
     },
     {
-      label: "Top Quality Matches",
+      label: "Strong matches",
       val: `${stats.topMatches}`,
-      sub: `Score ≥ ${TOP_MATCH_SCORE}% fit`,
+      sub: `Scored ${TOP_MATCH_SCORE} or higher`,
       icon: Sparkles,
       color: "text-success",
     },
     {
-      label: "In Interview Stage",
+      label: "Interviewing now",
       val: `${stats.readyForInterview}`,
-      sub: "Interviewing or interviewed",
+      sub: "In or past an interview",
       icon: CheckCircle2,
       color: "text-warning",
     },
@@ -191,17 +191,17 @@ function DashboardPage() {
       <header className="flex flex-col justify-between gap-4 border-b border-border pb-6 md:flex-row md:items-center">
         <div>
           <div className="mb-1 flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-primary">
-            <Sparkles className="h-4 w-4" /> <ProductName /> hiring dashboard
+            <Sparkles className="h-4 w-4" /> Your hiring overview
           </div>
           <h1 className="text-2xl font-extrabold tracking-tight sm:text-3xl">
             {greeting()}, {session?.name?.split(" ")[0] ?? "there"} 👋
           </h1>
           <p className="mt-1 text-sm text-muted-foreground">
             {loading
-              ? "Loading your live hiring pipelines…"
+              ? "Loading your roles…"
               : error
-                ? `Could not load pipelines: ${error}`
-                : "Three steps: add a role, upload résumés, review ATS scores. AI handles the rest."}
+                ? `Could not load your roles: ${error}`
+                : "Add a role, add résumés, then review who fits. Everything else is done for you."}
           </p>
         </div>
       </header>
@@ -210,7 +210,7 @@ function DashboardPage() {
 
       <div className="stagger grid grid-cols-2 gap-4 md:grid-cols-4">
         {metrics.map((m) => (
-          <Card key={m.label} className="card-surface lift edge-accent panel-glow">
+          <Card key={m.label} className="card-surface lift spotlight">
             <CardContent className="p-4">
               <div className="flex items-center justify-between">
                 <span className="text-xs font-medium text-muted-foreground">{m.label}</span>
@@ -219,7 +219,7 @@ function DashboardPage() {
               <div className="mt-2 text-xl font-extrabold">
                 {loading ? <Loader2 className="h-5 w-5 animate-spin" /> : m.val}
               </div>
-              <div className="mt-0.5 text-[11px] text-muted-foreground">{m.sub}</div>
+              <div className="mt-0.5 text-xs text-muted-foreground">{m.sub}</div>
             </CardContent>
           </Card>
         ))}
@@ -236,9 +236,9 @@ function DashboardPage() {
                     <Briefcase className="h-4 w-4" />
                   </div>
                   <div>
-                    <CardTitle className="text-base font-bold">INTERNAL HIRING</CardTitle>
+                    <CardTitle className="text-base font-semibold">Hiring from inside</CardTitle>
                     <CardDescription className="text-xs">
-                      Active internal roles, bench candidate auto-matching, and internal mobility.
+                      Roles you are filling with people already at the company.
                     </CardDescription>
                   </div>
                 </div>
@@ -246,7 +246,7 @@ function DashboardPage() {
                   to="/internal-hiring"
                   className="text-xs font-semibold text-primary hover:underline"
                 >
-                  View All →
+                  See all
                 </Link>
               </div>
             </CardHeader>
@@ -254,19 +254,19 @@ function DashboardPage() {
             <CardContent className="space-y-4 p-5">
               <div className="grid grid-cols-3 gap-2 rounded-lg border border-border bg-secondary/40 p-3 text-center text-xs">
                 <div>
-                  <span className="block text-[10px] font-semibold uppercase text-muted-foreground">
+                  <span className="block text-[11px] font-semibold uppercase text-muted-foreground">
                     Roles
                   </span>
                   <span className="text-sm font-bold">{internalJobs.length}</span>
                 </div>
                 <div>
-                  <span className="block text-[10px] font-semibold uppercase text-muted-foreground">
+                  <span className="block text-[11px] font-semibold uppercase text-muted-foreground">
                     Bench Pool
                   </span>
                   <span className="text-sm font-bold text-primary">{stats.benchPool}</span>
                 </div>
                 <div>
-                  <span className="block text-[10px] font-semibold uppercase text-muted-foreground">
+                  <span className="block text-[11px] font-semibold uppercase text-muted-foreground">
                     Internal Candidates
                   </span>
                   <span className="text-sm font-bold text-success">
@@ -300,7 +300,7 @@ function DashboardPage() {
                             </span>
                           </div>
                         </div>
-                        <Badge variant="outline" className="text-[11px] font-medium">
+                        <Badge variant="outline" className="text-xs font-medium">
                           Open Job →
                         </Badge>
                       </div>
@@ -330,9 +330,9 @@ function DashboardPage() {
                     <Globe className="h-4 w-4" />
                   </div>
                   <div>
-                    <CardTitle className="text-base font-bold">EXTERNAL HIRING</CardTitle>
+                    <CardTitle className="text-base font-semibold">Hiring from outside</CardTitle>
                     <CardDescription className="text-xs">
-                      Public applicant funnel, candidate matching, and external sourcing.
+                      Roles you are filling with applicants from outside the company.
                     </CardDescription>
                   </div>
                 </div>
@@ -340,7 +340,7 @@ function DashboardPage() {
                   to="/external-hiring"
                   className="text-xs font-semibold text-primary hover:underline"
                 >
-                  View All →
+                  See all
                 </Link>
               </div>
             </CardHeader>
@@ -348,13 +348,13 @@ function DashboardPage() {
             <CardContent className="space-y-4 p-5">
               <div className="grid grid-cols-3 gap-2 rounded-lg border border-border bg-secondary/40 p-3 text-center text-xs">
                 <div>
-                  <span className="block text-[10px] font-semibold uppercase text-muted-foreground">
+                  <span className="block text-[11px] font-semibold uppercase text-muted-foreground">
                     Roles
                   </span>
                   <span className="text-sm font-bold">{externalJobs.length}</span>
                 </div>
                 <div>
-                  <span className="block text-[10px] font-semibold uppercase text-muted-foreground">
+                  <span className="block text-[11px] font-semibold uppercase text-muted-foreground">
                     Applicants
                   </span>
                   <span className="text-sm font-bold text-primary">
@@ -362,7 +362,7 @@ function DashboardPage() {
                   </span>
                 </div>
                 <div>
-                  <span className="block text-[10px] font-semibold uppercase text-muted-foreground">
+                  <span className="block text-[11px] font-semibold uppercase text-muted-foreground">
                     Top Matches
                   </span>
                   <span className="text-sm font-bold text-success">{stats.topMatches}</span>
@@ -394,7 +394,7 @@ function DashboardPage() {
                             </span>
                           </div>
                         </div>
-                        <Badge variant="outline" className="text-[11px] font-medium">
+                        <Badge variant="outline" className="text-xs font-medium">
                           Open Job →
                         </Badge>
                       </div>
@@ -421,9 +421,9 @@ function DashboardPage() {
             <div className="flex items-center gap-2">
               <Zap className="h-4 w-4 text-warning" />
               <div>
-                <CardTitle className="text-base font-bold">AI action feed</CardTitle>
+                <CardTitle className="text-base font-semibold">What needs your attention</CardTitle>
                 <CardDescription className="text-xs">
-                  Background intelligence and recommendations that need a recruiter decision.
+                  Suggestions waiting on a yes or no from you.
                 </CardDescription>
               </div>
             </div>

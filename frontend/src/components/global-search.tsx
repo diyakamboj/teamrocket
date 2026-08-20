@@ -157,7 +157,7 @@ export function GlobalSearch() {
             inputRef.current?.focus();
             setOpen(true);
           }}
-          className="absolute right-2.5 top-1/2 hidden -translate-y-1/2 rounded border border-border px-1.5 py-0.5 font-mono text-[10px] font-medium text-muted-foreground transition-colors hover:border-primary/40 hover:text-foreground sm:block"
+          className="absolute right-2.5 top-1/2 hidden -translate-y-1/2 rounded border border-border px-1.5 py-0.5 font-mono text-[11px] font-medium text-muted-foreground transition-colors hover:border-primary/40 hover:text-foreground sm:block"
         >
           /
         </button>
@@ -208,13 +208,13 @@ export function GlobalSearch() {
                     <span className="min-w-0 flex-1">
                       <span className="block truncate text-xs font-semibold">{match.name}</span>
                       {match.title && (
-                        <span className="block truncate text-[11px] text-muted-foreground">
+                        <span className="block truncate text-xs text-muted-foreground">
                           {match.title}
                         </span>
                       )}
                     </span>
                     {match.similarity !== null && (
-                      <span className="shrink-0 text-[11px] font-semibold tabular-nums text-muted-foreground">
+                      <span className="shrink-0 text-xs font-semibold tabular-nums text-muted-foreground">
                         {Math.round(Math.max(0, match.similarity) * 100)}%
                       </span>
                     )}

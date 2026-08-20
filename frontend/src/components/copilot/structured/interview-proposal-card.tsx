@@ -96,7 +96,7 @@ export function InterviewProposalCard({ proposal }: InterviewProposalCardProps) 
           <Calendar className="h-4 w-4 text-primary" />
           <span>Proposed {proposal.interview_type}</span>
         </div>
-        <Badge variant="outline" className="text-[10px] bg-secondary/50">
+        <Badge variant="outline" className="text-[11px] bg-secondary/50">
           {proposal.duration_minutes} mins
         </Badge>
       </div>
@@ -114,7 +114,7 @@ export function InterviewProposalCard({ proposal }: InterviewProposalCardProps) 
       </div>
 
       <div className="space-y-2 pt-1">
-        <p className="font-medium text-[11px] text-muted-foreground">Select Preferred Time Slot:</p>
+        <p className="font-medium text-xs text-muted-foreground">Select Preferred Time Slot:</p>
         {proposal.proposed_slots.map((slot) => {
           const isSelected = selectedSlot?.slot_id === slot.slot_id;
           return (
@@ -136,7 +136,7 @@ export function InterviewProposalCard({ proposal }: InterviewProposalCardProps) 
                     </Badge>
                   )}
                 </div>
-                <div className="mt-0.5 flex items-center gap-1 text-[11px] text-muted-foreground">
+                <div className="mt-0.5 flex items-center gap-1 text-xs text-muted-foreground">
                   <UserCheck className="h-3 w-3 text-emerald-600 dark:text-emerald-400" />
                   <span>Free: {slot.available_interviewers.join(", ")}</span>
                 </div>
@@ -147,7 +147,7 @@ export function InterviewProposalCard({ proposal }: InterviewProposalCardProps) 
                   href={slot.outlook_url}
                   target="_blank"
                   rel="noreferrer"
-                  className="flex items-center gap-1 text-[10px] text-primary hover:underline"
+                  className="flex items-center gap-1 text-[11px] text-primary hover:underline"
                   onClick={(e) => e.stopPropagation()}
                 >
                   Outlook <ExternalLink className="h-3 w-3" />

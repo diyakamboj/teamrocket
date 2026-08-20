@@ -1,6 +1,7 @@
 import { Link } from "@tanstack/react-router";
 import { BadgeCheck, FileSearch, ShieldCheck, Sparkles } from "lucide-react";
 import { ProductName } from "@/components/product-name";
+import { cn } from "@/lib/utils";
 
 const POINTS = [
   { icon: FileSearch, text: "Every score traces back to a line in the résumé" },
@@ -18,11 +19,15 @@ export function AuthLayout({
   subtitle,
   children,
   footer,
+  leaving = false,
 }: {
   title: string;
   subtitle: string;
   children: React.ReactNode;
   footer: React.ReactNode;
+  /** True once the credentials are accepted: the panels launch toward the
+   *  app so signing in reads as movement rather than a blink. */
+  leaving?: boolean;
 }) {
   return (
     <div className="relative min-h-screen overflow-hidden bg-background text-foreground">
@@ -35,7 +40,7 @@ export function AuthLayout({
       </div>
 
       <div className="mx-auto grid min-h-screen max-w-6xl items-center gap-10 px-6 py-10 lg:grid-cols-2">
-        <div className="animate-rise mx-auto w-full max-w-md">
+        <div className={cn("mx-auto w-full max-w-md", leaving ? "auth-launch" : "animate-rise")}>
           <Link to="/welcome" className="mb-8 inline-flex items-center gap-2.5">
             <span className="grid h-9 w-9 place-items-center rounded-xl bg-primary text-primary-foreground shadow-sm">
               <Sparkles className="h-4.5 w-4.5" />
@@ -53,7 +58,10 @@ export function AuthLayout({
           <div className="mt-6 text-center text-xs text-muted-foreground">{footer}</div>
         </div>
 
-        <div className="animate-fade hidden lg:block" style={{ animationDelay: "0.15s" }}>
+        <div
+          className={cn("hidden lg:block", leaving ? "auth-launch" : "animate-fade")}
+          style={leaving ? { animationDelay: "0.05s" } : { animationDelay: "0.15s" }}
+        >
           <div className="lift rounded-3xl border bg-card/70 p-8 backdrop-blur">
             <p className="text-xs font-bold uppercase tracking-wider text-primary">
               AI-powered hiring

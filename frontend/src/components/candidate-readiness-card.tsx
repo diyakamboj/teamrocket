@@ -142,7 +142,7 @@ export function CandidateReadinessSection({ candidateId, candidateName, jobId }:
                 <Sparkles className="h-4 w-4 shrink-0 text-purple-500" />
                 AI Readiness Evaluation: <span className="capitalize">{recommendation.assessment_type.replace("_", " ")}</span> Assessment
               </div>
-              <Badge variant="outline" className="text-[10px] uppercase font-mono bg-purple-500/20">
+              <Badge variant="outline" className="text-[11px] uppercase font-mono bg-purple-500/20">
                 Target: {recommendation.target_competency}
               </Badge>
             </div>
@@ -152,7 +152,7 @@ export function CandidateReadinessSection({ candidateId, candidateName, jobId }:
             </p>
 
             <div className="flex items-center justify-between pt-1 border-t border-purple-500/20">
-              <span className="text-[11px] text-muted-foreground italic flex items-center gap-1">
+              <span className="text-xs text-muted-foreground italic flex items-center gap-1">
                 <HelpCircle className="h-3 w-3 text-purple-500" /> Trigger Gap: {recommendation.triggered_by_gap}
               </span>
 
@@ -191,11 +191,11 @@ export function CandidateReadinessSection({ candidateId, candidateName, jobId }:
                     {statusBadge(item.status)}
                   </div>
 
-                  <p className="text-muted-foreground text-[11px]">{item.recommendation_reason}</p>
+                  <p className="text-muted-foreground text-xs">{item.recommendation_reason}</p>
 
                   {item.status === "sent" && (
                     <div className="rounded-md border border-muted p-2.5 bg-muted/40 space-y-2">
-                      <p className="font-medium text-[11px] text-foreground flex items-center gap-1">
+                      <p className="font-medium text-xs text-foreground flex items-center gap-1">
                         <AlertCircle className="h-3 w-3 text-amber-500" /> Record Candidate Results (Demo Simulation)
                       </p>
                       <div className="flex gap-2">
@@ -226,7 +226,7 @@ export function CandidateReadinessSection({ candidateId, candidateName, jobId }:
                   )}
 
                   {item.status === "completed" && item.score !== undefined && (
-                    <div className="flex items-center justify-between bg-emerald-500/10 rounded-md p-2 text-emerald-700 dark:text-emerald-300 font-medium text-[11px]">
+                    <div className="flex items-center justify-between bg-emerald-500/10 rounded-md p-2 text-emerald-700 dark:text-emerald-300 font-medium text-xs">
                       <span>Assessment Score: <strong>{item.score}/100</strong></span>
                       <span>{item.result_summary}</span>
                     </div>

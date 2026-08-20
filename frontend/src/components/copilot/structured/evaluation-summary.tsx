@@ -17,7 +17,7 @@ export function EvaluationSummary({ data }: { data: AgentEvaluationSummary }) {
       <CandidateCard card={data.candidate} />
       {data.verdicts?.length > 0 && (
         <div className="card-surface space-y-2 p-4">
-          <p className="text-[10px] font-bold uppercase tracking-wide text-muted-foreground">
+          <p className="text-[11px] font-bold uppercase tracking-wide text-muted-foreground">
             Requirement verdicts
           </p>
           <ul className="space-y-2">

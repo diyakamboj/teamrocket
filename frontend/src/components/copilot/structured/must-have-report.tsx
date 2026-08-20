@@ -6,7 +6,7 @@ export function MustHaveReport({ data }: { data: AgentMustHaveReport }) {
     <div className="space-y-3">
       {data.rows?.length > 0 && (
         <div className="card-surface space-y-2 p-4">
-          <p className="text-[10px] font-bold uppercase tracking-wide text-muted-foreground">
+          <p className="text-[11px] font-bold uppercase tracking-wide text-muted-foreground">
             Must-have coverage
           </p>
           <ul className="space-y-2">
@@ -33,7 +33,7 @@ export function MustHaveReport({ data }: { data: AgentMustHaveReport }) {
         <div className="card-surface flex items-start gap-2 p-4">
           <Trophy className="mt-0.5 h-4 w-4 shrink-0 text-primary" />
           <div>
-            <p className="text-[10px] font-bold uppercase tracking-wide text-muted-foreground">
+            <p className="text-[11px] font-bold uppercase tracking-wide text-muted-foreground">
               Meet every must-have
             </p>
             <p className="mt-0.5 text-sm">{data.candidates_meeting_all.join(", ")}</p>

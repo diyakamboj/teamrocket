@@ -402,7 +402,7 @@ Pick from the bench
                                 <span className="block truncate text-xs font-semibold text-foreground">
                                   {person.name}
                                 </span>
-                                <span className="block truncate text-[11px] text-muted-foreground">
+                                <span className="block truncate text-xs text-muted-foreground">
                                   {person.title || "No title"}
                                   {" · "}
                                   {onBench
@@ -417,7 +417,7 @@ Pick from the bench
                                 </span>
                               </span>
                               {onBench && (
-                                <span className="shrink-0 rounded-full bg-success/10 px-2 py-0.5 text-[10px] font-semibold text-success">
+                                <span className="shrink-0 rounded-full bg-success/10 px-2 py-0.5 text-[11px] font-semibold text-success">
                                   Available
                                 </span>
                               )}
@@ -429,7 +429,7 @@ Pick from the bench
                   )}
 
                   {chosenEmployees.length > 0 && (
-                    <p className="mt-3 text-[11px] font-medium text-primary">
+                    <p className="mt-3 text-xs font-medium text-primary">
                       {chosenEmployees.length} employee
                       {chosenEmployees.length === 1 ? "" : "s"} will be added to this role.
                     </p>
@@ -521,7 +521,7 @@ Pick from the bench
                           setPrePolishDescription(null);
                           setPolishChanges([]);
                         }}
-                        className="text-[11px] font-medium text-muted-foreground hover:text-foreground"
+                        className="text-xs font-medium text-muted-foreground hover:text-foreground"
                       >
                         Undo polish
                       </button>
@@ -537,7 +537,7 @@ Pick from the bench
                           ? "Write a bit more first"
                           : "Rewrite for clarity and inclusive language"
                       }
-                      className="h-7 rounded-lg border-primary/30 text-primary text-[11px] hover:bg-primary-soft"
+                      className="h-7 rounded-lg border-primary/30 text-primary text-xs hover:bg-primary-soft"
                     >
                       {polishing ? (
                         <>
@@ -561,10 +561,10 @@ Pick from the bench
 
                 {polishChanges.length > 0 && (
                   <div className="animate-fade rounded-lg border border-primary/30 bg-primary-soft/60 p-3">
-                    <p className="text-[11px] font-bold text-primary">What the polish changed</p>
+                    <p className="text-xs font-bold text-primary">What the polish changed</p>
                     <ul className="mt-1.5 space-y-1">
                       {polishChanges.map((change, i) => (
-                        <li key={i} className="flex gap-1.5 text-[11px] text-muted-foreground">
+                        <li key={i} className="flex gap-1.5 text-xs text-muted-foreground">
                           <span className="mt-1 h-1 w-1 shrink-0 rounded-full bg-primary" />
                           {change}
                         </li>
@@ -597,7 +597,7 @@ Pick from the bench
                     {copilotFeedback}
                   </div>
                 ) : (
-                  <p className="text-[11px] text-muted-foreground">
+                  <p className="text-xs text-muted-foreground">
                     Click <strong>Extract Requirements</strong> to run automated AI requirement detection across skills, experience, and education requirements.
                   </p>
                 )}
@@ -613,7 +613,7 @@ Pick from the bench
                       <div className="flex items-center gap-2 text-primary text-xs font-bold">
                         <History className="w-4 h-4" /> Historical Hiring Benchmark: {bm.roleTitle}
                       </div>
-                      <Badge className="bg-primary-soft text-primary border-primary/30 text-[10px]">
+                      <Badge className="bg-primary-soft text-primary border-primary/30 text-[11px]">
                         Benchmarked vs {bm.cycles}
                       </Badge>
                     </div>
@@ -621,19 +621,19 @@ Pick from the bench
                     <div className="grid grid-cols-3 gap-3 text-center">
                       <div className="p-2.5 rounded-lg bg-secondary border border-border/80">
                         <div className="text-base font-bold text-foreground">{bm.applicants}</div>
-                        <div className="text-[10px] text-muted-foreground">Avg Applicants</div>
+                        <div className="text-[11px] text-muted-foreground">Avg Applicants</div>
                       </div>
                       <div className="p-2.5 rounded-lg bg-secondary border border-border/80">
                         <div className="text-base font-bold text-primary">{bm.topMatchScore}</div>
-                        <div className="text-[10px] text-muted-foreground">Top Match Score</div>
+                        <div className="text-[11px] text-muted-foreground">Top Match Score</div>
                       </div>
                       <div className="p-2.5 rounded-lg bg-secondary border border-border/80">
                         <div className="text-base font-bold text-success">{bm.timeToHire}</div>
-                        <div className="text-[10px] text-muted-foreground">Avg Time-to-Hire</div>
+                        <div className="text-[11px] text-muted-foreground">Avg Time-to-Hire</div>
                       </div>
                     </div>
 
-                    <p className="text-[11px] text-muted-foreground leading-relaxed">
+                    <p className="text-xs text-muted-foreground leading-relaxed">
                       {bm.insight}
                     </p>
                   </div>
@@ -738,7 +738,7 @@ Pick from the bench
 
                 <div className="flex items-start gap-2.5 rounded-xl border bg-primary-soft/70 border-primary/20 p-3.5">
                   <Info className="mt-0.5 h-4 w-4 shrink-0 text-primary" />
-                  <p className="text-[11px] leading-relaxed text-muted-foreground">
+                  <p className="text-xs leading-relaxed text-muted-foreground">
                     Total{" "}
                     <strong className="text-foreground tabular-nums">
                       {Object.values(weights).reduce((a, b) => a + b, 0)}%
@@ -777,7 +777,7 @@ Pick from the bench
 
                 {rounds.map((round, index) => (
                   <div key={index} className="flex items-center gap-2">
-                    <span className="grid h-6 w-6 shrink-0 place-items-center rounded-lg bg-primary-soft text-[11px] font-bold text-primary">
+                    <span className="grid h-6 w-6 shrink-0 place-items-center rounded-lg bg-primary-soft text-xs font-bold text-primary">
                       {index + 1}
                     </span>
                     <Input
@@ -810,7 +810,7 @@ Pick from the bench
                     </button>
                   </div>
                 ))}
-                <p className="text-[11px] text-muted-foreground">
+                <p className="text-xs text-muted-foreground">
                   These become the columns on the job's Stage Kanban Board and the rounds shown in
                   Pipeline Overview.
                 </p>
@@ -832,7 +832,7 @@ Pick from the bench
                     <span className="text-muted-foreground font-medium">Required Skills ({requiredSkills.length}):</span>
                     <div className="flex flex-wrap gap-1 mt-1">
                       {requiredSkills.map((s) => (
-                        <Badge key={s} className="bg-primary-soft text-primary border-primary/30 text-[10px]">
+                        <Badge key={s} className="bg-primary-soft text-primary border-primary/30 text-[11px]">
                           {s}
                         </Badge>
                       ))}
@@ -842,7 +842,7 @@ Pick from the bench
                     <span className="text-muted-foreground font-medium">Preferred Skills ({preferredSkills.length}):</span>
                     <div className="flex flex-wrap gap-1 mt-1">
                       {preferredSkills.map((s) => (
-                        <Badge key={s} variant="outline" className="text-foreground bg-card border-border text-[10px]">
+                        <Badge key={s} variant="outline" className="text-foreground bg-card border-border text-[11px]">
                           {s}
                         </Badge>
                       ))}

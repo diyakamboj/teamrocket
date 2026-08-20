@@ -55,7 +55,7 @@ export function WeightsEditor({
               <EyeOff className="h-4 w-4 shrink-0 text-muted-foreground" />
               <div className="min-w-0">
                 <p className="truncate text-sm font-semibold">Blind review</p>
-                <p className="truncate text-[11px] text-muted-foreground">
+                <p className="truncate text-xs text-muted-foreground">
                   Hides names & contact info
                 </p>
               </div>

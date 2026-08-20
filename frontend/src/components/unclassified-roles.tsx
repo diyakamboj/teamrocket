@@ -55,7 +55,7 @@ export function UnclassifiedRoles({
                 className="flex flex-wrap items-center gap-3 rounded-xl border bg-card px-3 py-2.5"
               >
                 <span className="min-w-0 flex-1 truncate text-sm font-semibold">{job.title}</span>
-                <span className="shrink-0 text-[11px] text-muted-foreground">
+                <span className="shrink-0 text-xs text-muted-foreground">
                   {job.total_candidates} in pipeline
                 </span>
                 <span className="flex shrink-0 items-center gap-1.5">
@@ -63,7 +63,7 @@ export function UnclassifiedRoles({
                     type="button"
                     disabled={busy === job.job_id}
                     onClick={() => void classify(job, "internal")}
-                    className="inline-flex items-center gap-1 rounded-lg border px-2 py-1 text-[11px] font-medium transition-colors hover:border-violet-400 hover:bg-violet-50 hover:text-violet-700 disabled:opacity-50 dark:hover:bg-violet-500/10"
+                    className="inline-flex items-center gap-1 rounded-lg border px-2 py-1 text-xs font-medium transition-colors hover:border-violet-400 hover:bg-violet-50 hover:text-violet-700 disabled:opacity-50 dark:hover:bg-violet-500/10"
                   >
                     {busy === job.job_id ? (
                       <Loader2 className="h-3 w-3 animate-spin" />
@@ -76,7 +76,7 @@ export function UnclassifiedRoles({
                     type="button"
                     disabled={busy === job.job_id}
                     onClick={() => void classify(job, "external")}
-                    className="inline-flex items-center gap-1 rounded-lg border px-2 py-1 text-[11px] font-medium transition-colors hover:border-sky-400 hover:bg-sky-50 hover:text-sky-700 disabled:opacity-50 dark:hover:bg-sky-500/10"
+                    className="inline-flex items-center gap-1 rounded-lg border px-2 py-1 text-xs font-medium transition-colors hover:border-sky-400 hover:bg-sky-50 hover:text-sky-700 disabled:opacity-50 dark:hover:bg-sky-500/10"
                   >
                     <Globe className="h-3 w-3" />
                     External

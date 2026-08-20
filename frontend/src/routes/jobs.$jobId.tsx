@@ -658,7 +658,7 @@ function JobWorkspacePage() {
                       </div>
                       <div className="flex flex-wrap gap-1 mt-1">
                         {c.skills.slice(0, 3).map((sk) => (
-                          <span key={sk} className="text-[10px] text-muted-foreground font-medium">
+                          <span key={sk} className="text-[11px] text-muted-foreground font-medium">
                             {sk} •
                           </span>
                         ))}
@@ -670,10 +670,10 @@ function JobWorkspacePage() {
                           {c.score}
                         </span>
                         <div className="flex flex-wrap gap-1">
-                          <Badge className={cn("text-[10px] font-bold", atsToneClass(c.score))}>
+                          <Badge className={cn("text-[11px] font-bold", atsToneClass(c.score))}>
                             {atsTierLabel(c.score)}
                           </Badge>
-                          <Badge variant="outline" className="text-[10px] font-bold">
+                          <Badge variant="outline" className="text-[11px] font-bold">
                             {atsVerdictLabel(c.score)}
                           </Badge>
                         </div>

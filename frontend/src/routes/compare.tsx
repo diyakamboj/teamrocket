@@ -133,7 +133,7 @@ function Compare() {
                 {c.skills.map((s) => (
                   <span
                     key={s}
-                    className="rounded-full bg-primary-soft px-2.5 py-0.5 text-[11px] font-medium text-primary-soft-foreground"
+                    className="rounded-full bg-primary-soft px-2.5 py-0.5 text-xs font-medium text-primary-soft-foreground"
                   >
                     {s}
                   </span>

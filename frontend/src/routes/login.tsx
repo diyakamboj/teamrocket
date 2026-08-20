@@ -18,6 +18,9 @@ function LoginPage() {
   const [password, setPassword] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  //: Plays the launch animation before navigating, so signing in reads as
+  //: moving into the app rather than the page blinking out.
+  const [leaving, setLeaving] = useState(false);
 
   useEffect(() => {
     if (isSignedIn()) void navigate({ to: "/", replace: true });
@@ -28,21 +31,30 @@ function LoginPage() {
     if (busy) return;
     setBusy(true);
     setError(null);
+    // A local flag, not the state value: `leaving` in this closure is still
+    // false when `finally` runs, which would un-spin the button mid-launch.
+    let launched = false;
     try {
       const session = await login(email.trim(), password);
       toast.success(`Welcome back, ${session.name.split(" ")[0]}`);
-      void navigate({ to: "/", replace: true });
+      launched = true;
+      setLeaving(true);
+      // Matches the .auth-launch duration; anyone on reduced motion sees the
+      // card hidden immediately and waits the same brief moment.
+      window.setTimeout(() => void navigate({ to: "/", replace: true }), 420);
+      return;
     } catch (err) {
       // The server deliberately gives one message for both an unknown
       // address and a wrong password; show exactly that.
       setError(err instanceof Error ? err.message : "Could not sign in.");
     } finally {
-      setBusy(false);
+      if (!launched) setBusy(false);
     }
   }
 
   return (
     <AuthLayout
+      leaving={leaving}
       title="Sign in"
       subtitle="Pick up where you left off with your candidate pool."
       footer={

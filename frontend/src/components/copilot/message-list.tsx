@@ -48,7 +48,7 @@ export function MessageList({ emptyState }: { emptyState?: ReactNode }) {
             {thinking.length > 1 && (
               <ul className="ml-5 space-y-0.5 border-l pl-3">
                 {thinking.slice(0, -1).map((step, i) => (
-                  <li key={`${step.stage}-${i}`} className="text-[11px] text-muted-foreground/70">
+                  <li key={`${step.stage}-${i}`} className="text-xs text-muted-foreground/70">
                     {step.detail}
                   </li>
                 ))}

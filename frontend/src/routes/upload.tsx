@@ -195,7 +195,7 @@ function UploadPage() {
 
         <div className="mt-4 grid gap-4 sm:grid-cols-2">
           <div>
-            <span className="text-[11px] font-semibold">1 · Who are they?</span>
+            <span className="text-xs font-semibold">1 · Who are they?</span>
             <div className="mt-1.5 grid grid-cols-2 gap-2">
               {(
                 [
@@ -223,14 +223,14 @@ function UploadPage() {
                   )}
                 >
                   <span className="block text-xs font-semibold">{option.label}</span>
-                  <span className="block text-[10px] text-muted-foreground">{option.hint}</span>
+                  <span className="block text-[11px] text-muted-foreground">{option.hint}</span>
                 </button>
               ))}
             </div>
           </div>
 
           <div>
-            <label htmlFor="upload-job" className="text-[11px] font-semibold">
+            <label htmlFor="upload-job" className="text-xs font-semibold">
               2 · Which role are they for?
             </label>
             {allJobs.length === 0 ? (
@@ -239,13 +239,13 @@ function UploadPage() {
               // with nothing saying why. Send them where they can fix it.
               <div className="mt-1.5 rounded-xl border border-dashed px-3 py-3">
                 <p className="text-xs font-semibold">You have no roles yet</p>
-                <p className="mt-1 text-[10px] text-muted-foreground">
+                <p className="mt-1 text-[11px] text-muted-foreground">
                   Résumés attach to a role, so create one first — it takes a moment and you can
                   come straight back.
                 </p>
                 <Button
                   size="sm"
-                  className="press mt-2.5 rounded-xl text-[11px]"
+                  className="press mt-2.5 rounded-xl text-xs"
                   onClick={() => setIsCreateJobOpen(true)}
                 >
                   Create your first role
@@ -267,7 +267,7 @@ function UploadPage() {
                     </option>
                   ))}
                 </select>
-                <p className="mt-1.5 text-[10px] text-muted-foreground">
+                <p className="mt-1.5 text-[11px] text-muted-foreground">
                   {targetJobId
                     ? "They will appear on this role's board and no other."
                     : "Required — a résumé with no role has nowhere to appear."}
@@ -279,17 +279,17 @@ function UploadPage() {
 
         {intakeSource === "internal" && (
           <div className="mt-5 border-t pt-5">
-            <span className="text-[11px] font-semibold">
+            <span className="text-xs font-semibold">
               3 · What is their position in the company today?
             </span>
-            <p className="mt-1 text-[10px] text-muted-foreground">
+            <p className="mt-1 text-[11px] text-muted-foreground">
               A résumé lists where someone has been, not where they are now. This is what a
               hiring manager reads to judge whether the move is a step up or a sideways repeat.
             </p>
 
             <div className="mt-3 grid gap-3 sm:grid-cols-[minmax(0,1fr)_minmax(0,1.6fr)]">
               <label className="block space-y-1">
-                <span className="text-[11px] font-medium">Current position</span>
+                <span className="text-xs font-medium">Current position</span>
                 <input
                   value={currentPosition}
                   onChange={(e) => setCurrentPosition(e.target.value)}
@@ -299,7 +299,7 @@ function UploadPage() {
               </label>
 
               <label className="block space-y-1">
-                <span className="text-[11px] font-medium">
+                <span className="text-xs font-medium">
                   Duties in that role{" "}
                   <span className="font-normal text-muted-foreground">(optional)</span>
                 </span>
@@ -313,7 +313,7 @@ function UploadPage() {
               </label>
             </div>
 
-            <p className="mt-2 text-[10px] text-muted-foreground">
+            <p className="mt-2 text-[11px] text-muted-foreground">
               Applies to every résumé in this batch — upload one person at a time if their
               positions differ.
             </p>
@@ -495,7 +495,7 @@ function UploadPage() {
                     <p className="truncate text-sm font-semibold">{f.name}</p>
                     <span
                       className={cn(
-                        "shrink-0 rounded-full px-2 py-0.5 text-[11px] font-semibold",
+                        "shrink-0 rounded-full px-2 py-0.5 text-xs font-semibold",
                         STAGE_CLASS[f.stage],
                       )}
                     >
