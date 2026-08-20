@@ -277,7 +277,7 @@ function InternalHiringPage() {
           )}
 
           <StepActions>
-            <Link to="/upload">
+            <Link to="/upload" search={{ source: "internal" }}>
               <Button variant="outline" className="press-fx">
                 <Upload className="mr-1.5 h-3.5 w-3.5" /> Add someone by résumé
               </Button>

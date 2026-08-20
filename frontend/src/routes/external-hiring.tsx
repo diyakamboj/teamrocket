@@ -89,7 +89,7 @@ function ExternalHiringPage() {
               : "Upload as many résumés as you have — they are parsed and scored as they arrive."}
           </p>
           <StepActions>
-            <Link to="/upload">
+            <Link to="/upload" search={{ source: "external" }}>
               <Button variant={applicants > 0 ? "outline" : "default"} className="press-fx">
                 <Upload className="mr-1.5 h-3.5 w-3.5" /> Upload résumés
               </Button>

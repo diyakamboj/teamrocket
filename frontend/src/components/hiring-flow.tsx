@@ -60,7 +60,7 @@ export function HiringFlow({ steps }: { steps: FlowStep[] }) {
         </div>
         <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-secondary">
           <div
-            className="h-full rounded-full bg-primary transition-[width] duration-700 ease-[cubic-bezier(0.22,1,0.36,1)]"
+            className="h-full rounded-full grad-track transition-[width] duration-700 ease-[cubic-bezier(0.22,1,0.36,1)]"
             style={{ width: `${pct}%` }}
           />
         </div>

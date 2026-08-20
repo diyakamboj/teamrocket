@@ -19,8 +19,14 @@ import { listJobs, type JobResponse } from "@/lib/api";
 
 
 export const Route = createFileRoute("/upload")({
-  validateSearch: (search: Record<string, unknown>): { job?: string } =>
-    typeof search["job"] === "string" ? { job: search["job"] } : {},
+  validateSearch: (
+    search: Record<string, unknown>,
+  ): { job?: string; source?: "internal" | "external" } => ({
+    ...(typeof search["job"] === "string" ? { job: search["job"] } : {}),
+    ...(search["source"] === "internal" || search["source"] === "external"
+      ? { source: search["source"] }
+      : {}),
+  }),
   head: () => ({
     meta: [
       { title: "Resume Upload — ResumeIQ" },
@@ -78,18 +84,45 @@ function UploadPage() {
     overallProgress,
     setActiveJobId,
   } = useAppState();
-  const { job: jobParam } = Route.useSearch();
+  const { job: jobParam, source: sourceParam } = Route.useSearch();
   const navigate = Route.useNavigate();
   const [job, setJob] = useState<JobResponse | null>(null);
   const [allJobs, setAllJobs] = useState<JobResponse[]>([]);
   //: Role chosen on this page when none came in via ?job=. Empty means the
   //: general pool: those candidates can then be ranked for any role.
   const [chosenJobId, setChosenJobId] = useState<string>("");
-  const [intakeSource, setIntakeSource] = useState<"internal" | "external">("external");
+  const [intakeSource, setIntakeSource] = useState<"internal" | "external">(
+    sourceParam ?? "external",
+  );
   const [currentPosition, setCurrentPosition] = useState("");
   const [currentDuties, setCurrentDuties] = useState("");
   const [isCreateJobOpen, setIsCreateJobOpen] = useState(false);
   const targetJobId = jobParam || chosenJobId || null;
+
+  /**
+   * Roles that accept this intake.
+   *
+   * The picker used to list every role, so an employee could be filed
+   * against an outside-only opening and an applicant against an internal
+   * one — landing them on a board they can never be hired from. A role set
+   * to "both" is open to either population and stays in both lists.
+   */
+  const selectableJobs = useMemo(
+    () =>
+      allJobs.filter((j) => {
+        const mode = (j.sourcing_mode ?? "both").toLowerCase();
+        return mode === "both" || mode === intakeSource;
+      }),
+    [allJobs, intakeSource],
+  );
+
+  // Switching intake can strip the chosen role out of the list; leaving the
+  // id set would upload against a role no longer shown.
+  useEffect(() => {
+    if (chosenJobId && !selectableJobs.some((j) => j.id === chosenJobId)) {
+      setChosenJobId("");
+    }
+  }, [selectableJobs, chosenJobId]);
 
   useEffect(() => {
     let cancelled = false;
@@ -233,22 +266,29 @@ function UploadPage() {
             <label htmlFor="upload-job" className="text-xs font-semibold">
               2 · Which role are they for?
             </label>
-            {allJobs.length === 0 ? (
+            {selectableJobs.length === 0 ? (
               // Requiring a role makes this page a dead end on an account
               // with no roles yet: an empty dropdown and disabled buttons,
               // with nothing saying why. Send them where they can fix it.
               <div className="mt-1.5 rounded-xl border border-dashed px-3 py-3">
-                <p className="text-xs font-semibold">You have no roles yet</p>
+                <p className="text-xs font-semibold">
+                  {allJobs.length === 0
+                    ? "You have no roles yet"
+                    : `No ${intakeSource} roles yet`}
+                </p>
                 <p className="mt-1 text-[11px] text-muted-foreground">
-                  Résumés attach to a role, so create one first — it takes a moment and you can
-                  come straight back.
+                  {allJobs.length === 0
+                    ? "Résumés attach to a role, so create one first — it takes a moment and you can come straight back."
+                    : intakeSource === "internal"
+                      ? "You have roles, but none open to people already at the company. Create an internal one, or switch this upload to external."
+                      : "You have roles, but none open to outside applicants. Create an external one, or switch this upload to internal."}
                 </p>
                 <Button
                   size="sm"
                   className="press mt-2.5 rounded-xl text-xs"
                   onClick={() => setIsCreateJobOpen(true)}
                 >
-                  Create your first role
+                  {allJobs.length === 0 ? "Create your first role" : `Create an ${intakeSource} role`}
                 </Button>
               </div>
             ) : (
@@ -261,7 +301,7 @@ function UploadPage() {
                   className="mt-1.5 w-full rounded-xl border border-input bg-background px-3 py-2.5 text-xs disabled:opacity-60"
                 >
                   <option value="">Choose a role…</option>
-                  {allJobs.map((j) => (
+                  {selectableJobs.map((j) => (
                     <option key={j.id} value={j.id}>
                       {j.title}
                     </option>

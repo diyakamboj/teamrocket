@@ -241,7 +241,7 @@ export function AppShell({ children }: { children: ReactNode }) {
                 </p>
                 <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-primary/15">
                   <div
-                    className="h-full rounded-full bg-primary transition-[width] duration-500 ease-out"
+                    className="h-full rounded-full grad-track transition-[width] duration-500 ease-out"
                     style={{ width: `${overallProgress}%` }}
                   />
                 </div>

@@ -67,17 +67,17 @@
      accent, and hairline borders doing the separating that drop shadows used
      to do. Chroma stays under 0.02 on every surface token so the accent and
      the status colours are the only things that read as colour. */
-  --radius: 0.5rem;
+  --radius: 1rem;
   --background: oklch(0.994 0.001 265);
   --foreground: oklch(0.21 0.012 265);
   --card: oklch(1 0 0);
   --card-foreground: oklch(0.21 0.012 265);
   --popover: oklch(1 0 0);
   --popover-foreground: oklch(0.21 0.012 265);
-  --primary: oklch(0.55 0.23 268);
+  --primary: oklch(0.55 0.24 288);
   --primary-foreground: oklch(0.99 0.002 265);
-  --primary-soft: oklch(0.95 0.045 268);
-  --primary-soft-foreground: oklch(0.45 0.22 268);
+  --primary-soft: oklch(0.95 0.05 288);
+  --primary-soft-foreground: oklch(0.44 0.23 288);
   --secondary: oklch(0.965 0.003 265);
   --secondary-foreground: oklch(0.31 0.012 265);
   --muted: oklch(0.968 0.003 265);
@@ -92,41 +92,41 @@
   --warning-foreground: oklch(0.26 0.05 70);
   --border: oklch(0.912 0.004 265);
   --input: oklch(0.912 0.004 265);
-  --ring: oklch(0.55 0.23 268);
+  --ring: oklch(0.55 0.24 288);
   /* Chart ramp: distinguishable at a glance without shouting. */
-  --chart-1: oklch(0.55 0.23 268);
-  --chart-2: oklch(0.65 0.17 205);
+  --chart-1: oklch(0.55 0.24 288);
+  --chart-2: oklch(0.66 0.19 300);
   --chart-3: oklch(0.62 0.18 158);
-  --chart-4: oklch(0.75 0.17 70);
-  --chart-5: oklch(0.6 0.22 8);
+  --chart-4: oklch(0.75 0.18 62);
+  --chart-5: oklch(0.63 0.22 20);
   --sidebar: oklch(0.978 0.002 265);
   --sidebar-foreground: oklch(0.32 0.012 265);
-  --sidebar-primary: oklch(0.55 0.23 268);
+  --sidebar-primary: oklch(0.55 0.24 288);
   --sidebar-primary-foreground: oklch(0.99 0.002 265);
   --sidebar-accent: oklch(0.945 0.005 265);
   --sidebar-accent-foreground: oklch(0.26 0.013 265);
   --sidebar-border: oklch(0.912 0.004 265);
-  --sidebar-ring: oklch(0.55 0.23 268);
+  --sidebar-ring: oklch(0.55 0.24 288);
 }
 
 .dark {
   /* Neutral charcoal rather than a tinted dark. Same rule as light: surfaces
      carry almost no chroma, so the accent and status colours stay legible. */
-  --background: oklch(0.165 0.004 265);
+  --background: oklch(0.175 0.018 285);
   --foreground: oklch(0.96 0.003 265);
-  --card: oklch(0.205 0.005 265);
+  --card: oklch(0.215 0.021 285);
   --card-foreground: oklch(0.96 0.003 265);
-  --popover: oklch(0.205 0.005 265);
+  --popover: oklch(0.215 0.021 285);
   --popover-foreground: oklch(0.96 0.003 265);
-  --primary: oklch(0.72 0.19 268);
+  --primary: oklch(0.7 0.2 288);
   --primary-foreground: oklch(0.17 0.02 264);
-  --primary-soft: oklch(0.32 0.11 268);
-  --primary-soft-foreground: oklch(0.88 0.12 268);
-  --secondary: oklch(0.253 0.005 265);
+  --primary-soft: oklch(0.33 0.12 288);
+  --primary-soft-foreground: oklch(0.89 0.11 288);
+  --secondary: oklch(0.265 0.024 285);
   --secondary-foreground: oklch(0.93 0.003 265);
-  --muted: oklch(0.253 0.005 265);
+  --muted: oklch(0.265 0.024 285);
   --muted-foreground: oklch(0.7 0.008 265);
-  --accent: oklch(0.27 0.006 265);
+  --accent: oklch(0.285 0.028 285);
   --accent-foreground: oklch(0.94 0.003 265);
   --destructive: oklch(0.68 0.2 25);
   --destructive-foreground: oklch(0.16 0.03 25);
@@ -134,22 +134,22 @@
   --success-foreground: oklch(0.16 0.03 156);
   --warning: oklch(0.8 0.16 70);
   --warning-foreground: oklch(0.2 0.04 70);
-  --border: oklch(0.283 0.006 265);
-  --input: oklch(0.3 0.006 265);
-  --ring: oklch(0.72 0.19 268);
-  --chart-1: oklch(0.72 0.19 268);
-  --chart-2: oklch(0.75 0.15 205);
+  --border: oklch(0.295 0.026 285);
+  --input: oklch(0.315 0.028 285);
+  --ring: oklch(0.7 0.2 288);
+  --chart-1: oklch(0.7 0.2 288);
+  --chart-2: oklch(0.75 0.16 300);
   --chart-3: oklch(0.72 0.16 158);
-  --chart-4: oklch(0.8 0.16 70);
-  --chart-5: oklch(0.72 0.19 8);
-  --sidebar: oklch(0.185 0.004 265);
+  --chart-4: oklch(0.8 0.16 62);
+  --chart-5: oklch(0.72 0.19 20);
+  --sidebar: oklch(0.195 0.02 285);
   --sidebar-foreground: oklch(0.9 0.004 265);
-  --sidebar-primary: oklch(0.72 0.19 268);
+  --sidebar-primary: oklch(0.7 0.2 288);
   --sidebar-primary-foreground: oklch(0.17 0.02 264);
-  --sidebar-accent: oklch(0.253 0.005 265);
+  --sidebar-accent: oklch(0.265 0.024 285);
   --sidebar-accent-foreground: oklch(0.95 0.003 265);
-  --sidebar-border: oklch(0.283 0.006 265);
-  --sidebar-ring: oklch(0.72 0.19 268);
+  --sidebar-border: oklch(0.295 0.026 285);
+  --sidebar-ring: oklch(0.7 0.2 288);
 }
 
 @layer base {
@@ -1166,5 +1166,77 @@ button:active:not(:disabled),
   }
   .auth-launch {
     opacity: 0;
+  }
+}
+
+/* ---------------------------------------------------------------------------
+   Gradient surfaces
+   The violet-forward treatment: solid fills give way to a gradient on the
+   things that carry emphasis — primary actions, progress, and data.
+--------------------------------------------------------------------------- */
+
+/* The house gradient. One definition, so every emphatic surface agrees. */
+.grad-primary {
+  background-image: linear-gradient(
+    135deg,
+    color-mix(in oklch, var(--color-primary) 92%, white 8%),
+    var(--color-chart-2)
+  );
+}
+
+/* Primary actions: gradient fill with a coloured glow that lifts on hover. */
+.grad-action {
+  background-image: linear-gradient(
+    135deg,
+    color-mix(in oklch, var(--color-primary) 92%, white 8%),
+    var(--color-chart-2)
+  );
+  color: var(--color-primary-foreground);
+  box-shadow: 0 6px 20px -10px color-mix(in oklch, var(--color-primary) 85%, transparent);
+  transition:
+    box-shadow 0.25s cubic-bezier(0.22, 1, 0.36, 1),
+    transform 0.2s cubic-bezier(0.22, 1, 0.36, 1),
+    filter 0.25s ease;
+}
+.grad-action:hover:not(:disabled) {
+  filter: saturate(1.08) brightness(1.04);
+  box-shadow: 0 12px 30px -10px color-mix(in oklch, var(--color-primary) 95%, transparent);
+  transform: translate3d(0, -1px, 0);
+}
+
+/* Progress: a gradient track fill rather than a flat bar. */
+.grad-track {
+  background-image: linear-gradient(
+    90deg,
+    var(--color-primary),
+    var(--color-chart-2) 55%,
+    color-mix(in oklch, var(--color-chart-2) 70%, white 30%)
+  );
+}
+
+/* A soft violet wash behind a hero panel, as in the reference's chart card. */
+.grad-panel {
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+}
+.grad-panel::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  background:
+    radial-gradient(
+      120% 90% at 50% 120%,
+      color-mix(in oklch, var(--color-primary) 26%, transparent),
+      transparent 70%
+    );
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .grad-action,
+  .grad-action:hover:not(:disabled) {
+    transition: none;
+    transform: none;
   }
 }
