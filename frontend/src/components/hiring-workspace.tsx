@@ -1,5 +1,5 @@
 import { Link } from "@tanstack/react-router";
-import { useEffect, useMemo, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -43,13 +43,12 @@ export function useJobWorkspace(source: "internal" | "external") {
       .then((rows) => {
         if (cancelled) return;
         setJobs(
-          rows.filter((j) => {
-            const mode = j.sourcing_mode || "both";
-            if (source === "internal") {
-              return mode === "internal" || mode === "both";
-            }
-            return mode === "external" || mode === "both";
-          }),
+          // Strict: a role belongs to one funnel. "both" used to match here,
+          // so every unclassified job appeared in the internal workspace as
+          // well as the external one — which is why external reqs showed up
+          // under internal hiring. Unclassified roles are surfaced
+          // separately by `useUnclassifiedJobs` rather than shown in both.
+          rows.filter((j) => (j.sourcing_mode || "both") === source),
         );
 
         setLoading(false);
@@ -67,6 +66,29 @@ export function useJobWorkspace(source: "internal" | "external") {
   }, [source]);
 
   return { jobs, loading, error };
+}
+
+/**
+ * Roles that never had a funnel chosen.
+ *
+ * These predate the internal/external choice being mandatory at creation.
+ * They belong to neither workspace, so rather than silently appearing in
+ * both they are listed for the recruiter to classify.
+ */
+export function useUnclassifiedJobs() {
+  const [jobs, setJobs] = useState<JobPipelineSummary[]>([]);
+
+  const refresh = useCallback(() => {
+    listJobPipelines()
+      .then((rows) => setJobs(rows.filter((j) => (j.sourcing_mode || "both") === "both")))
+      .catch(() => setJobs([]));
+  }, []);
+
+  useEffect(() => {
+    refresh();
+  }, [refresh]);
+
+  return { jobs, refresh };
 }
 
 export function countTopMatches(job: JobWithPipeline): number {

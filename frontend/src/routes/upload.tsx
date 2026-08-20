@@ -14,6 +14,7 @@ import { useAppState, type UploadStage } from "@/lib/app-state";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
+import { CreateJobModal } from "@/components/create-job-modal";
 import { listJobs, type JobResponse } from "@/lib/api";
 
 
@@ -85,6 +86,9 @@ function UploadPage() {
   //: general pool: those candidates can then be ranked for any role.
   const [chosenJobId, setChosenJobId] = useState<string>("");
   const [intakeSource, setIntakeSource] = useState<"internal" | "external">("external");
+  const [currentPosition, setCurrentPosition] = useState("");
+  const [currentDuties, setCurrentDuties] = useState("");
+  const [isCreateJobOpen, setIsCreateJobOpen] = useState(false);
   const targetJobId = jobParam || chosenJobId || null;
 
   useEffect(() => {
@@ -135,7 +139,10 @@ function UploadPage() {
       toast.error("Choose which role these résumés are for first");
       return;
     }
-    void addFiles(Array.from(list), targetJobId, intakeSource);
+    void addFiles(Array.from(list), targetJobId, intakeSource, {
+      position: currentPosition.trim() || null,
+      duties: currentDuties.trim() || null,
+    });
   }
 
   /** The role must be picked before files can be dropped — a résumé with no
@@ -168,6 +175,16 @@ function UploadPage() {
           Drop entire folders of PDFs — scanned documents are routed through OCR automatically.
         </p>
       </header>
+
+      <CreateJobModal
+        isOpen={isCreateJobOpen}
+        onClose={() => {
+          setIsCreateJobOpen(false);
+          listJobs()
+            .then(setAllJobs)
+            .catch(() => undefined);
+        }}
+      />
 
       <div className="rounded-2xl border bg-card p-5 shadow-sm">
         <h2 className="text-sm font-bold">Before you upload</h2>
@@ -216,27 +233,92 @@ function UploadPage() {
             <label htmlFor="upload-job" className="text-[11px] font-semibold">
               2 · Which role are they for?
             </label>
-            <select
-              id="upload-job"
-              value={jobParam || chosenJobId}
-              disabled={Boolean(jobParam)}
-              onChange={(e) => setChosenJobId(e.target.value)}
-              className="mt-1.5 w-full rounded-xl border border-input bg-background px-3 py-2.5 text-xs disabled:opacity-60"
-            >
-              <option value="">Choose a role…</option>
-              {allJobs.map((j) => (
-                <option key={j.id} value={j.id}>
-                  {j.title}
-                </option>
-              ))}
-            </select>
-            <p className="mt-1.5 text-[10px] text-muted-foreground">
-              {targetJobId
-                ? "They will appear on this role's board and no other."
-                : "Required — a résumé with no role has nowhere to appear."}
-            </p>
+            {allJobs.length === 0 ? (
+              // Requiring a role makes this page a dead end on an account
+              // with no roles yet: an empty dropdown and disabled buttons,
+              // with nothing saying why. Send them where they can fix it.
+              <div className="mt-1.5 rounded-xl border border-dashed px-3 py-3">
+                <p className="text-xs font-semibold">You have no roles yet</p>
+                <p className="mt-1 text-[10px] text-muted-foreground">
+                  Résumés attach to a role, so create one first — it takes a moment and you can
+                  come straight back.
+                </p>
+                <Button
+                  size="sm"
+                  className="press mt-2.5 rounded-xl text-[11px]"
+                  onClick={() => setIsCreateJobOpen(true)}
+                >
+                  Create your first role
+                </Button>
+              </div>
+            ) : (
+              <>
+                <select
+                  id="upload-job"
+                  value={jobParam || chosenJobId}
+                  disabled={Boolean(jobParam)}
+                  onChange={(e) => setChosenJobId(e.target.value)}
+                  className="mt-1.5 w-full rounded-xl border border-input bg-background px-3 py-2.5 text-xs disabled:opacity-60"
+                >
+                  <option value="">Choose a role…</option>
+                  {allJobs.map((j) => (
+                    <option key={j.id} value={j.id}>
+                      {j.title}
+                    </option>
+                  ))}
+                </select>
+                <p className="mt-1.5 text-[10px] text-muted-foreground">
+                  {targetJobId
+                    ? "They will appear on this role's board and no other."
+                    : "Required — a résumé with no role has nowhere to appear."}
+                </p>
+              </>
+            )}
           </div>
         </div>
+
+        {intakeSource === "internal" && (
+          <div className="mt-5 border-t pt-5">
+            <span className="text-[11px] font-semibold">
+              3 · What is their position in the company today?
+            </span>
+            <p className="mt-1 text-[10px] text-muted-foreground">
+              A résumé lists where someone has been, not where they are now. This is what a
+              hiring manager reads to judge whether the move is a step up or a sideways repeat.
+            </p>
+
+            <div className="mt-3 grid gap-3 sm:grid-cols-[minmax(0,1fr)_minmax(0,1.6fr)]">
+              <label className="block space-y-1">
+                <span className="text-[11px] font-medium">Current position</span>
+                <input
+                  value={currentPosition}
+                  onChange={(e) => setCurrentPosition(e.target.value)}
+                  placeholder="Senior Data Engineer, Payments"
+                  className="w-full rounded-xl border border-input bg-background px-3 py-2 text-xs"
+                />
+              </label>
+
+              <label className="block space-y-1">
+                <span className="text-[11px] font-medium">
+                  Duties in that role{" "}
+                  <span className="font-normal text-muted-foreground">(optional)</span>
+                </span>
+                <textarea
+                  value={currentDuties}
+                  onChange={(e) => setCurrentDuties(e.target.value)}
+                  rows={3}
+                  placeholder="Owns the ingestion pipeline, on-call for the payments data path, mentors two juniors."
+                  className="w-full resize-y rounded-xl border border-input bg-background px-3 py-2 text-xs leading-relaxed"
+                />
+              </label>
+            </div>
+
+            <p className="mt-2 text-[10px] text-muted-foreground">
+              Applies to every résumé in this batch — upload one person at a time if their
+              positions differ.
+            </p>
+          </div>
+        )}
       </div>
 
       {job && (

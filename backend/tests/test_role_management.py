@@ -58,8 +58,13 @@ def test_removing_a_candidate_from_a_role_returns_them_to_the_pool(client, store
     )
 
     assert str(ada.id) not in candidate_ids_for_job(store, backend)
-    # Back in the pool means rankable for any opening again.
-    assert str(ada.id) in rankable_candidate_ids_for_job(store, backend)
+    # Not for *this* role — an explicit removal has to stick, or the next
+    # ranking run would put them straight back.
+    assert str(ada.id) not in rankable_candidate_ids_for_job(store, backend)
+
+    # But they are still in the pool and available to every other role.
+    other = _job(store, "Platform Engineer")
+    assert str(ada.id) in rankable_candidate_ids_for_job(store, other)
 
 
 def test_moving_off_a_board_drops_the_stage_placement(client, store):
@@ -157,3 +162,98 @@ def test_an_internal_employee_can_be_created_directly_onto_a_role(client, store)
     )
     assert response.status_code == 201
     assert response.json()["id"] in candidate_ids_for_job(store, backend)
+
+
+def test_removing_from_a_role_takes_them_off_that_board(client, store):
+    """A pool candidate reaches a board by having been scored against it.
+
+    Clearing `job_id` alone left them sitting there, so "Remove from role"
+    reported success while the person visibly stayed — the button looked
+    broken.
+    """
+    from app.models.evaluation import Evaluation
+    from app.services.job_pipeline_service import candidate_ids_for_job
+
+    backend = _job(store, "Backend Engineer")
+    pooled = _candidate(store, "Grace Hopper", job_id=None)
+    store.evaluations.save(
+        Evaluation(job_id=backend.id, candidate_id=pooled.id, overall_score=80)
+    )
+    assert str(pooled.id) in candidate_ids_for_job(store, backend)
+
+    response = client.put(
+        f"/api/candidates/{pooled.id}/role",
+        json={"job_id": None, "from_job_id": str(backend.id)},
+        headers=HEADERS,
+    )
+    assert response.status_code == 200
+    assert str(pooled.id) not in candidate_ids_for_job(store, backend)
+    # Still in the pool — removal is not deletion.
+    assert store.candidates.get(pooled.id) is not None
+
+
+def test_moving_to_another_role_also_clears_the_old_board(client, store):
+    from app.models.evaluation import Evaluation
+    from app.services.job_pipeline_service import candidate_ids_for_job
+
+    backend = _job(store, "Backend Engineer")
+    platform = _job(store, "Platform Engineer")
+    ada = _candidate(store, "Ada Vance", job_id=backend.id)
+    store.evaluations.save(Evaluation(job_id=backend.id, candidate_id=ada.id, overall_score=90))
+
+    client.put(
+        f"/api/candidates/{ada.id}/role",
+        json={"job_id": str(platform.id), "from_job_id": str(backend.id)},
+        headers=HEADERS,
+    )
+    assert str(ada.id) not in candidate_ids_for_job(store, backend)
+    assert str(ada.id) in candidate_ids_for_job(store, platform)
+
+
+def test_a_removal_survives_the_next_ranking_run(client, store):
+    """Ranking re-scores every unassigned pool candidate.
+
+    Clearing the evaluation alone therefore undid the removal on the next
+    run: the person reappeared on the board they had just been taken off.
+    """
+    from app.models.evaluation import Evaluation
+    from app.services.job_pipeline_service import (
+        candidate_ids_for_job,
+        rankable_candidate_ids_for_job,
+    )
+
+    backend = _job(store, "Backend Engineer")
+    pooled = _candidate(store, "Grace Hopper", job_id=None)
+    store.evaluations.save(
+        Evaluation(job_id=backend.id, candidate_id=pooled.id, overall_score=80)
+    )
+
+    client.put(
+        f"/api/candidates/{pooled.id}/role",
+        json={"job_id": None, "from_job_id": str(backend.id)},
+        headers=HEADERS,
+    )
+
+    assert str(pooled.id) not in candidate_ids_for_job(store, backend)
+    # The decisive part: ranking must not pull them back in.
+    assert str(pooled.id) not in rankable_candidate_ids_for_job(store, backend)
+
+
+def test_putting_them_back_on_the_role_clears_the_removal(client, store):
+    from app.services.job_pipeline_service import candidate_ids_for_job
+
+    backend = _job(store, "Backend Engineer")
+    pooled = _candidate(store, "Grace Hopper", job_id=None)
+
+    client.put(
+        f"/api/candidates/{pooled.id}/role",
+        json={"job_id": None, "from_job_id": str(backend.id)},
+        headers=HEADERS,
+    )
+    client.put(
+        f"/api/candidates/{pooled.id}/role",
+        json={"job_id": str(backend.id)},
+        headers=HEADERS,
+    )
+    assert str(pooled.id) in candidate_ids_for_job(store, backend)
+    assert store.candidates.get(pooled.id).excluded_job_ids == []

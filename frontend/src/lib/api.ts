@@ -714,6 +714,17 @@ export async function sendMessage(input: {
   });
 }
 
+/** Patch a job. Used to classify a role as internal or external hiring. */
+export async function updateJob(
+  jobId: string,
+  updates: { sourcing_mode?: "internal" | "external" | "both"; status?: string; title?: string },
+): Promise<JobResponse> {
+  return request<JobResponse>(`/api/jobs/${encodeURIComponent(jobId)}`, {
+    method: "PUT",
+    body: JSON.stringify(updates),
+  });
+}
+
 export async function updateJobRounds(
   jobId: string,
   rounds: Omit<InterviewRound, "id">[] | InterviewRound[],
@@ -1727,6 +1738,9 @@ export async function uploadResumesToBackend(
   /** Which population this résumé belongs to. Decided at intake so internal
    *  employees and external applicants never mix by default. */
   source: "internal" | "external" = "external",
+  /** Internal intake only: where this employee sits today, and what they do
+   *  there. A résumé lists past roles, not the current one. */
+  internalRole?: { position?: string | null; duties?: string | null },
 ): Promise<BackendResumeUploadResponse> {
   const formData = new FormData();
   for (const f of files) {
@@ -1734,6 +1748,10 @@ export async function uploadResumesToBackend(
   }
   if (jobId) formData.append("job_id", jobId);
   formData.append("source", source);
+  if (source === "internal") {
+    if (internalRole?.position) formData.append("current_position", internalRole.position);
+    if (internalRole?.duties) formData.append("current_role_duties", internalRole.duties);
+  }
 
   const email = recruiterEmail();
   const res = await fetch(`${API_BASE}/api/resumes/upload`, {
@@ -1910,10 +1928,13 @@ export async function getVectorIndexStatus(): Promise<VectorIndexStatus> {
 export async function moveCandidateToRole(
   candidateId: string,
   jobId: string | null,
+  /** The board they are leaving. Needed when they only reached it by being
+   *  scored against it, which clearing `job_id` alone does not undo. */
+  fromJobId?: string | null,
 ): Promise<BackendCandidate> {
   return request<BackendCandidate>(`/api/candidates/${candidateId}/role`, {
     method: "PUT",
-    body: JSON.stringify({ job_id: jobId }),
+    body: JSON.stringify({ job_id: jobId, from_job_id: fromJobId ?? null }),
   });
 }
 
@@ -1922,6 +1943,7 @@ export type NewInternalEmployee = {
   email: string;
   title?: string | null;
   current_assignment?: string | null;
+  current_role_duties?: string | null;
   location?: string | null;
   skills?: string[];
   on_bench?: boolean;
@@ -1956,6 +1978,7 @@ export type InternalEmployee = {
   skills: string[];
   /** What they are working on now; null means between assignments. */
   current_assignment?: string | null;
+  current_role_duties?: string | null;
   on_bench: boolean;
   days_on_bench?: number | null;
   job_id?: string | null;

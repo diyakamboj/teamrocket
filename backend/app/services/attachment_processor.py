@@ -64,6 +64,8 @@ def upsert_candidate_from_parsed(
     owner_email: Optional[str] = None,
     job_id: Optional[uuid.UUID] = None,
     source: str = "external",
+    current_position: Optional[str] = None,
+    current_role_duties: Optional[str] = None,
 ) -> Candidate:
     """Create-or-update a `Candidate` from a parsed resume (email-dedup
     upsert). Extracted from `resumes.py::_process_resume`'s original
@@ -106,6 +108,10 @@ def upsert_candidate_from_parsed(
         # this upload named none.
         if job_id is not None:
             candidate.job_id = job_id
+        if current_position:
+            candidate.current_assignment = current_position
+        if current_role_duties:
+            candidate.current_role_duties = current_role_duties
     else:
         candidate = Candidate(
             owner_email=owner_email,
@@ -114,6 +120,8 @@ def upsert_candidate_from_parsed(
             # An internal hire is an employee, so they start assigned rather
             # than with no employment state at all.
             employment_status="assigned" if source == "internal" else None,
+            current_assignment=current_position,
+            current_role_duties=current_role_duties,
             name=parsed.get("name") or "Unknown",
             email=email,
             phone=parsed.get("phone"),

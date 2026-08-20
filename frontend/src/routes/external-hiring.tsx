@@ -2,6 +2,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useState } from "react";
 import { Globe } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { UnclassifiedRoles } from "@/components/unclassified-roles";
 import {
   JobGrid,
   StatTile,
@@ -10,6 +11,7 @@ import {
   countTopMatches,
   useJobWorkspace,
   useWorkspaceTotals,
+  useUnclassifiedJobs,
 } from "@/components/hiring-workspace";
 
 export const Route = createFileRoute("/external-hiring")({
@@ -30,6 +32,7 @@ function ExternalHiringPage() {
   const [activeTab, setActiveTab] = useState<"active" | "insights">("active");
   const { jobs, loading, error } = useJobWorkspace("external");
   const totals = useWorkspaceTotals(jobs);
+  const unclassified = useUnclassifiedJobs();
 
   const tabs = [
     { id: "active" as const, label: `Active external jobs (${jobs.length})` },
@@ -64,21 +67,28 @@ function ExternalHiringPage() {
       </div>
 
       {activeTab === "active" && (
-        <JobGrid
-          jobs={jobs}
-          loading={loading}
-          error={error}
-          emptyMessage="No jobs have external applicants yet. Upload resumes to start a funnel."
-          metrics={(job) => [
-            { label: "Applicants", value: job.pipeline.length },
-            { label: "Top matches", value: countTopMatches(job), tone: "text-primary" },
-            {
-              label: "In interview",
-              value: countInStage(job, ["interviewing", "interviewed"]),
-              tone: "text-success",
-            },
-          ]}
-        />
+        <>
+          <UnclassifiedRoles
+            jobs={unclassified.jobs}
+            onClassified={unclassified.refresh}
+          />
+
+          <JobGrid
+            jobs={jobs}
+            loading={loading}
+            error={error}
+            emptyMessage="No jobs have external applicants yet. Upload resumes to start a funnel."
+            metrics={(job) => [
+              { label: "Applicants", value: job.pipeline.length },
+              { label: "Top matches", value: countTopMatches(job), tone: "text-primary" },
+              {
+                label: "In interview",
+                value: countInStage(job, ["interviewing", "interviewed"]),
+                tone: "text-success",
+              },
+            ]}
+          />
+        </>
       )}
 
       {activeTab === "insights" && (

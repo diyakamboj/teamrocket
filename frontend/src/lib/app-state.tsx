@@ -62,6 +62,7 @@ type Ctx = {
     files: File[],
     jobId?: string | null,
     source?: "internal" | "external",
+    internalRole?: { position?: string | null; duties?: string | null },
   ) => Promise<void>;
   retry: (id: string) => void;
   retryAllFailed: () => void;
@@ -187,6 +188,7 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
       incoming: File[],
       jobId?: string | null,
       source: "internal" | "external" = "external",
+      internalRole?: { position?: string | null; duties?: string | null },
     ) => {
     if (incoming.length === 0) return;
 
@@ -207,7 +209,7 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
     ]);
 
     try {
-      const res = await uploadResumesToBackend(incoming, jobId, source);
+      const res = await uploadResumesToBackend(incoming, jobId, source, internalRole);
       setFiles((prev) =>
         prev.map((row) => {
           const idx = localIds.indexOf(row.id);

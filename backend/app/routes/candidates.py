@@ -317,6 +317,11 @@ class MoveToRoleRequest(BaseModel):
     """
 
     job_id: Optional[uuid.UUID] = None
+    #: The board they are being taken off, when that is not simply the role
+    #: recorded on the candidate. A pool candidate reaches a board by having
+    #: been scored against it, so clearing `job_id` alone leaves them sitting
+    #: there and the removal looks like it did nothing.
+    from_job_id: Optional[uuid.UUID] = None
 
 
 @router.put("/{candidate_id}/role", response_model=CandidateResponse)
@@ -339,14 +344,35 @@ def move_candidate_to_role(
             raise NotFoundError("Job posting not found", {"job_id": str(payload.job_id)})
 
     candidate.job_id = payload.job_id
+
+    leaving = payload.from_job_id or previous_job_id
+    exclusions = [str(x) for x in (candidate.excluded_job_ids or [])]
+    if leaving is not None and str(leaving) != str(payload.job_id or ""):
+        # Record it so the next ranking run does not undo the removal.
+        if str(leaving) not in exclusions:
+            candidate.excluded_job_ids = [*(candidate.excluded_job_ids or []), leaving]
+    if payload.job_id is not None:
+        # Being put on a role is the explicit reversal of having been removed.
+        candidate.excluded_job_ids = [
+            x for x in (candidate.excluded_job_ids or []) if str(x) != str(payload.job_id)
+        ]
+
     store.candidates.save(candidate)
+
+    # Every route onto the board they are leaving has to go, or they stay put.
+    # `job_id` is one route; an evaluation for that job is another (that is
+    # how an unassigned pool candidate joins a board at all).
+    if leaving is not None and str(leaving) != str(payload.job_id or ""):
+        evaluation = store.evaluations.get_for(leaving, candidate_id)
+        if evaluation is not None:
+            store.evaluations.delete(evaluation.id)
 
     # A placement is stage state on a board the candidate has just left. Left
     # behind it would keep pulling them back onto that board, because an
     # explicit placement is itself a membership route.
-    if previous_job_id is not None and str(previous_job_id) != str(payload.job_id or ""):
+    if leaving is not None and str(leaving) != str(payload.job_id or ""):
         for placement in store.candidate_placements.query(
-            lambda p: str(p.job_id) == str(previous_job_id)
+            lambda p: str(p.job_id) == str(leaving)
             and str(p.candidate_id) == str(candidate_id)
         ):
             store.candidate_placements.delete(placement.id)
@@ -373,6 +399,8 @@ class InternalEmployeeRequest(BaseModel):
     title: Optional[str] = None
     #: What they are working on now. Blank means they are between assignments.
     current_assignment: Optional[str] = None
+    #: What they do in that position, not just its title.
+    current_role_duties: Optional[str] = None
     location: Optional[str] = None
     skills: list[str] = Field(default_factory=list)
     #: Put them straight on the bench — the common case for someone rolling
@@ -424,6 +452,7 @@ def create_internal_employee(
         job_id=payload.job_id,
         employment_status="bench" if payload.on_bench else "assigned",
         current_assignment=None if payload.on_bench else payload.current_assignment,
+        current_role_duties=payload.current_role_duties,
         bench_since=datetime.now(timezone.utc).replace(tzinfo=None) if payload.on_bench else None,
     )
     store.candidates.save(candidate)

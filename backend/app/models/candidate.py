@@ -43,9 +43,20 @@ class Candidate(BaseModel):
     #: was added to the pool rather than to a specific opening; they stay
     #: searchable and can be placed on any board by hand.
     job_id: Optional[uuid.UUID] = None
+    #: Roles this candidate was explicitly taken off.
+    #:
+    #: Removal has to outlive the next ranking run. Clearing the evaluation
+    #: alone was not enough: ranking a job re-scores every unassigned pool
+    #: candidate, which silently put the removed person straight back on the
+    #: board. Being moved onto a role clears it from this list.
+    excluded_job_ids: list[uuid.UUID] = Field(default_factory=list)
     source: str = "external"
     employment_status: Optional[str] = None   # "bench" | "assigned" | None — only meaningful when source == "internal"
     current_assignment: Optional[str] = None  # free-text project/team; blank when on bench
+    #: What they actually do in that position — the duties a recruiter needs
+    #: in order to judge whether a move sideways is a step up or a repeat.
+    #: A job title alone ("Engineer II") does not carry that.
+    current_role_duties: Optional[str] = None
     bench_since: Optional[datetime] = None    # when they became available
     created_at: datetime = Field(default_factory=_utcnow)
     updated_at: datetime = Field(default_factory=_utcnow)

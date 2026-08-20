@@ -64,6 +64,8 @@ def _process_resume(upload_id: uuid.UUID) -> None:
             owner_email=upload.recruiter_email,
             job_id=upload.job_id,
             source=upload.source,
+            current_position=upload.current_position,
+            current_role_duties=upload.current_role_duties,
         )
 
         upload.candidate_id = candidate.id
@@ -93,6 +95,12 @@ async def upload_resumes(
     source: str = Form(
         "external",
         description="'internal' for an existing employee, 'external' for an outside applicant.",
+    ),
+    current_position: Optional[str] = Form(
+        None, description="Internal only: the role they hold in the company today."
+    ),
+    current_role_duties: Optional[str] = Form(
+        None, description="Internal only: what they do in that role."
     ),
 ):
     if not files:
@@ -189,6 +197,10 @@ async def upload_resumes(
             recruiter_email=recruiter_email,
             job_id=target_job,
             source=source,
+            # Only meaningful for an employee; an external applicant has no
+            # position here to record.
+            current_position=current_position if source == "internal" else None,
+            current_role_duties=current_role_duties if source == "internal" else None,
             filename=filename,
             blob_path=blob_path,
             status="duplicate" if is_duplicate else "queued",

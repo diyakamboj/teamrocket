@@ -8,6 +8,8 @@ import {
 import {
   getJob,
   getJobPipeline,
+  listJobPipelines,
+  type JobPipelineSummary,
   listJobs,
   uploadResumesToBackend,
   type JobResponse,
@@ -25,6 +27,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Slider } from "@/components/ui/slider";
 import { CandidateDetailModal } from "@/components/candidate-detail-modal";
+import { CandidateRoleActions } from "@/components/candidate-role-actions";
+import { CurrentRoleButton, SourceBadge } from "@/components/source-badge";
 import { atsTierLabel, atsToneClass, atsVerdictLabel } from "@/lib/ats-score";
 import { CandidateStatusTab } from "@/components/pipeline-progress";
 import { cn } from "@/lib/utils";
@@ -63,6 +67,12 @@ type CandidateRow = {
   isBench?: boolean;
   skills: string[];
   stage: string;
+  /** Needed by the row actions: which pool they are in, the role they are
+   *  currently attached to, and what they do in the company today. */
+  origin?: "internal" | "external";
+  employmentStatus?: string | null;
+  currentAssignment?: string | null;
+  jobId?: string | null;
 };
 
 /** Rows are derived from the backend-scored pool joined with the job's
@@ -103,6 +113,10 @@ function toRow(
     isBench: candidate.employmentStatus === "bench",
     skills: Array.isArray(candidate.skills) ? candidate.skills : [],
     stage: rawStage === "screened" ? "Reviewed" : rawStage,
+    origin: candidate.origin,
+    employmentStatus: candidate.employmentStatus ?? null,
+    currentAssignment: candidate.currentAssignment ?? null,
+    jobId: candidate.jobId ?? null,
   };
 }
 
@@ -226,6 +240,19 @@ function JobWorkspacePage() {
     });
   }, [job?.id, job?.scoring_weights]);
 
+  /** Every role this recruiter owns, so a candidate can be moved to another
+   *  one straight from this table. */
+  const [allJobs, setAllJobs] = useState<JobPipelineSummary[]>([]);
+  useEffect(() => {
+    let cancelled = false;
+    listJobPipelines()
+      .then((rows) => !cancelled && setAllJobs(rows))
+      .catch(() => !cancelled && setAllJobs([]));
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
   /** Re-read what the backend persisted, rather than guessing locally — the
    * board must show the stored placement, not an optimistic one. */
   const refreshPipeline = useCallback(() => {
@@ -239,7 +266,19 @@ function JobWorkspacePage() {
     [placements],
   );
 
-  const ranked = useMemo(() => rankCandidates(pool || [], weights), [pool, weights]);
+  /** Only this job's candidates.
+   *
+   * `pool` is every candidate the recruiter owns, so ranking it directly
+   * put the whole pool on every job's Candidates tab regardless of the role
+   * their résumé was uploaded for — the same leak the pipeline was fixed for,
+   * still alive in this view. `placements` is the server's own membership
+   * list for this job, so it is the authority on who belongs here.
+   */
+  const ranked = useMemo(() => {
+    const members = new Set(Object.keys(placements));
+    const mine = (pool || []).filter((c) => members.has(c.id));
+    return rankCandidates(mine, weights);
+  }, [pool, weights, placements]);
 
   const boardCandidates = useMemo(
     () =>
@@ -570,7 +609,9 @@ function JobWorkspacePage() {
             </span>
           </div>
 
-          <div className="rounded-xl border border-slate-200 overflow-hidden bg-white shadow-xs">
+          {/* overflow-hidden cropped the Actions column outright. Scrolling
+              keeps every control reachable at any width. */}
+          <div className="overflow-x-auto rounded-xl border border-border bg-card shadow-xs">
             <table className="w-full text-left text-xs border-collapse">
               <thead>
                 <tr className="bg-slate-50 border-b border-slate-200 text-slate-500 uppercase font-semibold">
@@ -603,10 +644,16 @@ function JobWorkspacePage() {
                         >
                           {blindMode ? `Candidate #${i + 1}` : c.name}
                         </span>
-                        {c.isBench && (
-                          <Badge className="bg-blue-50 text-blue-700 border-blue-200 text-[10px] font-bold">
-                            👥 Bench
-                          </Badge>
+                        <SourceBadge
+                          source={c.origin ?? null}
+                          currentAssignment={c.currentAssignment ?? null}
+                          onBench={c.isBench ?? false}
+                        />
+                        {c.origin === "internal" && (
+                          <CurrentRoleButton
+                            currentAssignment={c.currentAssignment ?? null}
+                            onBench={c.isBench ?? false}
+                          />
                         )}
                       </div>
                       <div className="flex flex-wrap gap-1 mt-1">
@@ -641,13 +688,36 @@ function JobWorkspacePage() {
                       </Badge>
                     </td>
                     <td className="p-3.5 text-right">
+                      <div className="flex flex-col items-end gap-2">
                       <Button
                         size="sm"
                         onClick={() => setSelectedCandidateId(c.id)}
-                        className="bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200 text-xs font-semibold rounded-lg"
+                        className="press rounded-lg border border-primary/20 bg-primary-soft text-xs font-semibold text-primary-soft-foreground hover:bg-primary/15"
                       >
                         View profile →
                       </Button>
+
+                        {/* Removing someone from the role belongs here, on
+                            the role's own candidate list, not only on the
+                            global candidates page. */}
+                        <CandidateRoleActions
+                          candidateId={c.id}
+                          candidateName={c.name}
+                          currentJobId={c.jobId ?? jobId}
+                          source={c.origin ?? null}
+                          employmentStatus={c.employmentStatus ?? null}
+                          jobs={allJobs}
+                          onChanged={() => {
+                            refreshPipeline();
+                            // The pool is what builds these rows, so the
+                            // removed person only disappears once it is
+                            // re-read — refreshing placements is not enough.
+                            void refreshPool();
+                          }}
+                          compact
+                          className="justify-end"
+                        />
+                      </div>
                     </td>
                   </tr>
                 ))}

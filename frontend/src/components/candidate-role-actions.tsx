@@ -1,4 +1,4 @@
-import { Armchair, Briefcase, Loader2 } from "lucide-react";
+import { Armchair, Briefcase, Loader2, UserMinus } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
 
@@ -25,6 +25,7 @@ export function CandidateRoleActions({
   employmentStatus,
   jobs,
   onChanged,
+  compact = false,
   className,
 }: {
   candidateId: string;
@@ -34,16 +35,18 @@ export function CandidateRoleActions({
   employmentStatus?: string | null;
   jobs: JobPipelineSummary[];
   onChanged?: () => void;
+  /** Tighter labels for dense table rows. */
+  compact?: boolean;
   className?: string;
 }) {
-  const [busy, setBusy] = useState<"role" | "bench" | null>(null);
+  const [busy, setBusy] = useState<"role" | "bench" | "remove" | null>(null);
   const onBench = employmentStatus === "bench";
 
   async function changeRole(nextJobId: string) {
     setBusy("role");
     try {
       const target = nextJobId || null;
-      await moveCandidateToRole(candidateId, target);
+      await moveCandidateToRole(candidateId, target, currentJobId ?? null);
       const label = jobs.find((j) => j.job_id === target)?.title;
       toast.success(
         target
@@ -53,6 +56,23 @@ export function CandidateRoleActions({
       onChanged?.();
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Could not change the role");
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  async function removeFromRole() {
+    setBusy("remove");
+    try {
+      await moveCandidateToRole(candidateId, null, currentJobId ?? null);
+      // Worth being explicit: recruiters expect a "remove" to delete, and
+      // this deliberately does not.
+      toast.success(`${candidateName} removed from the role`, {
+        description: "They stay in your pool and can be added to another role.",
+      });
+      onChanged?.();
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Could not remove them");
     } finally {
       setBusy(null);
     }
@@ -95,7 +115,10 @@ export function CandidateRoleActions({
           value={currentJobId ?? ""}
           disabled={busy !== null}
           onChange={(e) => void changeRole(e.target.value)}
-          className="rounded-lg border border-input bg-background py-1 pl-7 pr-2 text-[11px] disabled:opacity-50"
+          className={cn(
+            "truncate rounded-lg border border-input bg-background py-1 pl-7 pr-2 text-[11px] disabled:opacity-50",
+            compact ? "max-w-[9.5rem]" : "max-w-[14rem]",
+          )}
         >
           <option value="">No role (pool)</option>
           {jobs.map((job) => (
@@ -105,6 +128,27 @@ export function CandidateRoleActions({
           ))}
         </select>
       </div>
+
+      {currentJobId && (
+        <button
+          type="button"
+          onClick={() => void removeFromRole()}
+          disabled={busy !== null}
+          title="Take them off this role — they stay in your pool"
+          className={cn(
+            "press inline-flex items-center gap-1 rounded-lg border px-2 py-1 text-[11px] font-medium transition-colors",
+            "hover:border-destructive/50 hover:bg-destructive/10 hover:text-destructive",
+            busy !== null && "opacity-50",
+          )}
+        >
+          {busy === "remove" ? (
+            <Loader2 className="h-3 w-3 animate-spin" />
+          ) : (
+            <UserMinus className="h-3 w-3" />
+          )}
+          {compact ? "Remove" : "Remove from role"}
+        </button>
+      )}
 
       <button
         type="button"

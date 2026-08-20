@@ -122,6 +122,10 @@ class ResumeUpload(BaseModel):
     #: 'internal' (existing employee) or 'external' (outside applicant),
     #: chosen at intake so the two populations never mix by default.
     source: str = "external"
+    #: Internal intake only: where this person sits today, captured at
+    #: upload because a résumé states past roles, not the current one.
+    current_position: Optional[str] = None
+    current_role_duties: Optional[str] = None
     filename: str
     blob_path: Optional[str] = None
     status: str = "queued"

@@ -84,7 +84,7 @@ export function AppShell({ children }: { children: ReactNode }) {
         )}
       >
         <div className="flex items-center gap-3 px-4 py-5 border-b border-border">
-          <span className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-blue-600 text-sm font-extrabold text-white shadow-sm">
+          <span className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-gradient-to-br from-primary to-accent-foreground text-sm font-extrabold text-primary-foreground shadow-[0_6px_18px_-6px_oklch(0.58_0.28_288/0.7)]">
             R
           </span>
           {!collapsed && (
@@ -106,14 +106,31 @@ export function AppShell({ children }: { children: ReactNode }) {
                 to={item.to}
                 title={item.label}
                 className={cn(
-                  "flex items-center gap-3 rounded-lg px-3 py-2 text-xs font-medium transition-all justify-between",
+                  "press group relative flex items-center justify-between gap-3 rounded-xl px-3 py-2.5 text-xs font-medium",
+                  "transition-[background-color,color,transform] duration-300 ease-[cubic-bezier(0.22,1,0.36,1)]",
                   isActive
-                    ? "bg-blue-50 text-blue-700 font-semibold border-l-2 border-blue-600"
-                    : "text-muted-foreground hover:bg-accent hover:text-foreground",
+                    ? "bg-primary-soft font-semibold text-primary-soft-foreground"
+                    : "text-muted-foreground hover:bg-secondary hover:text-foreground",
                 )}
               >
-                <div className="flex items-center gap-2.5 min-w-0">
-                  <item.icon className={cn("h-4 w-4 shrink-0", isActive ? "text-primary" : "text-muted-foreground")} />
+                {/* The active marker animates in rather than snapping. */}
+                <span
+                  aria-hidden
+                  className={cn(
+                    "absolute left-0 top-1/2 w-[3px] -translate-y-1/2 rounded-r-full bg-primary",
+                    "transition-[height] duration-300 ease-[cubic-bezier(0.22,1,0.36,1)]",
+                    isActive ? "h-6" : "h-0",
+                  )}
+                />
+                <div className="flex min-w-0 items-center gap-2.5">
+                  <item.icon
+                    className={cn(
+                      "h-4 w-4 shrink-0 transition-colors duration-300",
+                      isActive
+                        ? "text-primary"
+                        : "text-muted-foreground group-hover:text-foreground",
+                    )}
+                  />
                   {!collapsed && <span className="truncate">{item.label}</span>}
                 </div>
               </Link>
@@ -152,19 +169,19 @@ export function AppShell({ children }: { children: ReactNode }) {
         </nav>
 
         {active && (
-          <div className="mx-3 mb-3 rounded-lg bg-blue-50/80 border border-blue-100 p-3">
+          <div className="surface-lift mx-3 mb-3 border-primary/20 bg-primary-soft/50 p-3">
             {collapsed ? (
-              <div className="grid place-items-center text-xs font-bold text-blue-700">
+              <div className="grid place-items-center text-xs font-bold text-primary">
                 {overallProgress}%
               </div>
             ) : (
               <>
-                <p className="text-xs font-semibold text-blue-900">
+                <p className="text-xs font-semibold text-primary-soft-foreground">
                   Processing {counts.processing + counts.queued} resumes
                 </p>
-                <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-blue-200/60">
+                <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-primary/15">
                   <div
-                    className="h-full rounded-full bg-blue-600 transition-[width] duration-500"
+                    className="h-full rounded-full bg-gradient-to-r from-primary to-accent-foreground transition-[width] duration-700 ease-[cubic-bezier(0.22,1,0.36,1)]"
                     style={{ width: `${overallProgress}%` }}
                   />
                 </div>
@@ -188,13 +205,13 @@ export function AppShell({ children }: { children: ReactNode }) {
       </aside>
 
       <div className="flex min-w-0 flex-1 flex-col">
-        <header className="sticky top-0 z-30 flex items-center justify-between gap-4 border-b border-border bg-card/90 px-6 py-3 shadow-xs backdrop-blur-md">
+        <header className="sticky top-0 z-30 flex items-center justify-between gap-4 border-b border-border/70 bg-card/70 px-6 py-3 backdrop-blur-xl">
           <GlobalSearch />
 
           <div className="flex shrink-0 items-center gap-3">
             <Button
               onClick={() => setIsCreateModalOpen(true)}
-              className="bg-blue-600 hover:bg-blue-700 text-white font-medium text-xs flex items-center gap-1.5 shadow-sm rounded-lg px-3 py-1.5"
+              className="press flex items-center gap-1.5 rounded-xl bg-primary px-3.5 py-1.5 text-xs font-semibold text-primary-foreground shadow-[0_6px_18px_-8px_oklch(0.58_0.28_288/0.9)] transition-shadow duration-300 hover:shadow-[0_10px_26px_-8px_oklch(0.58_0.28_288/0.95)]"
             >
               <PlusCircle className="w-3.5 h-3.5" />
               Create New Job
@@ -213,7 +230,7 @@ export function AppShell({ children }: { children: ReactNode }) {
             <div className="flex items-center gap-1 border-l border-border pl-2">
               <Link to="/settings">
                 <div className="flex cursor-pointer items-center gap-2 rounded-lg p-1 transition-colors hover:bg-accent">
-                  <span className="grid h-8 w-8 place-items-center rounded-full border border-blue-200 bg-blue-100 text-xs font-bold text-blue-700">
+                  <span className="grid h-8 w-8 place-items-center rounded-full border border-primary/25 bg-primary-soft text-xs font-bold text-primary">
                     {initials}
                   </span>
                   <div className="hidden text-left md:block">

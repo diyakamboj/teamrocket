@@ -117,6 +117,7 @@ class InternalEmployee(BaseModel):
     skills: list[str] = Field(default_factory=list)
     #: What they are working on now. None means they are between assignments.
     current_assignment: Optional[str] = None
+    current_role_duties: Optional[str] = None
     on_bench: bool = False
     days_on_bench: Optional[int] = None
     job_id: Optional[str] = None
@@ -141,6 +142,7 @@ def list_internal_employees(store: AppStore, recruiter_email: RecruiterEmail):
             email=c.email,
             skills=[str(s) for s in (c.skills or [])][:12],
             current_assignment=c.current_assignment,
+            current_role_duties=c.current_role_duties,
             on_bench=c.employment_status == "bench",
             days_on_bench=_days_on_bench(c.bench_since) if c.employment_status == "bench" else None,
             job_id=str(c.job_id) if c.job_id else None,

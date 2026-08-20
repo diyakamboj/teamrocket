@@ -81,6 +81,11 @@ def candidate_ids_for_job(store: Store, job: JobPosting) -> set[str]:
 
     belongs: set[str] = set()
     unassigned: set[str] = set()
+    excluded: set[str] = {
+        str(c.id)
+        for c in mine
+        if any(str(x) == str(job.id) for x in (c.excluded_job_ids or []))
+    }
     for candidate in mine:
         if candidate.job_id is not None and str(candidate.job_id) == str(job.id):
             belongs.add(str(candidate.id))
@@ -97,7 +102,8 @@ def candidate_ids_for_job(store: Store, job: JobPosting) -> set[str]:
     # evaluations say.
     scored = {str(e.candidate_id) for e in store.evaluations.list_for_job(job.id)}
     belongs.update(scored & unassigned)
-    return belongs
+    # An explicit removal wins over every route back in.
+    return belongs - excluded
 
 
 def rankable_candidate_ids_for_job(store: Store, job: JobPosting) -> set[str]:
@@ -114,7 +120,12 @@ def rankable_candidate_ids_for_job(store: Store, job: JobPosting) -> set[str]:
     """
     owner = job.created_by
     mine = store.candidates.query(lambda c: c.owner_email == owner if owner else True)
-    unassigned = {str(c.id) for c in mine if c.job_id is None}
+    unassigned = {
+        str(c.id)
+        for c in mine
+        if c.job_id is None
+        and not any(str(x) == str(job.id) for x in (c.excluded_job_ids or []))
+    }
     return candidate_ids_for_job(store, job) | unassigned
 
 
