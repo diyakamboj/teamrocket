@@ -275,14 +275,14 @@ export function CreateJobModal({ isOpen, onClose }: CreateJobModalProps) {
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="sm:max-w-3xl bg-white border-slate-200 text-slate-900 p-0 overflow-hidden shadow-xl rounded-xl">
-        <DialogHeader className="p-5 bg-slate-50 border-b border-slate-200">
+      <DialogContent className="sm:max-w-3xl bg-card border-border text-foreground p-0 overflow-hidden shadow-xl rounded-xl">
+        <DialogHeader className="p-5 bg-secondary border-b border-border">
           <div className="flex items-center justify-between">
             <div>
-              <DialogTitle className="text-lg text-slate-900 font-bold flex items-center gap-2">
-                <Sparkles className="w-4 h-4 text-blue-600" /> Create New Job Description
+              <DialogTitle className="text-lg text-foreground font-bold flex items-center gap-2">
+                <Sparkles className="w-4 h-4 text-primary" /> Create New Job Description
               </DialogTitle>
-              <DialogDescription className="text-slate-500 text-xs mt-0.5">
+              <DialogDescription className="text-muted-foreground text-xs mt-0.5">
                 Step {step} of {STEPS} — Guided AI Job Creation & Historical Intelligence Workflow
               </DialogDescription>
             </div>
@@ -291,7 +291,7 @@ export function CreateJobModal({ isOpen, onClose }: CreateJobModalProps) {
                 <div
                   key={i}
                   className={`w-6 h-1.5 rounded-full transition-all ${
-                    step >= i ? "bg-blue-600" : "bg-slate-200"
+                    step >= i ? "bg-primary" : "bg-border"
                   }`}
                 />
               ))}
@@ -299,13 +299,13 @@ export function CreateJobModal({ isOpen, onClose }: CreateJobModalProps) {
           </div>
         </DialogHeader>
 
-        <div className="p-6 space-y-6 max-h-[70vh] overflow-y-auto bg-slate-50/30">
+        <div className="p-6 space-y-6 max-h-[70vh] overflow-y-auto bg-secondary/30">
           {/* STEP 1: Hiring Type */}
           {step === 1 && (
             <div className="space-y-6">
               <div>
-                <h3 className="text-base font-semibold text-slate-900">Step 1 — Select Sourcing Category</h3>
-                <p className="text-xs text-slate-500 mt-1">
+                <h3 className="text-base font-semibold text-foreground">Step 1 — Select Sourcing Category</h3>
+                <p className="text-xs text-muted-foreground mt-1">
                   Choose whether this role prioritizes internal talent/bench matching or external candidate recruitment.
                 </p>
               </div>
@@ -316,18 +316,18 @@ export function CreateJobModal({ isOpen, onClose }: CreateJobModalProps) {
                   onClick={() => setHiringType("internal")}
                   className={`p-6 rounded-xl border text-left transition-all ${
                     hiringType === "internal"
-                      ? "bg-blue-50 border-blue-500 text-slate-900 ring-1 ring-blue-500"
-                      : "bg-white border-slate-200 text-slate-700 hover:border-slate-300"
+                      ? "bg-primary-soft border-primary text-foreground ring-1 ring-ring"
+                      : "bg-card border-border text-foreground hover:border-border"
                   }`}
                 >
                   <div className="flex items-center justify-between">
-                    <div className="p-3 rounded-lg bg-blue-100 text-blue-700">
+                    <div className="p-3 rounded-lg bg-primary-soft text-primary">
                       <Briefcase className="w-6 h-6" />
                     </div>
-                    {hiringType === "internal" && <CheckCircle2 className="w-5 h-5 text-blue-600" />}
+                    {hiringType === "internal" && <CheckCircle2 className="w-5 h-5 text-primary" />}
                   </div>
-                  <h4 className="font-bold text-slate-900 text-base mt-4">Internal Hiring Workspace</h4>
-                  <p className="text-xs text-slate-500 mt-1 leading-relaxed">
+                  <h4 className="font-bold text-foreground text-base mt-4">Internal Hiring Workspace</h4>
+                  <p className="text-xs text-muted-foreground mt-1 leading-relaxed">
                     Prioritize internal mobility, existing employees, and bench resources. Enables bench auto-matching.
                   </p>
                 </button>
@@ -337,18 +337,18 @@ export function CreateJobModal({ isOpen, onClose }: CreateJobModalProps) {
                   onClick={() => setHiringType("external")}
                   className={`p-6 rounded-xl border text-left transition-all ${
                     hiringType === "external"
-                      ? "bg-indigo-50 border-indigo-500 text-slate-900 ring-1 ring-indigo-500"
-                      : "bg-white border-slate-200 text-slate-700 hover:border-slate-300"
+                      ? "bg-primary-soft border-primary text-foreground ring-1 ring-ring"
+                      : "bg-card border-border text-foreground hover:border-border"
                   }`}
                 >
                   <div className="flex items-center justify-between">
-                    <div className="p-3 rounded-lg bg-indigo-100 text-indigo-700">
+                    <div className="p-3 rounded-lg bg-primary-soft text-primary">
                       <Globe className="w-6 h-6" />
                     </div>
-                    {hiringType === "external" && <CheckCircle2 className="w-5 h-5 text-indigo-600" />}
+                    {hiringType === "external" && <CheckCircle2 className="w-5 h-5 text-primary" />}
                   </div>
-                  <h4 className="font-bold text-slate-900 text-base mt-4">External Sourcing Workspace</h4>
-                  <p className="text-xs text-slate-500 mt-1 leading-relaxed">
+                  <h4 className="font-bold text-foreground text-base mt-4">External Sourcing Workspace</h4>
+                  <p className="text-xs text-muted-foreground mt-1 leading-relaxed">
                     Recruit external applicants via job portals, direct uploads, and public profile enrichment.
                   </p>
                 </button>
@@ -358,17 +358,17 @@ export function CreateJobModal({ isOpen, onClose }: CreateJobModalProps) {
                   in mind, so the role's board can be populated here rather
                   than starting empty and waiting for a résumé upload. */}
               {hiringType === "internal" && (
-                <div className="rounded-xl border border-slate-200 bg-white p-5">
-                  <h4 className="text-sm font-semibold text-slate-900">
+                <div className="rounded-xl border border-border bg-card p-5">
+                  <h4 className="text-sm font-semibold text-foreground">
 Pick from the bench
                   </h4>
-                  <p className="mt-1 text-xs text-slate-500">
+                  <p className="mt-1 text-xs text-muted-foreground">
                     People on the bench are available now, so they are listed first. Anyone you
                     pick is added to this role&apos;s pipeline.
                   </p>
 
                   {internalPool.length === 0 ? (
-                    <p className="mt-4 rounded-lg border border-dashed px-3 py-6 text-center text-xs text-slate-500">
+                    <p className="mt-4 rounded-lg border border-dashed px-3 py-6 text-center text-xs text-muted-foreground">
                       No internal employees yet. Add them on the Bench Employees page — they do not
                       need a résumé — and they will appear here.
                     </p>
@@ -382,8 +382,8 @@ Pick from the bench
                             <label
                               className={`flex cursor-pointer items-center gap-3 rounded-lg border px-3 py-2 transition-colors ${
                                 checked
-                                  ? "border-blue-500 bg-blue-50"
-                                  : "border-slate-200 hover:border-slate-300"
+                                  ? "border-primary bg-primary-soft"
+                                  : "border-border hover:border-border"
                               }`}
                             >
                               <input
@@ -399,10 +399,10 @@ Pick from the bench
                                 className="h-3.5 w-3.5"
                               />
                               <span className="min-w-0 flex-1">
-                                <span className="block truncate text-xs font-semibold text-slate-900">
+                                <span className="block truncate text-xs font-semibold text-foreground">
                                   {person.name}
                                 </span>
-                                <span className="block truncate text-[11px] text-slate-500">
+                                <span className="block truncate text-[11px] text-muted-foreground">
                                   {person.title || "No title"}
                                   {" · "}
                                   {onBench
@@ -417,7 +417,7 @@ Pick from the bench
                                 </span>
                               </span>
                               {onBench && (
-                                <span className="shrink-0 rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-semibold text-emerald-700">
+                                <span className="shrink-0 rounded-full bg-success/10 px-2 py-0.5 text-[10px] font-semibold text-success">
                                   Available
                                 </span>
                               )}
@@ -429,7 +429,7 @@ Pick from the bench
                   )}
 
                   {chosenEmployees.length > 0 && (
-                    <p className="mt-3 text-[11px] font-medium text-blue-700">
+                    <p className="mt-3 text-[11px] font-medium text-primary">
                       {chosenEmployees.length} employee
                       {chosenEmployees.length === 1 ? "" : "s"} will be added to this role.
                     </p>
@@ -443,49 +443,49 @@ Pick from the bench
           {step === 2 && (
             <div className="space-y-4">
               <div>
-                <h3 className="text-base font-semibold text-slate-900">Step 2 — Role Parameters & Metadata</h3>
-                <p className="text-xs text-slate-500 mt-1">Specify target role parameters and organizational details.</p>
+                <h3 className="text-base font-semibold text-foreground">Step 2 — Role Parameters & Metadata</h3>
+                <p className="text-xs text-muted-foreground mt-1">Specify target role parameters and organizational details.</p>
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="space-y-1.5 md:col-span-2">
-                  <label className="text-xs font-semibold text-slate-700">Job Title</label>
+                  <label className="text-xs font-semibold text-foreground">Job Title</label>
                   <Input
                     value={jobTitle}
                     onChange={(e) => setJobTitle(e.target.value)}
-                    className="bg-white border-slate-200 text-slate-900 text-xs focus:border-blue-500"
+                    className="bg-card border-border text-foreground text-xs focus:border-primary"
                     placeholder="e.g. Senior Software Engineer"
                   />
                 </div>
                 <div className="space-y-1.5">
-                  <label className="text-xs font-semibold text-slate-700">Department</label>
+                  <label className="text-xs font-semibold text-foreground">Department</label>
                   <Input
                     value={department}
                     onChange={(e) => setDepartment(e.target.value)}
-                    className="bg-white border-slate-200 text-slate-900 text-xs focus:border-blue-500"
+                    className="bg-card border-border text-foreground text-xs focus:border-primary"
                     placeholder="e.g. Engineering"
                   />
                 </div>
                 <div className="space-y-1.5">
-                  <label className="text-xs font-semibold text-slate-700">Location</label>
+                  <label className="text-xs font-semibold text-foreground">Location</label>
                   <Input
                     value={location}
                     onChange={(e) => setLocation(e.target.value)}
-                    className="bg-white border-slate-200 text-slate-900 text-xs focus:border-blue-500"
+                    className="bg-card border-border text-foreground text-xs focus:border-primary"
                     placeholder="e.g. Seattle, WA (Hybrid)"
                   />
                 </div>
                 <div className="space-y-1.5">
-                  <label className="text-xs font-semibold text-slate-700">Hiring Manager</label>
+                  <label className="text-xs font-semibold text-foreground">Hiring Manager</label>
                   <Input
                     value={hiringManager}
                     onChange={(e) => setHiringManager(e.target.value)}
-                    className="bg-white border-slate-200 text-slate-900 text-xs focus:border-blue-500"
+                    className="bg-card border-border text-foreground text-xs focus:border-primary"
                     placeholder="e.g. Sarah Connor"
                   />
                 </div>
                 <div className="space-y-1.5">
-                  <label className="text-xs font-semibold text-slate-700">Target Openings</label>
+                  <label className="text-xs font-semibold text-foreground">Target Openings</label>
                   <Input
                     type="number"
                     min={1}
@@ -494,7 +494,7 @@ Pick from the bench
                       const val = e.target.value;
                       setOpenings(val === "" ? "" : Math.max(1, parseInt(val) || 1));
                     }}
-                    className="bg-white border-slate-200 text-slate-900 text-xs focus:border-blue-500"
+                    className="bg-card border-border text-foreground text-xs focus:border-primary"
                   />
                 </div>
               </div>
@@ -505,13 +505,13 @@ Pick from the bench
           {step === 3 && (
             <div className="space-y-5">
               <div>
-                <h3 className="text-base font-semibold text-slate-900">Step 3 — Job Description & AI Historical Intelligence</h3>
-                <p className="text-xs text-slate-500 mt-1">Paste your job description. AI extracts requirements and scores them against past hiring cycles.</p>
+                <h3 className="text-base font-semibold text-foreground">Step 3 — Job Description & AI Historical Intelligence</h3>
+                <p className="text-xs text-muted-foreground mt-1">Paste your job description. AI extracts requirements and scores them against past hiring cycles.</p>
               </div>
 
               <div className="space-y-2">
                 <div className="flex flex-wrap items-center justify-between gap-2">
-                  <label className="text-xs font-semibold text-slate-700">Job Description Text</label>
+                  <label className="text-xs font-semibold text-foreground">Job Description Text</label>
                   <div className="flex items-center gap-2">
                     {prePolishDescription !== null && (
                       <button
@@ -521,7 +521,7 @@ Pick from the bench
                           setPrePolishDescription(null);
                           setPolishChanges([]);
                         }}
-                        className="text-[11px] font-medium text-slate-500 hover:text-slate-900"
+                        className="text-[11px] font-medium text-muted-foreground hover:text-foreground"
                       >
                         Undo polish
                       </button>
@@ -537,7 +537,7 @@ Pick from the bench
                           ? "Write a bit more first"
                           : "Rewrite for clarity and inclusive language"
                       }
-                      className="h-7 rounded-lg border-blue-200 text-blue-700 text-[11px] hover:bg-blue-50"
+                      className="h-7 rounded-lg border-primary/30 text-primary text-[11px] hover:bg-primary-soft"
                     >
                       {polishing ? (
                         <>
@@ -556,16 +556,16 @@ Pick from the bench
                   onChange={(e) => setDescriptionText(e.target.value)}
                   rows={8}
                   placeholder="Paste job description text here (e.g., We are looking for a Senior Software Engineer with Python, SQL, Azure, and Docker experience)..."
-                  className="bg-white border-slate-200 text-slate-900 text-xs font-sans leading-relaxed"
+                  className="bg-card border-border text-foreground text-xs font-sans leading-relaxed"
                 />
 
                 {polishChanges.length > 0 && (
-                  <div className="animate-fade rounded-lg border border-blue-200 bg-blue-50/60 p-3">
-                    <p className="text-[11px] font-bold text-blue-800">What the polish changed</p>
+                  <div className="animate-fade rounded-lg border border-primary/30 bg-primary-soft/60 p-3">
+                    <p className="text-[11px] font-bold text-primary">What the polish changed</p>
                     <ul className="mt-1.5 space-y-1">
                       {polishChanges.map((change, i) => (
-                        <li key={i} className="flex gap-1.5 text-[11px] text-slate-600">
-                          <span className="mt-1 h-1 w-1 shrink-0 rounded-full bg-blue-500" />
+                        <li key={i} className="flex gap-1.5 text-[11px] text-muted-foreground">
+                          <span className="mt-1 h-1 w-1 shrink-0 rounded-full bg-primary" />
                           {change}
                         </li>
                       ))}
@@ -575,9 +575,9 @@ Pick from the bench
               </div>
 
               {/* Copilot Assistant placed directly below the textarea */}
-              <div className="p-4 rounded-xl bg-blue-50/70 border border-blue-200 space-y-3">
+              <div className="p-4 rounded-xl bg-primary-soft/70 border border-primary/30 space-y-3">
                 <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2 text-blue-700 text-xs font-bold">
+                  <div className="flex items-center gap-2 text-primary text-xs font-bold">
                     <Bot className="w-4 h-4" /> AI requirement extraction
                   </div>
                   <Button
@@ -586,18 +586,18 @@ Pick from the bench
                     size="sm"
                     disabled={analyzing}
                     onClick={() => void handleAskCopilot()}
-                    className="text-xs bg-white border-blue-300 text-blue-800 hover:bg-blue-100 font-semibold"
+                    className="text-xs bg-card border-primary/40 text-primary hover:bg-primary-soft font-semibold"
                   >
                     {analyzing ? "Analyzing description…" : "Extract Requirements & Analyze JD"}
                   </Button>
                 </div>
 
                 {copilotFeedback ? (
-                  <div className="p-3 rounded-lg bg-white border border-blue-200 text-blue-900 text-xs leading-relaxed animate-in fade-in shadow-xs">
+                  <div className="p-3 rounded-lg bg-card border border-primary/30 text-primary text-xs leading-relaxed animate-in fade-in shadow-xs">
                     {copilotFeedback}
                   </div>
                 ) : (
-                  <p className="text-[11px] text-slate-600">
+                  <p className="text-[11px] text-muted-foreground">
                     Click <strong>Extract Requirements</strong> to run automated AI requirement detection across skills, experience, and education requirements.
                   </p>
                 )}
@@ -608,32 +608,32 @@ Pick from the bench
               {(() => {
                 const bm = getDynamicBenchmark(jobTitle);
                 return (
-                  <div className="p-4 rounded-xl bg-white border border-slate-200 space-y-3 shadow-xs">
-                    <div className="flex items-center justify-between border-b border-slate-100 pb-2">
-                      <div className="flex items-center gap-2 text-indigo-700 text-xs font-bold">
+                  <div className="p-4 rounded-xl bg-card border border-border space-y-3 shadow-xs">
+                    <div className="flex items-center justify-between border-b border-border pb-2">
+                      <div className="flex items-center gap-2 text-primary text-xs font-bold">
                         <History className="w-4 h-4" /> Historical Hiring Benchmark: {bm.roleTitle}
                       </div>
-                      <Badge className="bg-indigo-50 text-indigo-700 border-indigo-200 text-[10px]">
+                      <Badge className="bg-primary-soft text-primary border-primary/30 text-[10px]">
                         Benchmarked vs {bm.cycles}
                       </Badge>
                     </div>
 
                     <div className="grid grid-cols-3 gap-3 text-center">
-                      <div className="p-2.5 rounded-lg bg-slate-50 border border-slate-200/80">
-                        <div className="text-base font-bold text-slate-900">{bm.applicants}</div>
-                        <div className="text-[10px] text-slate-500">Avg Applicants</div>
+                      <div className="p-2.5 rounded-lg bg-secondary border border-border/80">
+                        <div className="text-base font-bold text-foreground">{bm.applicants}</div>
+                        <div className="text-[10px] text-muted-foreground">Avg Applicants</div>
                       </div>
-                      <div className="p-2.5 rounded-lg bg-slate-50 border border-slate-200/80">
-                        <div className="text-base font-bold text-blue-600">{bm.topMatchScore}</div>
-                        <div className="text-[10px] text-slate-500">Top Match Score</div>
+                      <div className="p-2.5 rounded-lg bg-secondary border border-border/80">
+                        <div className="text-base font-bold text-primary">{bm.topMatchScore}</div>
+                        <div className="text-[10px] text-muted-foreground">Top Match Score</div>
                       </div>
-                      <div className="p-2.5 rounded-lg bg-slate-50 border border-slate-200/80">
-                        <div className="text-base font-bold text-emerald-600">{bm.timeToHire}</div>
-                        <div className="text-[10px] text-slate-500">Avg Time-to-Hire</div>
+                      <div className="p-2.5 rounded-lg bg-secondary border border-border/80">
+                        <div className="text-base font-bold text-success">{bm.timeToHire}</div>
+                        <div className="text-[10px] text-muted-foreground">Avg Time-to-Hire</div>
                       </div>
                     </div>
 
-                    <p className="text-[11px] text-slate-500 leading-relaxed">
+                    <p className="text-[11px] text-muted-foreground leading-relaxed">
                       {bm.insight}
                     </p>
                   </div>
@@ -647,8 +647,8 @@ Pick from the bench
           {step === 4 && (
             <div className="space-y-4">
               <div>
-                <h3 className="text-base font-semibold text-slate-900">Step 4 — Required & Preferred Skills Tagging</h3>
-                <p className="text-xs text-slate-500 mt-1">Add, edit, or remove required and preferred skills for candidate match scoring.</p>
+                <h3 className="text-base font-semibold text-foreground">Step 4 — Required & Preferred Skills Tagging</h3>
+                <p className="text-xs text-muted-foreground mt-1">Add, edit, or remove required and preferred skills for candidate match scoring.</p>
               </div>
 
               <div className="flex items-center gap-2 mb-2">
@@ -656,25 +656,25 @@ Pick from the bench
                   value={newSkillInput}
                   onChange={(e) => setNewSkillInput(e.target.value)}
                   placeholder="Type a skill (e.g. FastAPI, AWS, Docker) and add..."
-                  className="bg-white border-slate-200 text-xs"
+                  className="bg-card border-border text-xs"
                 />
-                <Button size="sm" onClick={() => handleAddSkill("required")} className="bg-blue-600 text-white text-xs whitespace-nowrap">
+                <Button size="sm" onClick={() => handleAddSkill("required")} className="bg-primary text-white text-xs whitespace-nowrap">
                   + Add Required
                 </Button>
-                <Button size="sm" variant="outline" onClick={() => handleAddSkill("preferred")} className="border-slate-200 text-xs whitespace-nowrap">
+                <Button size="sm" variant="outline" onClick={() => handleAddSkill("preferred")} className="border-border text-xs whitespace-nowrap">
                   + Add Preferred
                 </Button>
               </div>
 
               <div className="space-y-4">
                 <div className="space-y-2">
-                  <label className="text-xs font-semibold text-slate-700">Required Mandatory Skills ({requiredSkills.length})</label>
+                  <label className="text-xs font-semibold text-foreground">Required Mandatory Skills ({requiredSkills.length})</label>
                   <div className="flex flex-wrap gap-2">
                     {requiredSkills.length === 0 ? (
-                      <span className="text-xs text-slate-400 italic">No required skills tagged yet.</span>
+                      <span className="text-xs text-muted-foreground italic">No required skills tagged yet.</span>
                     ) : (
                       requiredSkills.map((sk) => (
-                        <Badge key={sk} className="bg-blue-50 text-blue-700 border-blue-200 text-xs px-2.5 py-1 flex items-center gap-1.5">
+                        <Badge key={sk} className="bg-primary-soft text-primary border-primary/30 text-xs px-2.5 py-1 flex items-center gap-1.5">
                           ✓ {sk}
                           <span onClick={() => handleRemoveSkill(sk, "required")} className="hover:text-rose-600 cursor-pointer font-bold ml-1">×</span>
                         </Badge>
@@ -684,13 +684,13 @@ Pick from the bench
                 </div>
 
                 <div className="space-y-2">
-                  <label className="text-xs font-semibold text-slate-700">Preferred Nice-to-Have Skills ({preferredSkills.length})</label>
+                  <label className="text-xs font-semibold text-foreground">Preferred Nice-to-Have Skills ({preferredSkills.length})</label>
                   <div className="flex flex-wrap gap-2">
                     {preferredSkills.length === 0 ? (
-                      <span className="text-xs text-slate-400 italic">No preferred skills tagged yet.</span>
+                      <span className="text-xs text-muted-foreground italic">No preferred skills tagged yet.</span>
                     ) : (
                       preferredSkills.map((sk) => (
-                        <Badge key={sk} variant="outline" className="text-slate-700 bg-white border-slate-200 text-xs px-2.5 py-1 flex items-center gap-1.5">
+                        <Badge key={sk} variant="outline" className="text-foreground bg-card border-border text-xs px-2.5 py-1 flex items-center gap-1.5">
                           + {sk}
                           <span onClick={() => handleRemoveSkill(sk, "preferred")} className="hover:text-rose-600 cursor-pointer font-bold ml-1">×</span>
                         </Badge>
@@ -706,21 +706,21 @@ Pick from the bench
           {step === 5 && (
             <div className="space-y-4">
               <div>
-                <h3 className="text-base font-semibold text-slate-900 flex items-center gap-2">
-                  <Sliders className="h-4 w-4 text-blue-600" /> Step 5 — Default scoring weights
+                <h3 className="text-base font-semibold text-foreground flex items-center gap-2">
+                  <Sliders className="h-4 w-4 text-primary" /> Step 5 — Default scoring weights
                 </h3>
-                <p className="text-xs text-slate-500 mt-1">
+                <p className="text-xs text-muted-foreground mt-1">
                   How this role ranks candidates. Seeded from your Settings defaults; still
                   adjustable later from the job workspace.
                 </p>
               </div>
 
-              <div className="rounded-xl border border-slate-200 bg-white p-5 space-y-5 shadow-xs">
+              <div className="rounded-xl border border-border bg-card p-5 space-y-5 shadow-xs">
                 {WEIGHT_FIELDS.map((item) => (
                   <div key={item.key} className="space-y-2">
                     <div className="flex items-center justify-between text-xs">
-                      <span className="font-medium text-slate-800">{item.label}</span>
-                      <span className="font-semibold tabular-nums text-blue-700">
+                      <span className="font-medium text-foreground">{item.label}</span>
+                      <span className="font-semibold tabular-nums text-primary">
                         {weights[item.key]}%
                       </span>
                     </div>
@@ -736,11 +736,11 @@ Pick from the bench
                   </div>
                 ))}
 
-                <div className="flex items-start gap-2.5 rounded-xl border bg-blue-50/70 border-blue-100 p-3.5">
-                  <Info className="mt-0.5 h-4 w-4 shrink-0 text-blue-600" />
-                  <p className="text-[11px] leading-relaxed text-slate-600">
+                <div className="flex items-start gap-2.5 rounded-xl border bg-primary-soft/70 border-primary/20 p-3.5">
+                  <Info className="mt-0.5 h-4 w-4 shrink-0 text-primary" />
+                  <p className="text-[11px] leading-relaxed text-muted-foreground">
                     Total{" "}
-                    <strong className="text-slate-900 tabular-nums">
+                    <strong className="text-foreground tabular-nums">
                       {Object.values(weights).reduce((a, b) => a + b, 0)}%
                     </strong>{" "}
                     — weights are normalized, so they need not add up to 100.
@@ -754,13 +754,13 @@ Pick from the bench
           {step === 6 && (
             <div className="space-y-4">
               <div>
-                <h3 className="text-base font-semibold text-slate-900">Step 6 — Interview Loop & Publishing</h3>
-                <p className="text-xs text-slate-500 mt-1">Set the rounds a candidate goes through, then create the job.</p>
+                <h3 className="text-base font-semibold text-foreground">Step 6 — Interview Loop & Publishing</h3>
+                <p className="text-xs text-muted-foreground mt-1">Set the rounds a candidate goes through, then create the job.</p>
               </div>
 
-              <div className="p-4 rounded-xl bg-white border border-slate-200 space-y-3 shadow-xs">
+              <div className="p-4 rounded-xl bg-card border border-border space-y-3 shadow-xs">
                 <div className="flex items-center justify-between">
-                  <span className="text-xs font-bold text-slate-900">Interview loop</span>
+                  <span className="text-xs font-bold text-foreground">Interview loop</span>
                   <button
                     type="button"
                     onClick={() =>
@@ -769,7 +769,7 @@ Pick from the bench
                         { name: "", focus: "", interview_type: "Technical Interview", duration_minutes: 45 },
                       ])
                     }
-                    className="text-xs font-semibold text-blue-600 hover:underline"
+                    className="text-xs font-semibold text-primary hover:underline"
                   >
                     + Add round
                   </button>
@@ -777,7 +777,7 @@ Pick from the bench
 
                 {rounds.map((round, index) => (
                   <div key={index} className="flex items-center gap-2">
-                    <span className="grid h-6 w-6 shrink-0 place-items-center rounded-lg bg-blue-50 text-[11px] font-bold text-blue-700">
+                    <span className="grid h-6 w-6 shrink-0 place-items-center rounded-lg bg-primary-soft text-[11px] font-bold text-primary">
                       {index + 1}
                     </span>
                     <Input
@@ -804,53 +804,53 @@ Pick from the bench
                       type="button"
                       aria-label={`Remove round ${index + 1}`}
                       onClick={() => setRounds((prev) => prev.filter((_, i) => i !== index))}
-                      className="shrink-0 rounded-md px-2 py-1 text-xs text-slate-400 hover:text-rose-600"
+                      className="shrink-0 rounded-md px-2 py-1 text-xs text-muted-foreground hover:text-rose-600"
                     >
                       ✕
                     </button>
                   </div>
                 ))}
-                <p className="text-[11px] text-slate-500">
+                <p className="text-[11px] text-muted-foreground">
                   These become the columns on the job's Stage Kanban Board and the rounds shown in
                   Pipeline Overview.
                 </p>
               </div>
 
-              <div className="p-4 rounded-xl bg-white border border-slate-200 space-y-4 shadow-xs">
+              <div className="p-4 rounded-xl bg-card border border-border space-y-4 shadow-xs">
                 <div className="flex items-center justify-between">
                   <div>
-                    <h4 className="font-bold text-slate-900 text-base">{jobTitle || "Untitled Job"}</h4>
-                    <p className="text-xs text-slate-500">{department || "Engineering"} • {location || "Seattle, WA"} • {hiringType.toUpperCase()} SOURCING</p>
+                    <h4 className="font-bold text-foreground text-base">{jobTitle || "Untitled Job"}</h4>
+                    <p className="text-xs text-muted-foreground">{department || "Engineering"} • {location || "Seattle, WA"} • {hiringType.toUpperCase()} SOURCING</p>
                   </div>
-                  <Badge className="bg-emerald-50 text-emerald-700 border-emerald-200 text-xs font-bold">
+                  <Badge className="bg-success/10 text-success border-success/30 text-xs font-bold">
                     Ready to Publish
                   </Badge>
                 </div>
 
-                <div className="grid grid-cols-2 gap-4 text-xs pt-2 border-t border-slate-100">
+                <div className="grid grid-cols-2 gap-4 text-xs pt-2 border-t border-border">
                   <div>
-                    <span className="text-slate-500 font-medium">Required Skills ({requiredSkills.length}):</span>
+                    <span className="text-muted-foreground font-medium">Required Skills ({requiredSkills.length}):</span>
                     <div className="flex flex-wrap gap-1 mt-1">
                       {requiredSkills.map((s) => (
-                        <Badge key={s} className="bg-blue-50 text-blue-700 border-blue-200 text-[10px]">
+                        <Badge key={s} className="bg-primary-soft text-primary border-primary/30 text-[10px]">
                           {s}
                         </Badge>
                       ))}
                     </div>
                   </div>
                   <div>
-                    <span className="text-slate-500 font-medium">Preferred Skills ({preferredSkills.length}):</span>
+                    <span className="text-muted-foreground font-medium">Preferred Skills ({preferredSkills.length}):</span>
                     <div className="flex flex-wrap gap-1 mt-1">
                       {preferredSkills.map((s) => (
-                        <Badge key={s} variant="outline" className="text-slate-700 bg-white border-slate-200 text-[10px]">
+                        <Badge key={s} variant="outline" className="text-foreground bg-card border-border text-[10px]">
                           {s}
                         </Badge>
                       ))}
                     </div>
                   </div>
                   <div className="col-span-2">
-                    <span className="text-slate-500 font-medium">Scoring weights:</span>
-                    <p className="mt-1 text-slate-700">
+                    <span className="text-muted-foreground font-medium">Scoring weights:</span>
+                    <p className="mt-1 text-foreground">
                       {WEIGHT_FIELDS.map((item) => `${item.label} ${weights[item.key]}%`).join(" · ")}
                     </p>
                   </div>
@@ -861,13 +861,13 @@ Pick from the bench
         </div>
 
         {/* Footer Navigation */}
-        <div className="p-5 bg-slate-50 border-t border-slate-200 flex items-center justify-between">
+        <div className="p-5 bg-secondary border-t border-border flex items-center justify-between">
           <Button
             type="button"
             variant="outline"
             disabled={step === 1}
             onClick={() => setStep((s) => s - 1)}
-            className="text-xs border-slate-200 bg-white text-slate-700 hover:bg-slate-100 flex items-center gap-1"
+            className="text-xs border-border bg-card text-foreground hover:bg-secondary flex items-center gap-1"
           >
             <ArrowLeft className="w-4 h-4" /> Back
           </Button>
@@ -876,7 +876,7 @@ Pick from the bench
             <Button
               type="button"
               onClick={() => setStep((s) => s + 1)}
-              className="bg-blue-600 hover:bg-blue-700 text-white font-medium text-xs flex items-center gap-1.5 rounded-lg"
+              className="bg-primary hover:bg-primary text-white font-medium text-xs flex items-center gap-1.5 rounded-lg"
             >
               Continue <ArrowRight className="w-4 h-4" />
             </Button>
@@ -885,7 +885,7 @@ Pick from the bench
               type="button"
               disabled={isSubmitting}
               onClick={handleCreateJob}
-              className="bg-blue-600 hover:bg-blue-700 text-white font-medium text-xs flex items-center gap-1.5 shadow-sm rounded-lg"
+              className="bg-primary hover:bg-primary text-white font-medium text-xs flex items-center gap-1.5 shadow-sm rounded-lg"
             >
               {isSubmitting ? "Creating & Opening Workspace..." : "Create Job & Open JD Workspace"}
             </Button>

@@ -5,17 +5,19 @@
 @custom-variant dark (&:is(.dark *));
 
 @theme inline {
-  --font-sans: "Space Grotesk", ui-sans-serif, system-ui, sans-serif;
-  /* Display face for headings — the expressive half of the pairing.
-     Kept off body text on purpose: Syne is characterful at size and
-     tiring at paragraph scale. */
-  --font-display: "Syne", "Space Grotesk", ui-sans-serif, system-ui, sans-serif;
-  --radius-sm: calc(var(--radius) - 8px);
-  --radius-md: calc(var(--radius) - 5px);
-  --radius-lg: calc(var(--radius) - 2px);
+  --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
+  /* One family, two roles. The old pairing used an expressive display face
+     for headings; this system gets its hierarchy from weight, size and
+     tracking instead, which keeps dense screens calm. */
+  --font-display: "Inter", ui-sans-serif, system-ui, sans-serif;
+  /* Tabular figures for metrics, so columns of numbers align. */
+  --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+  --radius-sm: calc(var(--radius) - 3px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: calc(var(--radius) - 1px);
   --radius-xl: var(--radius);
-  --radius-2xl: calc(var(--radius) + 4px);
-  --radius-3xl: calc(var(--radius) + 12px);
+  --radius-2xl: calc(var(--radius) + 2px);
+  --radius-3xl: calc(var(--radius) + 6px);
   --color-background: var(--background);
   --color-foreground: var(--foreground);
   --color-card: var(--card);
@@ -61,86 +63,93 @@
 }
 
 :root {
-  --radius: 1.125rem;
-  --background: oklch(0.985 0.006 280);
-  --foreground: oklch(0.19 0.04 280);
+  /* Calm & precise: a near-monochrome neutral field, one restrained indigo
+     accent, and hairline borders doing the separating that drop shadows used
+     to do. Chroma stays under 0.02 on every surface token so the accent and
+     the status colours are the only things that read as colour. */
+  --radius: 0.5rem;
+  --background: oklch(0.994 0.001 265);
+  --foreground: oklch(0.21 0.012 265);
   --card: oklch(1 0 0);
-  --card-foreground: oklch(0.19 0.04 280);
+  --card-foreground: oklch(0.21 0.012 265);
   --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.24 0.045 267);
-  --primary: oklch(0.58 0.28 288);
-  --primary-foreground: oklch(0.99 0.005 288);
-  --primary-soft: oklch(0.94 0.08 288);
-  --primary-soft-foreground: oklch(0.42 0.24 288);
-  --secondary: oklch(0.955 0.018 285);
-  --secondary-foreground: oklch(0.28 0.05 282);
-  --muted: oklch(0.96 0.012 285);
-  --muted-foreground: oklch(0.52 0.04 283);
-  --accent: oklch(0.92 0.11 195);
-  --accent-foreground: oklch(0.36 0.16 200);
-  --destructive: oklch(0.6 0.25 15);
-  --destructive-foreground: oklch(0.99 0.005 20);
-  --success: oklch(0.66 0.19 155);
-  --success-foreground: oklch(0.99 0.005 158);
-  --warning: oklch(0.79 0.17 78);
-  --warning-foreground: oklch(0.25 0.06 75);
-  --border: oklch(0.905 0.02 285);
-  --input: oklch(0.92 0.016 285);
-  --ring: oklch(0.58 0.28 288);
-  --chart-1: oklch(0.58 0.28 288);
-  --chart-2: oklch(0.68 0.19 195);
-  --chart-3: oklch(0.7 0.2 158);
-  --chart-4: oklch(0.78 0.18 82);
-  --chart-5: oklch(0.63 0.26 8);
-  --sidebar: oklch(0.995 0.004 285);
-  --sidebar-foreground: oklch(0.3 0.045 267);
-  --sidebar-primary: oklch(0.58 0.28 288);
-  --sidebar-primary-foreground: oklch(0.99 0.005 285);
-  --sidebar-accent: oklch(0.92 0.11 195);
-  --sidebar-accent-foreground: oklch(0.44 0.17 285);
-  --sidebar-border: oklch(0.915 0.016 285);
-  --sidebar-ring: oklch(0.58 0.28 288);
+  --popover-foreground: oklch(0.21 0.012 265);
+  --primary: oklch(0.48 0.15 264);
+  --primary-foreground: oklch(0.99 0.002 265);
+  --primary-soft: oklch(0.955 0.022 264);
+  --primary-soft-foreground: oklch(0.42 0.15 264);
+  --secondary: oklch(0.965 0.003 265);
+  --secondary-foreground: oklch(0.31 0.012 265);
+  --muted: oklch(0.968 0.003 265);
+  --muted-foreground: oklch(0.53 0.011 265);
+  --accent: oklch(0.958 0.004 265);
+  --accent-foreground: oklch(0.28 0.013 265);
+  --destructive: oklch(0.55 0.19 25);
+  --destructive-foreground: oklch(0.99 0.002 25);
+  --success: oklch(0.55 0.13 156);
+  --success-foreground: oklch(0.99 0.002 156);
+  --warning: oklch(0.7 0.14 70);
+  --warning-foreground: oklch(0.26 0.05 70);
+  --border: oklch(0.912 0.004 265);
+  --input: oklch(0.912 0.004 265);
+  --ring: oklch(0.48 0.15 264);
+  /* Chart ramp: distinguishable at a glance without shouting. */
+  --chart-1: oklch(0.48 0.15 264);
+  --chart-2: oklch(0.58 0.11 218);
+  --chart-3: oklch(0.55 0.13 156);
+  --chart-4: oklch(0.7 0.14 70);
+  --chart-5: oklch(0.55 0.16 12);
+  --sidebar: oklch(0.978 0.002 265);
+  --sidebar-foreground: oklch(0.32 0.012 265);
+  --sidebar-primary: oklch(0.48 0.15 264);
+  --sidebar-primary-foreground: oklch(0.99 0.002 265);
+  --sidebar-accent: oklch(0.945 0.005 265);
+  --sidebar-accent-foreground: oklch(0.26 0.013 265);
+  --sidebar-border: oklch(0.912 0.004 265);
+  --sidebar-ring: oklch(0.48 0.15 264);
 }
 
 .dark {
-  --background: oklch(0.145 0.032 285);
-  --foreground: oklch(0.965 0.01 285);
-  --card: oklch(0.196 0.038 286);
-  --card-foreground: oklch(0.965 0.01 285);
-  --popover: oklch(0.196 0.038 286);
-  --popover-foreground: oklch(0.96 0.008 270);
-  --primary: oklch(0.74 0.24 295);
-  --primary-foreground: oklch(0.14 0.04 295);
-  --primary-soft: oklch(0.29 0.09 293);
-  --primary-soft-foreground: oklch(0.88 0.12 293);
-  --secondary: oklch(0.255 0.04 286);
-  --secondary-foreground: oklch(0.95 0.008 270);
-  --muted: oklch(0.255 0.04 286);
-  --muted-foreground: oklch(0.72 0.03 285);
-  --accent: oklch(0.33 0.11 205);
-  --accent-foreground: oklch(0.9 0.12 200);
-  --destructive: oklch(0.67 0.19 20);
-  --destructive-foreground: oklch(0.16 0.04 20);
-  --success: oklch(0.7 0.14 158);
-  --success-foreground: oklch(0.16 0.04 158);
-  --warning: oklch(0.8 0.14 75);
-  --warning-foreground: oklch(0.2 0.05 75);
-  --border: oklch(0.3 0.04 287);
-  --input: oklch(0.3 0.04 287);
-  --ring: oklch(0.74 0.24 295);
-  --chart-1: oklch(0.68 0.175 285);
-  --chart-2: oklch(0.78 0.12 285);
-  --chart-3: oklch(0.7 0.13 200);
-  --chart-4: oklch(0.72 0.14 158);
-  --chart-5: oklch(0.8 0.14 75);
-  --sidebar: oklch(0.195 0.028 273);
-  --sidebar-foreground: oklch(0.93 0.01 270);
-  --sidebar-primary: oklch(0.68 0.175 285);
-  --sidebar-primary-foreground: oklch(0.16 0.04 285);
-  --sidebar-accent: oklch(0.3 0.055 285);
-  --sidebar-accent-foreground: oklch(0.88 0.08 285);
-  --sidebar-border: oklch(1 0 0 / 10%);
-  --sidebar-ring: oklch(0.68 0.175 285);
+  /* Neutral charcoal rather than a tinted dark. Same rule as light: surfaces
+     carry almost no chroma, so the accent and status colours stay legible. */
+  --background: oklch(0.165 0.004 265);
+  --foreground: oklch(0.96 0.003 265);
+  --card: oklch(0.205 0.005 265);
+  --card-foreground: oklch(0.96 0.003 265);
+  --popover: oklch(0.205 0.005 265);
+  --popover-foreground: oklch(0.96 0.003 265);
+  --primary: oklch(0.72 0.14 264);
+  --primary-foreground: oklch(0.17 0.02 264);
+  --primary-soft: oklch(0.29 0.06 264);
+  --primary-soft-foreground: oklch(0.87 0.08 264);
+  --secondary: oklch(0.253 0.005 265);
+  --secondary-foreground: oklch(0.93 0.003 265);
+  --muted: oklch(0.253 0.005 265);
+  --muted-foreground: oklch(0.7 0.008 265);
+  --accent: oklch(0.27 0.006 265);
+  --accent-foreground: oklch(0.94 0.003 265);
+  --destructive: oklch(0.66 0.17 25);
+  --destructive-foreground: oklch(0.16 0.03 25);
+  --success: oklch(0.68 0.13 156);
+  --success-foreground: oklch(0.16 0.03 156);
+  --warning: oklch(0.78 0.13 70);
+  --warning-foreground: oklch(0.2 0.04 70);
+  --border: oklch(0.283 0.006 265);
+  --input: oklch(0.3 0.006 265);
+  --ring: oklch(0.72 0.14 264);
+  --chart-1: oklch(0.72 0.14 264);
+  --chart-2: oklch(0.72 0.11 218);
+  --chart-3: oklch(0.68 0.13 156);
+  --chart-4: oklch(0.78 0.13 70);
+  --chart-5: oklch(0.68 0.15 12);
+  --sidebar: oklch(0.185 0.004 265);
+  --sidebar-foreground: oklch(0.9 0.004 265);
+  --sidebar-primary: oklch(0.72 0.14 264);
+  --sidebar-primary-foreground: oklch(0.17 0.02 264);
+  --sidebar-accent: oklch(0.253 0.005 265);
+  --sidebar-accent-foreground: oklch(0.95 0.003 265);
+  --sidebar-border: oklch(0.283 0.006 265);
+  --sidebar-ring: oklch(0.72 0.14 264);
 }
 
 @layer base {
@@ -169,8 +178,8 @@
 @utility card-surface {
   background-color: var(--color-card);
   border: 1px solid var(--color-border);
-  border-radius: var(--radius-2xl);
-  box-shadow: var(--shadow-soft);
+  border-radius: var(--radius-lg);
+  box-shadow: none;
 }
 
 /* Tofu-style fraud orbit hero */
@@ -375,8 +384,9 @@
   will-change: transform;
 }
 .lift:hover {
-  transform: translate3d(0, -3px, 0);
-  box-shadow: 0 12px 32px -12px rgb(0 0 0 / 0.18);
+  transform: translate3d(0, -1px, 0);
+  border-color: var(--color-foreground);
+  box-shadow: var(--shadow-lift);
 }
 
 .gradient-text {
@@ -535,13 +545,8 @@
   top: 0;
   height: 2px;
   border-radius: inherit;
-  background: linear-gradient(
-    90deg,
-    var(--color-chart-1),
-    var(--color-chart-2) 45%,
-    var(--color-chart-3)
-  );
-  opacity: 0.85;
+  background: var(--color-primary);
+  opacity: 0.9;
 }
 
 /* Stage colours, used by the pipeline and candidate rows so a stage means the
@@ -566,8 +571,9 @@
 /* Numbers that matter: tabular so columns line up, and tinted by the scale
    they sit on. */
 .metric {
+  font-family: var(--font-mono);
   font-variant-numeric: tabular-nums;
-  letter-spacing: -0.02em;
+  letter-spacing: -0.03em;
 }
 
 /* Buttons and interactive surfaces settle rather than snap. */
@@ -616,10 +622,9 @@ button:active:not(:disabled),
   h1, h2, h3, .font-display {
     font-family: var(--font-display);
     letter-spacing: -0.02em;
-    /* Syne sits low with deep descenders. A floor on line-height stops
-       tight utility classes (leading-[1.08] and friends) cropping the tails
-       off g, y and p at display sizes. */
-    line-height: max(1.16, 1em);
+    /* Inter has shallower descenders than the old display face, so headings
+       can sit tighter without cropping g, y and p. */
+    line-height: max(1.12, 1em);
   }
 
   h1 {

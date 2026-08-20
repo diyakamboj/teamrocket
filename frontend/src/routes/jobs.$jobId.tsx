@@ -167,7 +167,7 @@ function JobWorkspacePage() {
       name: f.name,
       size: `${(f.size / 1024).toFixed(1)} KB`,
       status: "⟳ Processing OCR & AI Parsing...",
-      color: "text-blue-600",
+      color: "text-primary",
     }));
 
     setUploadedFiles((prev) => [...newItems, ...prev]);
@@ -179,7 +179,7 @@ function JobWorkspacePage() {
       setUploadedFiles((prev) =>
         prev.map((item) =>
           fileArray.some((f) => f.name === item.name)
-            ? { ...item, status: "✓ Parsed & Saved to Candidates Store", color: "text-emerald-700" }
+            ? { ...item, status: "✓ Parsed & Saved to Candidates Store", color: "text-success" }
             : item
         )
       );
@@ -341,23 +341,23 @@ function JobWorkspacePage() {
   return (
     <div className="mx-auto max-w-7xl space-y-8">
       {/* JD Header */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-slate-200 pb-6">
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-border pb-6">
         <div>
           <div className="flex items-center gap-2 mb-1">
-            <Badge className="bg-indigo-50 text-indigo-700 border-indigo-200 text-xs uppercase font-bold">
+            <Badge className="bg-primary-soft text-primary border-primary/30 text-xs uppercase font-bold">
               {job?.sourcing_mode === "internal" ? "Internal Hiring" : "External Hiring"}
             </Badge>
-            <Badge variant="outline" className="text-slate-600 border-slate-200 bg-white text-xs">
+            <Badge variant="outline" className="text-muted-foreground border-border bg-card text-xs">
               📍 {extractLocation(job)}
             </Badge>
-            <Badge className="bg-emerald-50 text-emerald-700 border-emerald-200 text-xs font-bold">
+            <Badge className="bg-success/10 text-success border-success/30 text-xs font-bold">
               {job?.status ? job.status.toUpperCase() : "ACTIVE HIRING"}
             </Badge>
           </div>
-          <h1 className="text-2xl font-bold tracking-tight text-slate-900 flex items-center gap-3 mt-1">
+          <h1 className="text-2xl font-bold tracking-tight text-foreground flex items-center gap-3 mt-1">
             {job ? job.title : "Job Workspace"}
           </h1>
-          <p className="text-slate-500 text-xs mt-1">
+          <p className="text-muted-foreground text-xs mt-1">
             Central Hiring Workspace • {candidates.length} Candidate{candidates.length === 1 ? "" : "s"} • {topMatchesCount} Top Match{topMatchesCount === 1 ? "" : "es"} • {readyCount} Ready for Review
           </p>
         </div>
@@ -366,15 +366,15 @@ function JobWorkspacePage() {
           <Button
             variant="outline"
             onClick={() => setActiveTab("upload")}
-            className="border-slate-200 bg-white text-slate-700 hover:bg-slate-50 text-xs flex items-center gap-1.5 shadow-xs"
+            className="border-border bg-card text-foreground hover:bg-secondary text-xs flex items-center gap-1.5 shadow-xs"
           >
-            <UploadCloud className="w-3.5 h-3.5 text-blue-600" /> Upload Resumes
+            <UploadCloud className="w-3.5 h-3.5 text-primary" /> Upload Resumes
           </Button>
 
           {selectedForCompare.length >= 2 && (
             <Button
               onClick={handleLaunchCompare}
-              className="bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-medium flex items-center gap-1.5 shadow-sm rounded-lg"
+              className="bg-primary hover:bg-primary/90 text-primary-foreground text-xs font-medium flex items-center gap-1.5 shadow-sm rounded-lg"
             >
               <Columns3 className="w-3.5 h-3.5" /> Compare Selected ({selectedForCompare.length}) →
             </Button>
@@ -383,7 +383,7 @@ function JobWorkspacePage() {
       </div>
 
       {/* Tabs Bar */}
-      <div className="flex items-center justify-between border-b border-slate-200 pb-3">
+      <div className="flex items-center justify-between border-b border-border pb-3">
         <div className="flex items-center gap-2">
           {[
             { id: "candidates", label: `Candidates (${candidates.length})` },
@@ -399,8 +399,8 @@ function JobWorkspacePage() {
               onClick={() => setActiveTab(tab.id as any)}
               className={`px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-all ${
                 activeTab === tab.id
-                  ? "bg-white text-blue-600 border border-slate-200 shadow-xs"
-                  : "text-slate-600 hover:text-slate-900 hover:bg-slate-100"
+                  ? "bg-card text-primary border border-border shadow-xs"
+                  : "text-muted-foreground hover:text-foreground hover:bg-secondary"
               }`}
             >
               {tab.label}
@@ -421,9 +421,9 @@ function JobWorkspacePage() {
               variant="outline"
               size="sm"
               onClick={() => setBlindMode(!blindMode)}
-              className="border-slate-200 bg-white text-slate-700 text-xs flex items-center gap-1 shadow-xs"
+              className="border-border bg-card text-foreground text-xs flex items-center gap-1 shadow-xs"
             >
-              {blindMode ? <EyeOff className="w-3.5 h-3.5 text-amber-600" /> : <Eye className="w-3.5 h-3.5 text-blue-600" />}
+              {blindMode ? <EyeOff className="w-3.5 h-3.5 text-warning" /> : <Eye className="w-3.5 h-3.5 text-primary" />}
               {blindMode ? "Blind Mode ON" : "Blind Mode"}
             </Button>
           )}
@@ -433,9 +433,9 @@ function JobWorkspacePage() {
               variant="outline"
               size="sm"
               onClick={() => setShowWeightSliders(!showWeightSliders)}
-              className="border-slate-200 bg-white text-slate-700 text-xs flex items-center gap-1.5 shadow-xs"
+              className="border-border bg-card text-foreground text-xs flex items-center gap-1.5 shadow-xs"
             >
-              <Sliders className="w-3.5 h-3.5 text-blue-600" /> Adjust Scoring Weights
+              <Sliders className="w-3.5 h-3.5 text-primary" /> Adjust Scoring Weights
             </Button>
           )}
         </div>
@@ -444,12 +444,12 @@ function JobWorkspacePage() {
       {/* WEIGHT SLIDERS DRAWER IF OPEN */}
 
       {showWeightSliders && (
-        <Card className="bg-white border-blue-200 p-5 space-y-4 shadow-sm rounded-xl">
+        <Card className="bg-card border-primary/30 p-5 space-y-4 shadow-sm rounded-xl">
           <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2 text-blue-700 text-xs font-bold">
+            <div className="flex items-center gap-2 text-primary text-xs font-bold">
               <Sliders className="w-4 h-4" /> Adjust Candidate Scoring Category Weights
             </div>
-            <Button size="sm" onClick={handleSaveWeights} className="bg-blue-600 hover:bg-blue-700 text-white font-medium text-xs rounded-lg">
+            <Button size="sm" onClick={handleSaveWeights} className="bg-primary hover:bg-primary text-white font-medium text-xs rounded-lg">
               Save & Recalculate All Candidates
             </Button>
           </div>
@@ -464,7 +464,7 @@ function JobWorkspacePage() {
             ].map((item) => (
 
               <div key={item.key} className="space-y-1 text-xs">
-                <span className="text-slate-700 font-medium">{item.label}</span>
+                <span className="text-foreground font-medium">{item.label}</span>
                 <Slider
                   min={0}
                   max={50}
@@ -516,38 +516,38 @@ function JobWorkspacePage() {
       {/* TAB: ORIGINAL JD & REQUIREMENTS */}
       {activeTab === "jd" && (
         <div className="space-y-6">
-          <Card className="bg-white border-slate-200 p-6 space-y-6 rounded-xl shadow-xs">
-            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-slate-100 pb-4">
+          <Card className="bg-card border-border p-6 space-y-6 rounded-xl shadow-xs">
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-border pb-4">
               <div>
-                <h3 className="text-base font-bold text-slate-900 flex items-center gap-2">
-                  <FileText className="w-4 h-4 text-blue-600" /> Original Job Description & Requirements Spec
+                <h3 className="text-base font-bold text-foreground flex items-center gap-2">
+                  <FileText className="w-4 h-4 text-primary" /> Original Job Description & Requirements Spec
                 </h3>
-                <p className="text-xs text-slate-500 mt-0.5">
+                <p className="text-xs text-muted-foreground mt-0.5">
                   Verbatim text and extracted technical/soft skill criteria powering candidate evaluation.
                 </p>
               </div>
-              <Badge className="bg-blue-50 text-blue-700 border-blue-200 text-xs px-3 py-1 font-semibold">
+              <Badge className="bg-primary-soft text-primary border-primary/30 text-xs px-3 py-1 font-semibold">
                 {job?.sourcing_mode === "internal" ? "Internal Bench Workspace" : "External Sourcing Workspace"}
               </Badge>
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
               <div className="md:col-span-2 space-y-3">
-                <h4 className="text-xs font-bold text-slate-700 uppercase tracking-wider">Job Description Text</h4>
-                <div className="p-4 rounded-xl bg-slate-50 border border-slate-200 text-xs text-slate-800 font-sans leading-relaxed whitespace-pre-wrap max-h-96 overflow-y-auto">
+                <h4 className="text-xs font-bold text-foreground uppercase tracking-wider">Job Description Text</h4>
+                <div className="p-4 rounded-xl bg-secondary border border-border text-xs text-foreground font-sans leading-relaxed whitespace-pre-wrap max-h-96 overflow-y-auto">
                   {job?.description || "No job description text recorded for this role."}
                 </div>
               </div>
 
               <div className="space-y-5">
                 <div className="space-y-2">
-                  <h4 className="text-xs font-bold text-slate-700 uppercase tracking-wider">Required Mandatory Skills</h4>
+                  <h4 className="text-xs font-bold text-foreground uppercase tracking-wider">Required Mandatory Skills</h4>
                   <div className="flex flex-wrap gap-1.5">
                     {(job?.required_skills || []).length === 0 ? (
-                      <span className="text-xs text-slate-400 italic">None specified</span>
+                      <span className="text-xs text-muted-foreground italic">None specified</span>
                     ) : (
                       (job?.required_skills || []).map((sk) => (
-                        <Badge key={String(sk)} className="bg-blue-50 text-blue-700 border-blue-200 text-xs px-2.5 py-1">
+                        <Badge key={String(sk)} className="bg-primary-soft text-primary border-primary/30 text-xs px-2.5 py-1">
                           ✓ {String(sk)}
                         </Badge>
                       ))
@@ -556,13 +556,13 @@ function JobWorkspacePage() {
                 </div>
 
                 <div className="space-y-2">
-                  <h4 className="text-xs font-bold text-slate-700 uppercase tracking-wider">Preferred Nice-to-Have Skills</h4>
+                  <h4 className="text-xs font-bold text-foreground uppercase tracking-wider">Preferred Nice-to-Have Skills</h4>
                   <div className="flex flex-wrap gap-1.5">
                     {(job?.nice_to_have_skills || []).length === 0 ? (
-                      <span className="text-xs text-slate-400 italic">None specified</span>
+                      <span className="text-xs text-muted-foreground italic">None specified</span>
                     ) : (
                       (job?.nice_to_have_skills || []).map((sk) => (
-                        <Badge key={String(sk)} variant="outline" className="bg-white text-slate-700 border-slate-200 text-xs px-2.5 py-1">
+                        <Badge key={String(sk)} variant="outline" className="bg-card text-foreground border-border text-xs px-2.5 py-1">
                           + {String(sk)}
                         </Badge>
                       ))
@@ -570,18 +570,18 @@ function JobWorkspacePage() {
                   </div>
                 </div>
 
-                <div className="p-4 rounded-xl bg-slate-50 border border-slate-200 space-y-2 text-xs">
+                <div className="p-4 rounded-xl bg-secondary border border-border space-y-2 text-xs">
                   <div className="flex justify-between">
-                    <span className="text-slate-500 font-medium">Required Experience:</span>
-                    <span className="font-bold text-slate-900">{job?.required_experience_years ? `${job.required_experience_years}+ Years` : "Not specified"}</span>
+                    <span className="text-muted-foreground font-medium">Required Experience:</span>
+                    <span className="font-bold text-foreground">{job?.required_experience_years ? `${job.required_experience_years}+ Years` : "Not specified"}</span>
                   </div>
                   <div className="flex justify-between">
-                    <span className="text-slate-500 font-medium">Education Requirement:</span>
-                    <span className="font-bold text-slate-900">{job?.education_requirements || "Flexible"}</span>
+                    <span className="text-muted-foreground font-medium">Education Requirement:</span>
+                    <span className="font-bold text-foreground">{job?.education_requirements || "Flexible"}</span>
                   </div>
                   <div className="flex justify-between">
-                    <span className="text-slate-500 font-medium">Target Location:</span>
-                    <span className="font-bold text-slate-900">{extractLocation(job)}</span>
+                    <span className="text-muted-foreground font-medium">Target Location:</span>
+                    <span className="font-bold text-foreground">{extractLocation(job)}</span>
                   </div>
                 </div>
               </div>
@@ -596,15 +596,15 @@ function JobWorkspacePage() {
         <div className="space-y-4">
           <div className="flex items-center justify-between gap-4">
             <div className="relative max-w-md w-full">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400" />
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground" />
               <Input
                 placeholder="Search candidates by name, skill (Python, Azure)..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                className="bg-white border-slate-200 text-slate-900 text-xs pl-9 focus:border-blue-500 rounded-lg"
+                className="bg-card border-border text-foreground text-xs pl-9 focus:border-primary rounded-lg"
               />
             </div>
-            <span className="text-xs text-slate-500">
+            <span className="text-xs text-muted-foreground">
               Showing {filteredCandidates.length} candidates sorted by ATS score
             </span>
           </div>
@@ -614,7 +614,7 @@ function JobWorkspacePage() {
           <div className="overflow-x-auto rounded-xl border border-border bg-card shadow-xs">
             <table className="w-full text-left text-xs border-collapse">
               <thead>
-                <tr className="bg-slate-50 border-b border-slate-200 text-slate-500 uppercase font-semibold">
+                <tr className="bg-secondary border-b border-border text-muted-foreground uppercase font-semibold">
                   <th className="p-3.5 w-10 text-center">Select</th>
                   <th className="p-3.5">Candidate</th>
                   <th className="p-3.5">ATS score</th>
@@ -627,20 +627,20 @@ function JobWorkspacePage() {
               </thead>
               <tbody className="divide-y divide-slate-100">
                 {filteredCandidates.map((c, i) => (
-                  <tr key={c.id} className="hover:bg-slate-50/80 transition-all">
+                  <tr key={c.id} className="hover:bg-secondary/80 transition-all">
                     <td className="p-3.5 text-center">
                       <input
                         type="checkbox"
                         checked={selectedForCompare.includes(c.id)}
                         onChange={() => toggleCompare(c.id)}
-                        className="rounded border-slate-300 text-blue-600 focus:ring-blue-500"
+                        className="rounded border-border text-primary focus:ring-ring"
                       />
                     </td>
                     <td className="p-3.5">
                       <div className="flex items-center gap-2">
                         <span
                           onClick={() => setSelectedCandidateId(c.id)}
-                          className="font-bold text-slate-900 text-sm hover:text-blue-600 cursor-pointer"
+                          className="font-bold text-foreground text-sm hover:text-primary cursor-pointer"
                         >
                           {blindMode ? `Candidate #${i + 1}` : c.name}
                         </span>
@@ -658,7 +658,7 @@ function JobWorkspacePage() {
                       </div>
                       <div className="flex flex-wrap gap-1 mt-1">
                         {c.skills.slice(0, 3).map((sk) => (
-                          <span key={sk} className="text-[10px] text-slate-500 font-medium">
+                          <span key={sk} className="text-[10px] text-muted-foreground font-medium">
                             {sk} •
                           </span>
                         ))}
@@ -666,7 +666,7 @@ function JobWorkspacePage() {
                     </td>
                     <td className="p-3.5">
                       <div className="flex flex-col gap-1">
-                        <span className="font-extrabold text-base text-blue-700 tabular-nums">
+                        <span className="font-extrabold text-base text-primary tabular-nums">
                           {c.score}
                         </span>
                         <div className="flex flex-wrap gap-1">
@@ -679,11 +679,11 @@ function JobWorkspacePage() {
                         </div>
                       </div>
                     </td>
-                    <td className="p-3.5 text-slate-700 font-mono">{c.skillsScore}</td>
-                    <td className="p-3.5 text-slate-700 font-mono">{c.expScore}</td>
-                    <td className="p-3.5 text-slate-700 font-mono">{c.eduScore}</td>
+                    <td className="p-3.5 text-foreground font-mono">{c.skillsScore}</td>
+                    <td className="p-3.5 text-foreground font-mono">{c.expScore}</td>
+                    <td className="p-3.5 text-foreground font-mono">{c.eduScore}</td>
                     <td className="p-3.5">
-                      <Badge variant="outline" className="text-slate-700 bg-slate-50 border-slate-200 text-xs">
+                      <Badge variant="outline" className="text-foreground bg-secondary border-border text-xs">
                         {c.stage}
                       </Badge>
                     </td>
@@ -741,7 +741,7 @@ function JobWorkspacePage() {
 
       {/* TAB 3: BULK RESUME UPLOAD */}
       {activeTab === "upload" && (
-        <Card className="bg-white border-slate-200 p-8 space-y-6 rounded-xl shadow-xs">
+        <Card className="bg-card border-border p-8 space-y-6 rounded-xl shadow-xs">
           <input
             ref={fileInputRef}
             type="file"
@@ -752,12 +752,12 @@ function JobWorkspacePage() {
           />
           <div
             onClick={() => fileInputRef.current?.click()}
-            className="border-2 border-dashed border-slate-200 rounded-xl p-12 text-center space-y-4 hover:border-blue-400 transition-all cursor-pointer bg-slate-50/50"
+            className="border-2 border-dashed border-border rounded-xl p-12 text-center space-y-4 hover:border-primary transition-all cursor-pointer bg-secondary/50"
           >
-            <UploadCloud className="w-10 h-10 text-blue-600 mx-auto" />
+            <UploadCloud className="w-10 h-10 text-primary mx-auto" />
             <div>
-              <h3 className="text-base font-bold text-slate-900">Drag & drop candidate resumes here</h3>
-              <p className="text-xs text-slate-500 mt-1">Supports PDF, DOCX, Scanned Resumes (Automated OCR Parsing)</p>
+              <h3 className="text-base font-bold text-foreground">Drag & drop candidate resumes here</h3>
+              <p className="text-xs text-muted-foreground mt-1">Supports PDF, DOCX, Scanned Resumes (Automated OCR Parsing)</p>
             </div>
             <Button
               type="button"
@@ -765,27 +765,27 @@ function JobWorkspacePage() {
                 e.stopPropagation();
                 fileInputRef.current?.click();
               }}
-              className="bg-blue-600 hover:bg-blue-700 text-white font-medium text-xs rounded-lg"
+              className="bg-primary hover:bg-primary text-white font-medium text-xs rounded-lg"
             >
               Select PDF Files
             </Button>
           </div>
 
           <div className="space-y-3">
-            <h4 className="text-xs font-bold text-slate-500 uppercase tracking-wider">
+            <h4 className="text-xs font-bold text-muted-foreground uppercase tracking-wider">
               Processing Status Tracker ({uploadedFiles.length})
             </h4>
             {uploadedFiles.length > 0 ? (
               <div className="space-y-2">
                 {uploadedFiles.map((f, idx) => (
-                  <div key={idx} className="p-3 rounded-lg bg-slate-50 border border-slate-200 flex items-center justify-between text-xs">
-                    <span className="font-mono text-slate-700">{f.name} ({f.size})</span>
+                  <div key={idx} className="p-3 rounded-lg bg-secondary border border-border flex items-center justify-between text-xs">
+                    <span className="font-mono text-foreground">{f.name} ({f.size})</span>
                     <span className={`font-semibold ${f.color}`}>{f.status}</span>
                   </div>
                 ))}
               </div>
             ) : (
-              <div className="p-6 text-center text-xs text-slate-400 border border-slate-100 rounded-lg bg-slate-50/50">
+              <div className="p-6 text-center text-xs text-muted-foreground border border-border rounded-lg bg-secondary/50">
                 No candidate resumes uploaded to this workspace yet. Click above to select PDF/DOCX files.
               </div>
             )}

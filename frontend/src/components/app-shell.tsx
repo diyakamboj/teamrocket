@@ -26,16 +26,45 @@ import { Button } from "@/components/ui/button";
 import { getSession, logoutSession } from "@/lib/auth";
 import { CreateJobModal } from "@/components/create-job-modal";
 import { GlobalSearch } from "@/components/global-search";
+import { CommandPalette } from "@/components/command-palette";
 import { listJobPipelines, type JobPipelineSummary } from "@/lib/api";
 
-const PRIMARY_NAV = [
-  { to: "/bench", label: "Bench Employees", icon: Armchair },
-  { to: "/network", label: "Recruiter Network", icon: Network },
-  { to: "/", label: "Dashboard", icon: LayoutDashboard },
-  { to: "/internal-hiring", label: "Internal Hiring", icon: Briefcase },
-  { to: "/external-hiring", label: "External Hiring", icon: Globe },
-  { to: "/actions", label: "Actions Center", icon: Zap },
-  { to: "/settings", label: "Settings & Context", icon: Settings },
+/**
+ * Navigation, grouped by what the recruiter is trying to do.
+ *
+ * These were seven flat entries in which "Internal Hiring", "External
+ * Hiring" and "Bench Employees" read as siblings of "Settings" — so the
+ * three ways of sourcing a role looked unrelated to each other. Grouping
+ * shows which ones are alternatives; Cmd-K covers the fast path for anyone
+ * who already knows where they are going.
+ *
+ * `as const` is load-bearing: the router types `Link to` as a union of real
+ * route paths, so these have to stay literals rather than widen to string.
+ */
+const NAV_GROUPS = [
+  {
+    heading: "Overview",
+    items: [
+      { to: "/", label: "Dashboard", icon: LayoutDashboard },
+      { to: "/actions", label: "Actions Center", icon: Zap },
+    ],
+  },
+  {
+    heading: "Sourcing",
+    items: [
+      { to: "/internal-hiring", label: "Internal Hiring", icon: Briefcase },
+      { to: "/external-hiring", label: "External Hiring", icon: Globe },
+      { to: "/bench", label: "Bench Employees", icon: Armchair },
+    ],
+  },
+  {
+    heading: "Collaborate",
+    items: [{ to: "/network", label: "Recruiter Network", icon: Network }],
+  },
+  {
+    heading: "Account",
+    items: [{ to: "/settings", label: "Settings & Context", icon: Settings }],
+  },
 ] as const;
 
 
@@ -79,12 +108,12 @@ export function AppShell({ children }: { children: ReactNode }) {
 
       <aside
         className={cn(
-          "sticky top-0 z-20 flex h-screen shrink-0 flex-col border-r border-border bg-sidebar shadow-sm transition-[width] duration-300",
+          "sticky top-0 z-20 flex h-screen shrink-0 flex-col border-r border-border bg-sidebar transition-[width] duration-200",
           collapsed ? "w-[72px]" : "w-[240px]",
         )}
       >
         <div className="flex items-center gap-3 px-4 py-5 border-b border-border">
-          <span className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-gradient-to-br from-primary to-accent-foreground text-sm font-extrabold text-primary-foreground shadow-[0_6px_18px_-6px_oklch(0.58_0.28_288/0.7)]">
+          <span className="grid h-8 w-8 shrink-0 place-items-center rounded-md bg-foreground text-[13px] font-bold text-background">
             R
           </span>
           {!collapsed && (
@@ -98,44 +127,55 @@ export function AppShell({ children }: { children: ReactNode }) {
         </div>
 
         <nav className="flex-1 space-y-1 p-3">
-          {PRIMARY_NAV.map((item) => {
-            const isActive = item.to === "/" ? pathname === "/" : pathname.startsWith(item.to);
-            return (
-              <Link
-                key={item.to}
-                to={item.to}
-                title={item.label}
-                className={cn(
-                  "press group relative flex items-center justify-between gap-3 rounded-xl px-3 py-2.5 text-xs font-medium",
-                  "transition-[background-color,color,transform] duration-300 ease-[cubic-bezier(0.22,1,0.36,1)]",
-                  isActive
-                    ? "bg-primary-soft font-semibold text-primary-soft-foreground"
-                    : "text-muted-foreground hover:bg-secondary hover:text-foreground",
-                )}
-              >
-                {/* The active marker animates in rather than snapping. */}
-                <span
-                  aria-hidden
-                  className={cn(
-                    "absolute left-0 top-1/2 w-[3px] -translate-y-1/2 rounded-r-full bg-primary",
-                    "transition-[height] duration-300 ease-[cubic-bezier(0.22,1,0.36,1)]",
-                    isActive ? "h-6" : "h-0",
-                  )}
-                />
-                <div className="flex min-w-0 items-center gap-2.5">
-                  <item.icon
+          {NAV_GROUPS.map((group) => (
+            <div key={group.heading} className="pb-1">
+              {/* The heading is what makes the grouping legible; collapsed
+                  there is no room, and a rule stands in for it. */}
+              {collapsed ? (
+                <div aria-hidden className="mx-2 my-2 border-t border-sidebar-border" />
+              ) : (
+                <p className="px-3 pb-1 pt-3 text-[10px] font-semibold uppercase tracking-[0.08em] text-muted-foreground/70">
+                  {group.heading}
+                </p>
+              )}
+
+              {group.items.map((item) => {
+                const isActive =
+                  item.to === "/" ? pathname === "/" : pathname.startsWith(item.to);
+                return (
+                  <Link
+                    key={item.to}
+                    to={item.to}
+                    title={item.label}
                     className={cn(
-                      "h-4 w-4 shrink-0 transition-colors duration-300",
+                      "group relative flex items-center gap-2.5 rounded-md px-3 py-2 text-[13px]",
+                      "transition-colors duration-150",
                       isActive
-                        ? "text-primary"
-                        : "text-muted-foreground group-hover:text-foreground",
+                        ? "bg-secondary font-medium text-foreground"
+                        : "text-muted-foreground hover:bg-secondary/60 hover:text-foreground",
                     )}
-                  />
-                  {!collapsed && <span className="truncate">{item.label}</span>}
-                </div>
-              </Link>
-            );
-          })}
+                  >
+                    {/* A quiet 2px rail marks the active row instead of a
+                        filled accent block. */}
+                    <span
+                      aria-hidden
+                      className={cn(
+                        "absolute left-0 top-1/2 w-[2px] -translate-y-1/2 rounded-r-full bg-primary transition-all duration-150",
+                        isActive ? "h-5 opacity-100" : "h-0 opacity-0",
+                      )}
+                    />
+                    <item.icon
+                      className={cn(
+                        "h-4 w-4 shrink-0 transition-colors duration-150",
+                        isActive ? "text-primary" : "text-muted-foreground",
+                      )}
+                    />
+                    {!collapsed && <span className="truncate">{item.label}</span>}
+                  </Link>
+                );
+              })}
+            </div>
+          ))}
 
           {!collapsed && (
             <div className="pt-6 px-1 space-y-2">
@@ -181,7 +221,7 @@ export function AppShell({ children }: { children: ReactNode }) {
                 </p>
                 <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-primary/15">
                   <div
-                    className="h-full rounded-full bg-gradient-to-r from-primary to-accent-foreground transition-[width] duration-700 ease-[cubic-bezier(0.22,1,0.36,1)]"
+                    className="h-full rounded-full bg-primary transition-[width] duration-500 ease-out"
                     style={{ width: `${overallProgress}%` }}
                   />
                 </div>
@@ -192,7 +232,7 @@ export function AppShell({ children }: { children: ReactNode }) {
 
         <button
           onClick={() => setCollapsed((c) => !c)}
-          className="m-3 flex items-center justify-center gap-2 rounded-lg border border-border bg-card px-3 py-1.5 text-xs font-medium text-muted-foreground shadow-sm transition-colors hover:bg-accent hover:text-foreground"
+          className="m-3 flex items-center justify-center gap-2 rounded-md border border-border bg-card px-3 py-1.5 text-xs font-medium text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground"
         >
           {collapsed ? (
             <ChevronsRight className="h-3.5 w-3.5" />
@@ -205,13 +245,18 @@ export function AppShell({ children }: { children: ReactNode }) {
       </aside>
 
       <div className="flex min-w-0 flex-1 flex-col">
-        <header className="sticky top-0 z-30 flex items-center justify-between gap-4 border-b border-border/70 bg-card/70 px-6 py-3 backdrop-blur-xl">
-          <GlobalSearch />
+        <header className="sticky top-0 z-30 flex items-center justify-between gap-4 border-b border-border bg-background px-6 py-2.5">
+          <div className="flex min-w-0 flex-1 items-center gap-3">
+            <GlobalSearch />
+            <kbd className="hidden shrink-0 items-center gap-1 rounded border border-border bg-secondary px-1.5 py-0.5 font-mono text-[10px] text-muted-foreground lg:inline-flex">
+              ⌘K
+            </kbd>
+          </div>
 
           <div className="flex shrink-0 items-center gap-3">
             <Button
               onClick={() => setIsCreateModalOpen(true)}
-              className="press flex items-center gap-1.5 rounded-xl bg-primary px-3.5 py-1.5 text-xs font-semibold text-primary-foreground shadow-[0_6px_18px_-8px_oklch(0.58_0.28_288/0.9)] transition-shadow duration-300 hover:shadow-[0_10px_26px_-8px_oklch(0.58_0.28_288/0.95)]"
+              className="flex items-center gap-1.5 rounded-md bg-primary px-3 py-1.5 text-xs font-medium text-primary-foreground transition-colors hover:bg-primary/90"
             >
               <PlusCircle className="w-3.5 h-3.5" />
               Create New Job
@@ -222,8 +267,8 @@ export function AppShell({ children }: { children: ReactNode }) {
                 aria-label="Actions Center"
                 className="relative grid h-8 w-8 place-items-center rounded-lg border border-border text-muted-foreground transition-colors hover:bg-accent"
               >
-                <Zap className="h-4 w-4 text-amber-500" />
-                <span className="absolute right-1 top-1 h-2 w-2 rounded-full bg-amber-500" />
+                <Zap className="h-4 w-4" />
+                <span className="absolute right-1 top-1 h-1.5 w-1.5 rounded-full bg-primary" />
               </button>
             </Link>
 
@@ -262,6 +307,9 @@ export function AppShell({ children }: { children: ReactNode }) {
           isOpen={isCreateModalOpen}
           onClose={() => setIsCreateModalOpen(false)}
         />
+
+        {/* Listens for Cmd/Ctrl-K globally; renders nothing until opened. */}
+        <CommandPalette />
       </div>
 
     </div>

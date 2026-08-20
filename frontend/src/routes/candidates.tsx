@@ -135,16 +135,16 @@ const DECISIONS: Record<
     done: "Selected",
     confirm: "Send selection",
     icon: Check,
-    tone: "border-emerald-300 text-emerald-700 hover:bg-emerald-50 dark:border-emerald-500/30 dark:text-emerald-300 dark:hover:bg-emerald-500/10",
-    doneTone: "bg-emerald-100 text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-300",
+    tone: "border-success/40 text-success hover:bg-success/10 dark:border-success/40 dark:text-success dark:hover:bg-success/10",
+    doneTone: "bg-success/10 text-success dark:bg-success/15 dark:text-success",
   },
   hired: {
     label: "Hire",
     done: "Hired",
     confirm: "Send offer",
     icon: Trophy,
-    tone: "border-violet-300 text-violet-700 hover:bg-violet-50 dark:border-violet-500/30 dark:text-violet-300 dark:hover:bg-violet-500/10",
-    doneTone: "bg-violet-100 text-violet-700 dark:bg-violet-500/15 dark:text-violet-300",
+    tone: "border-primary/40 text-primary hover:bg-primary-soft dark:border-primary/30 dark:text-primary dark:hover:bg-primary/10",
+    doneTone: "bg-primary-soft text-primary dark:bg-primary/15 dark:text-primary",
   },
   rejected: {
     label: "Reject",
@@ -445,15 +445,15 @@ function Candidates() {
             </div>
 
             {focus && blindMode && (
-              <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border bg-amber-50 px-5 py-3 text-xs dark:bg-amber-500/10">
-                <span className="text-amber-900 dark:text-amber-200">
+              <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border bg-warning/10 px-5 py-3 text-xs dark:bg-warning/10">
+                <span className="text-warning dark:text-warning">
                   Blind review is on, so names and contact details are hidden — the
                   candidate you searched for is shown as a number.
                 </span>
                 <button
                   type="button"
                   onClick={() => setBlindMode(false)}
-                  className="shrink-0 rounded-lg border border-amber-300 px-2.5 py-1 font-semibold text-amber-900 transition-colors hover:bg-amber-100 dark:border-amber-400/40 dark:text-amber-100 dark:hover:bg-amber-500/20"
+                  className="shrink-0 rounded-lg border border-warning/40 px-2.5 py-1 font-semibold text-warning transition-colors hover:bg-warning/15 dark:border-warning/40 dark:text-warning dark:hover:bg-warning/20"
                 >
                   Show names
                 </button>

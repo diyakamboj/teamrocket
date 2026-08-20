@@ -74,7 +74,7 @@ function StateBadge({ state }: { state: DirectoryRecruiter["connection_state"] }
       className={cn(
         "rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide",
         state === "connected"
-          ? "bg-emerald-500/15 text-emerald-600 dark:text-emerald-400"
+          ? "bg-success/15 text-success dark:text-success"
           : "bg-secondary text-secondary-foreground",
       )}
     >
@@ -93,7 +93,7 @@ function PermissionBadge({ permission }: { permission: SharedCandidate["permissi
       className={cn(
         "mt-2 inline-block rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide",
         collaborate
-          ? "bg-emerald-500/15 text-emerald-600 dark:text-emerald-400"
+          ? "bg-success/15 text-success dark:text-success"
           : "bg-secondary text-secondary-foreground",
       )}
     >
