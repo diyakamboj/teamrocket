@@ -58,7 +58,12 @@ def test_trigger_and_submit_assessment(test_store):
 
     assert record.status == "sent"
     assert record.recruiter_approved is True
-    assert record.notification_sent is True
+    # The assessment is recorded as sent, but the *notification* only counts
+    # as sent when a mailer actually took it. Without SMTP configured it did
+    # not, and the record has to reflect that.
+    assert record.notification_sent is False
+    assert record.notification_source == "mock"
+    assert "SMTP is not configured" in (record.notification_error or "")
 
     # Submit assessment results
     updated = readiness_service.submit_assessment_results(

@@ -51,6 +51,29 @@ const DECISION_FOR: Partial<Record<PipelineStage, CandidateDecisionKind>> = {
   rejected: "rejected",
 };
 
+/**
+ * Blind review hides identity so scores are read before names are.
+ *
+ * These boards used to render `candidate.name` unconditionally, so turning
+ * blind review on masked the ranking table and left every name on show one
+ * tab across -- the toggle looked respected while the protection had already
+ * lapsed. Ordering is by the candidate list, so a person keeps the same
+ * number wherever they appear.
+ */
+export function blindLabel(
+  candidate: { id: string; name: string },
+  order: Map<string, number>,
+  blindMode: boolean,
+): string {
+  if (!blindMode) return candidate.name;
+  const position = order.get(candidate.id);
+  return position === undefined ? "Candidate" : `Candidate #${position + 1}`;
+}
+
+export function candidateOrder(candidates: { id: string }[]): Map<string, number> {
+  return new Map(candidates.map((c, index) => [c.id, index]));
+}
+
 export type BoardCandidate = {
   id: string;
   name: string;
@@ -176,12 +199,14 @@ export function PipelineOverviewTab({
   candidates,
   onJobUpdated,
   onMoved,
+  blindMode,
 }: {
   job: JobResponse | null;
   placements: Record<string, PipelineCandidate>;
   candidates: BoardCandidate[];
   onJobUpdated: (job: JobResponse) => void;
   onMoved: () => void;
+  blindMode: boolean;
 }) {
   const [rounds, setRounds] = useState<InterviewRound[]>(job?.rounds ?? []);
   const [editing, setEditing] = useState(false);
@@ -192,6 +217,7 @@ export function PipelineOverviewTab({
   }, [job]);
 
   const columns = useMemo(() => columnsForJob(job?.rounds), [job?.rounds]);
+  const order = useMemo(() => candidateOrder(candidates), [candidates]);
   const { moving, move } = useCandidateMover({
     jobId: job?.id ?? "",
     jobTitle: job?.title ?? "this role",
@@ -339,6 +365,8 @@ export function PipelineOverviewTab({
                     )}
 
                     <RoundRoster
+                      order={order}
+                      blindMode={blindMode}
                       occupants={byColumn[`interviewing:${round.id}`] ?? []}
                       columns={columns}
                       currentKey={`interviewing:${round.id}`}
@@ -411,6 +439,8 @@ export function PipelineOverviewTab({
                   </span>
                 </div>
                 <RoundRoster
+                  order={order}
+                  blindMode={blindMode}
                   occupants={byColumn[column.key] ?? []}
                   columns={columns}
                   currentKey={column.key}
@@ -436,12 +466,16 @@ function RoundRoster({
   currentKey,
   moving,
   onMove,
+  order,
+  blindMode,
 }: {
   occupants: BoardCandidate[];
   columns: PipelineColumn[];
   currentKey: string;
   moving: string | null;
   onMove: (candidate: BoardCandidate, column: PipelineColumn) => void;
+  order: Map<string, number>;
+  blindMode: boolean;
 }) {
   if (occupants.length === 0) {
     return (
@@ -461,7 +495,9 @@ function RoundRoster({
           className="flex flex-wrap items-center gap-2 rounded-lg border bg-background px-2.5 py-2"
         >
           <div className="min-w-0 flex-1">
-            <p className="truncate text-xs font-semibold">{candidate.name}</p>
+            <p className="truncate text-xs font-semibold">
+              {blindLabel(candidate, order, blindMode)}
+            </p>
             <p className="truncate text-[11px] text-muted-foreground">{candidate.title || "—"}</p>
           </div>
           <span className="metric shrink-0 text-xs font-bold text-primary">{candidate.score}</span>
@@ -510,14 +546,17 @@ export function StageBoardTab({
   candidates,
   placements,
   onMoved,
+  blindMode,
 }: {
   job: JobResponse | null;
   jobId: string;
   candidates: BoardCandidate[];
   placements: Record<string, PipelineCandidate>;
   onMoved: () => void;
+  blindMode: boolean;
 }) {
   const columns = useMemo(() => columnsForJob(job?.rounds), [job?.rounds]);
+  const order = useMemo(() => candidateOrder(candidates), [candidates]);
   const { moving, move } = useCandidateMover({
     jobId,
     jobTitle: job?.title ?? "this role",
@@ -618,7 +657,9 @@ export function StageBoardTab({
                 >
                   <div className="flex items-start justify-between gap-2">
                     <div className="min-w-0">
-                      <p className="truncate text-xs font-semibold">{candidate.name}</p>
+                      <p className="truncate text-xs font-semibold">
+                        {blindLabel(candidate, order, blindMode)}
+                      </p>
                       <p className="truncate text-[11px] text-muted-foreground">
                         {candidate.title || "—"}
                       </p>

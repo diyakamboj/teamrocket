@@ -1,3 +1,6 @@
+import threading
+from contextlib import asynccontextmanager
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
@@ -5,6 +8,7 @@ from app.config import settings
 from app.routes import (
     agent,
     auth,
+    bench,
     candidates,
     company_documents,
     connections,
@@ -26,9 +30,34 @@ setup_logging()
 logger = get_logger(__name__)
 
 
+@asynccontextmanager
+async def lifespan(_app: FastAPI):
+    """Reconcile the search index with what we have locally, once, on boot.
+
+    Candidates embedded while VECTOR_BACKEND was unset never reached the
+    search service, so after switching it on they were absent from every
+    query -- the search box answered "no candidates" for a pool that was not
+    empty. This re-uploads stored vectors (no model calls) and runs off the
+    event loop so a slow or unreachable search service cannot delay startup.
+    """
+
+    def sync() -> None:
+        try:
+            from app.services.vector_store import candidate_vectors
+
+            candidate_vectors.sync_backend()
+        except Exception as exc:  # never let this stop the API coming up
+            logger.warning("Vector index sync skipped: %s", exc)
+
+    thread = threading.Thread(target=sync, name="vector-index-sync", daemon=True)
+    thread.start()
+    yield
+
+
 app = FastAPI(
     title=settings.API_TITLE,
     version=settings.API_VERSION,
+    lifespan=lifespan,
 )
 
 app.add_middleware(
@@ -47,6 +76,7 @@ app.include_router(candidates.router, prefix="/api/candidates", tags=["Candidate
 app.include_router(evaluation.router, prefix="/api/evaluation", tags=["Evaluation"])
 app.include_router(dashboard.router, prefix="/api/dashboard", tags=["Dashboard"])
 app.include_router(auth.router, prefix="/api/auth", tags=["Auth"])
+app.include_router(bench.router, prefix="/api/bench", tags=["Bench Employees"])
 app.include_router(
     connections.router, prefix="/api/connections", tags=["Recruiter Network"]
 )

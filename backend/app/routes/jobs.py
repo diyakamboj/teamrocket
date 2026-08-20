@@ -1,5 +1,8 @@
 import uuid
 from datetime import datetime, timezone
+from typing import Optional
+
+from pydantic import BaseModel, Field
 
 from fastapi import APIRouter
 
@@ -14,6 +17,7 @@ from app.models.schemas import (
     JobResponse,
     JobUpdate,
 )
+from app.services.azure_services import openai_service
 from app.services.job_analyzer import job_analyzer
 from app.storage.store import Store
 from app.utils.error_handlers import NotFoundError, ValidationAppError
@@ -148,6 +152,63 @@ def update_job(
         resource_id=job.id,
     )
     return job
+
+
+class PolishJDRequest(BaseModel):
+    title: str
+    description: str
+    #: Optional steer: "concise", "inclusive", "technical". Defaults to a
+    #: general tidy-up.
+    goal: Optional[str] = None
+
+
+class PolishJDResponse(BaseModel):
+    polished_description: str
+    changes: list[str] = Field(default_factory=list)
+    #: False when no model was available and the text came back unchanged, so
+    #: the UI can say so instead of implying an edit happened.
+    polished: bool = True
+
+
+POLISH_SYSTEM = """You improve job descriptions for a recruiting platform.
+Rewrite the description so it is clearer, better structured and more likely to attract qualified applicants.
+Rules:
+- Keep every concrete requirement, technology, seniority signal and responsibility that is already there. Never invent new ones, and never drop one.
+- Cut filler, cliches ("rockstar", "ninja", "wear many hats") and vague claims.
+- Prefer short paragraphs and bullet lists over walls of text.
+- Use neutral, inclusive language: no gendered terms, no age or culture-fit coding, no unnecessary degree demands.
+- Keep the company's voice; do not add benefits, salary or claims that were not stated.
+Return JSON: {"polished_description": str, "changes": [str]} where changes lists what you altered, one short line each."""
+
+
+@router.post("/polish-description", response_model=PolishJDResponse)
+def polish_job_description(payload: PolishJDRequest, recruiter_email: RecruiterEmail):
+    """Rewrite a draft JD to be clearer and more inclusive.
+
+    Returns the original text unchanged (with `polished: false`) when no model
+    is configured or the call fails, so the draft is never lost or replaced
+    by an error.
+    """
+    description = (payload.description or "").strip()
+    if len(description) < 40:
+        raise ValidationAppError(
+            "Write a bit more of the description before polishing it.",
+            {"length": len(description)},
+        )
+
+    goal_line = f"\nThe recruiter asked for it to be more {payload.goal}." if payload.goal else ""
+    result = openai_service.chat_json_or_empty(
+        f"Role title: {payload.title}{goal_line}\n\nDraft description:\n\"\"\"\n{description[:8000]}\n\"\"\"",
+        system=POLISH_SYSTEM,
+        temperature=0.3,
+    )
+
+    polished = str(result.get("polished_description") or "").strip()
+    if not polished:
+        return PolishJDResponse(polished_description=description, changes=[], polished=False)
+
+    changes = [str(c) for c in (result.get("changes") or []) if str(c).strip()][:8]
+    return PolishJDResponse(polished_description=polished, changes=changes, polished=True)
 
 
 @router.post("/analyze-draft", response_model=JobAnalyzeResponse)

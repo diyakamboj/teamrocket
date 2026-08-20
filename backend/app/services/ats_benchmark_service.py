@@ -71,7 +71,11 @@ def compute_keyword_baseline(candidate: Candidate, job: JobPosting) -> dict[str,
         else:
             missing.append(keyword)
 
-    score = round((weighted_matched / weighted_total) * 100, 2) if weighted_total else 100.0
+    # A job with no required or nice-to-have skills gives the keyword scan
+    # nothing to look for. That is not a perfect match -- it is *no baseline*.
+    # Scoring it 100 handed every candidate a flawless ATS result off zero
+    # matched keywords, which is worse than useless: it looks authoritative.
+    score = round((weighted_matched / weighted_total) * 100, 2) if weighted_total else None
 
     return {
         "keyword_score": score,
@@ -104,23 +108,20 @@ equivalent_terms (list of {{"resume_term": str, "jd_keyword": str}} objects —
 """
 
 
-def _fallback_semantic_score(baseline_score: float) -> float:
-    # Degrade to the keyword baseline rather than fail the request outright
-    # if the model returns something unparseable.
-    return baseline_score
+async def compute_semantic_score(candidate: Candidate, job: JobPosting) -> dict[str, Any]:
+    """The LLM's semantic read of the fit, or None if it could not produce one.
 
-
-async def compute_semantic_score(
-    candidate: Candidate, job: JobPosting, *, baseline_score: float
-) -> dict[str, Any]:
+    This used to fall back to the keyword baseline when the model returned
+    something unparseable, which made the delta exactly 0.00 and the verdict
+    "aligned" -- reporting perfect agreement between two scores when in truth
+    only one of them existed. A missing score now stays missing.
+    """
     result = openai_service.chat_json_or_empty(_semantic_prompt(candidate, job), temperature=0.2)
 
-    raw_score = result.get("semantic_score")
     try:
-        score = float(raw_score)
+        score = round(max(0.0, min(100.0, float(result.get("semantic_score")))), 2)
     except (TypeError, ValueError):
-        score = _fallback_semantic_score(baseline_score)
-    score = round(max(0.0, min(100.0, score)), 2)
+        score = None
 
     equivalent_terms = result.get("equivalent_terms")
     if not isinstance(equivalent_terms, list):
@@ -128,12 +129,20 @@ async def compute_semantic_score(
 
     return {
         "semantic_score": score,
-        "semantic_rationale": result.get("rationale") or "No rationale returned by the model.",
+        "semantic_rationale": (
+            result.get("rationale")
+            or ("No rationale returned by the model." if score is not None else None)
+        ),
         "equivalent_terms": equivalent_terms,
     }
 
 
-def _verdict(keyword_score: float, semantic_score: float) -> str:
+def _verdict(keyword_score: float | None, semantic_score: float | None) -> str:
+    """Comparing the two scores only means something when both exist."""
+    if keyword_score is None:
+        return "no_keyword_baseline"
+    if semantic_score is None:
+        return "semantic_unavailable"
     delta = semantic_score - keyword_score
     if delta >= STRONG_DELTA_THRESHOLD:
         return "semantic_stronger"
@@ -144,14 +153,25 @@ def _verdict(keyword_score: float, semantic_score: float) -> str:
 
 async def get_benchmark(candidate: Candidate, job: JobPosting) -> dict[str, Any]:
     baseline = compute_keyword_baseline(candidate, job)
-    semantic = await compute_semantic_score(candidate, job, baseline_score=baseline["keyword_score"])
-    delta = round(semantic["semantic_score"] - baseline["keyword_score"], 2)
+    semantic = await compute_semantic_score(candidate, job)
+
+    # The delta is the difference between two scores; with one missing there
+    # is no difference to report, and 0.0 would read as "they agree".
+    if baseline["keyword_score"] is None or semantic["semantic_score"] is None:
+        delta = None
+    else:
+        delta = round(semantic["semantic_score"] - baseline["keyword_score"], 2)
+
     return {
         **baseline,
         **semantic,
         "score_delta": delta,
         "verdict": _verdict(baseline["keyword_score"], semantic["semantic_score"]),
     }
+
+
+def _as_decimal(value: float | None) -> Decimal | None:
+    return None if value is None else Decimal(str(value))
 
 
 def upsert_benchmark(
@@ -165,13 +185,13 @@ def upsert_benchmark(
     payload = dict(
         candidate_id=candidate.id,
         job_id=job.id,
-        keyword_score=Decimal(str(result["keyword_score"])),
+        keyword_score=_as_decimal(result["keyword_score"]),
         matched_keywords=result["matched_keywords"],
         missing_keywords=result["missing_keywords"],
-        semantic_score=Decimal(str(result["semantic_score"])),
+        semantic_score=_as_decimal(result["semantic_score"]),
         semantic_rationale=result["semantic_rationale"],
         equivalent_terms=result["equivalent_terms"],
-        score_delta=Decimal(str(result["score_delta"])),
+        score_delta=_as_decimal(result["score_delta"]),
         verdict=result["verdict"],
     )
     if benchmark:

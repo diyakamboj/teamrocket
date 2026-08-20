@@ -11,6 +11,7 @@
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as ActionsRouteImport } from './routes/actions'
+import { Route as BenchRouteImport } from './routes/bench'
 import { Route as CandidatesRouteImport } from './routes/candidates'
 import { Route as CompareRouteImport } from './routes/compare'
 import { Route as ExternalHiringRouteImport } from './routes/external-hiring'
@@ -39,6 +40,11 @@ const IndexRoute = IndexRouteImport.update({
 const ActionsRoute = ActionsRouteImport.update({
   id: '/actions',
   path: '/actions',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const BenchRoute = BenchRouteImport.update({
+  id: '/bench',
+  path: '/bench',
   getParentRoute: () => rootRouteImport,
 } as any)
 const CandidatesRoute = CandidatesRouteImport.update({
@@ -140,6 +146,7 @@ const TalentMarketplaceIndexRoute = TalentMarketplaceIndexRouteImport.update({
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/actions': typeof ActionsRoute
+  '/bench': typeof BenchRoute
   '/candidates': typeof CandidatesRoute
   '/compare': typeof CompareRoute
   '/external-hiring': typeof ExternalHiringRoute
@@ -163,6 +170,7 @@ export interface FileRoutesByFullPath {
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/actions': typeof ActionsRoute
+  '/bench': typeof BenchRoute
   '/candidates': typeof CandidatesRoute
   '/compare': typeof CompareRoute
   '/external-hiring': typeof ExternalHiringRoute
@@ -187,6 +195,7 @@ export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/actions': typeof ActionsRoute
+  '/bench': typeof BenchRoute
   '/candidates': typeof CandidatesRoute
   '/compare': typeof CompareRoute
   '/external-hiring': typeof ExternalHiringRoute
@@ -212,6 +221,7 @@ export interface FileRouteTypes {
   fullPaths:
     | '/'
     | '/actions'
+    | '/bench'
     | '/candidates'
     | '/compare'
     | '/external-hiring'
@@ -235,6 +245,7 @@ export interface FileRouteTypes {
   to:
     | '/'
     | '/actions'
+    | '/bench'
     | '/candidates'
     | '/compare'
     | '/external-hiring'
@@ -258,6 +269,7 @@ export interface FileRouteTypes {
     | '__root__'
     | '/'
     | '/actions'
+    | '/bench'
     | '/candidates'
     | '/compare'
     | '/external-hiring'
@@ -282,6 +294,7 @@ export interface FileRouteTypes {
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   ActionsRoute: typeof ActionsRoute
+  BenchRoute: typeof BenchRoute
   CandidatesRoute: typeof CandidatesRoute
   CompareRoute: typeof CompareRoute
   ExternalHiringRoute: typeof ExternalHiringRoute
@@ -317,6 +330,13 @@ declare module '@tanstack/react-router' {
       path: '/actions'
       fullPath: '/actions'
       preLoaderRoute: typeof ActionsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/bench': {
+      id: '/bench'
+      path: '/bench'
+      fullPath: '/bench'
+      preLoaderRoute: typeof BenchRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/candidates': {
@@ -458,6 +478,7 @@ declare module '@tanstack/react-router' {
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   ActionsRoute: ActionsRoute,
+  BenchRoute: BenchRoute,
   CandidatesRoute: CandidatesRoute,
   CompareRoute: CompareRoute,
   ExternalHiringRoute: ExternalHiringRoute,

@@ -1,5 +1,5 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   ArrowRight,
   Calendar,
@@ -64,6 +64,13 @@ export const Route = createFileRoute("/candidates")({
       },
     ],
   }),
+  // Global search sends the recruiter here with the candidate it matched, so
+  // the result lands on that person rather than on the top of an unfiltered
+  // list they then have to scan by hand.
+  validateSearch: (search: Record<string, unknown>): { focus?: string | undefined } => {
+    const raw = search["focus"];
+    return typeof raw === "string" && raw ? { focus: raw } : {};
+  },
   component: Candidates,
 });
 
@@ -243,12 +250,23 @@ function Candidates() {
     setViewingCandidateId,
     activeJobId,
   } = useAppState();
+  const { focus } = Route.useSearch();
   const [query, setQuery] = useState("");
   const [level, setLevel] = useState<(typeof LEVELS)[number]>("All");
   const [skill, setSkill] = useState("All");
   const [minScore, setMinScore] = useState(0);
   const [page, setPage] = useState(1);
   const [expanded, setExpanded] = useState<string | null>(null);
+
+  // Open and scroll to the candidate global search sent us to. Runs when the
+  // id changes rather than on every render so it does not fight the user
+  // scrolling away afterwards.
+  useEffect(() => {
+    if (!focus) return;
+    setExpanded(focus);
+    const row = document.getElementById(`candidate-row-${focus}`);
+    row?.scrollIntoView({ behavior: "smooth", block: "center" });
+  }, [focus]);
   const [panelOpen, setPanelOpen] = useState(true);
   const [decisions, setDecisions] = useState<Record<string, DecisionState>>({});
 
@@ -412,11 +430,34 @@ function Candidates() {
               <span />
             </div>
 
+            {focus && blindMode && (
+              <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border bg-amber-50 px-5 py-3 text-xs dark:bg-amber-500/10">
+                <span className="text-amber-900 dark:text-amber-200">
+                  Blind review is on, so names and contact details are hidden — the
+                  candidate you searched for is shown as a number.
+                </span>
+                <button
+                  type="button"
+                  onClick={() => setBlindMode(false)}
+                  className="shrink-0 rounded-lg border border-amber-300 px-2.5 py-1 font-semibold text-amber-900 transition-colors hover:bg-amber-100 dark:border-amber-400/40 dark:text-amber-100 dark:hover:bg-amber-500/20"
+                >
+                  Show names
+                </button>
+              </div>
+            )}
+
             {rows.map((c) => {
               const isOpen = expanded === c.id;
               const displayName = blindMode ? `Candidate #${c.rank}` : c.name;
               return (
-                <div key={c.id} className="animate-fade transition-colors hover:bg-secondary/40">
+                <div
+                  key={c.id}
+                  id={`candidate-row-${c.id}`}
+                  className={cn(
+                    "animate-fade transition-colors hover:bg-secondary/40",
+                    focus === c.id && "bg-primary/5 ring-1 ring-inset ring-primary/30",
+                  )}
+                >
                   <div className="grid grid-cols-[52px_minmax(0,1fr)_92px] items-center gap-4 px-5 py-4 md:grid-cols-[52px_minmax(0,1fr)_92px_minmax(0,1.3fr)_44px]">
                     <span className="text-sm font-extrabold tabular-nums text-muted-foreground">
                       #{c.rank}

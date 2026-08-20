@@ -31,6 +31,12 @@ class CandidateAssessmentRecord(BaseModel):
     recommendation_reason: str
     target_competency: str
     notification_sent: bool = False
+    #: "live" when SMTP delivered it, "mock" when it was logged because SMTP
+    #: is not configured. The UI says which rather than implying delivery.
+    notification_source: Optional[str] = None
+    notification_error: Optional[str] = None
+    #: Where the candidate takes it (placeholder provider — see config).
+    assessment_url: Optional[str] = None
     score: Optional[float] = None  # 0 to 100
     result_summary: Optional[str] = None
     recruiter_approved: bool = False

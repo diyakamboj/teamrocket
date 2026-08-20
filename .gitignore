@@ -47,3 +47,7 @@ pnpm-debug.log*
 .idea/
 .DS_Store
 Thumbs.db
+
+# Embedded Qdrant vector store (local, rebuildable from the blob index)
+.qdrant/
+backend/.qdrant/

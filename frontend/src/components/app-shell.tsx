@@ -10,10 +10,10 @@ import {
   Zap,
   Settings,
   PlusCircle,
-  Search,
   Bot,
   User,
   LogOut,
+  Armchair,
   Network,
   Building2,
 } from "lucide-react";
@@ -21,13 +21,14 @@ import { useEffect, useState, type ReactNode } from "react";
 import { useAppState } from "@/lib/app-state";
 import { useTheme } from "@/lib/theme";
 import { cn } from "@/lib/utils";
-import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { getSession, logoutSession } from "@/lib/auth";
 import { CreateJobModal } from "@/components/create-job-modal";
+import { GlobalSearch } from "@/components/global-search";
 import { listJobPipelines, type JobPipelineSummary } from "@/lib/api";
 
 const PRIMARY_NAV = [
+  { to: "/bench", label: "Bench Employees", icon: Armchair },
   { to: "/network", label: "Recruiter Network", icon: Network },
   { to: "/", label: "Dashboard", icon: LayoutDashboard },
   { to: "/internal-hiring", label: "Internal Hiring", icon: Briefcase },
@@ -127,9 +128,9 @@ export function AppShell({ children }: { children: ReactNode }) {
                 ) : (
                   recentJobs.map((job) => (
                     <Link
-                      key={(job as any).job_id || job.id}
+                      key={job.job_id}
                       to="/jobs/$jobId"
-                      params={{ jobId: String((job as any).job_id || (job as any).id || "") }}
+                      params={{ jobId: String(job.job_id) }}
                       className="group block rounded-lg p-2 transition-all hover:bg-accent"
                     >
 
@@ -137,7 +138,7 @@ export function AppShell({ children }: { children: ReactNode }) {
                         {job.title}
                       </div>
                       <div className="text-[10px] text-muted-foreground">
-                        {job.total_candidates} candidate{job.total_candidates === 1 ? "" : "s"}
+                        {job.total_candidates} in pipeline
                       </div>
                     </Link>
                   ))
@@ -185,14 +186,7 @@ export function AppShell({ children }: { children: ReactNode }) {
 
       <div className="flex min-w-0 flex-1 flex-col">
         <header className="sticky top-0 z-30 flex items-center justify-between gap-4 border-b border-border bg-card/90 px-6 py-3 shadow-xs backdrop-blur-md">
-          <div className="relative min-w-0 max-w-md w-full">
-            <Search className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
-            <Input
-              placeholder="Search candidates, active jobs, skills..."
-              className="rounded-lg text-xs"
-              aria-label="Global Search"
-            />
-          </div>
+          <GlobalSearch />
 
           <div className="flex shrink-0 items-center gap-3">
             <Button

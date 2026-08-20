@@ -164,7 +164,7 @@ function InternalHiringPage() {
           error={error}
           emptyMessage="No jobs have internal candidates yet. Mark candidates as internal to see them here."
           metrics={(job) => [
-            { label: "Candidates", value: job.pipeline.length },
+            { label: "Internal candidates", value: job.pipeline.length },
             { label: "Top matches", value: countTopMatches(job), tone: "text-primary" },
             {
               label: "In interview",

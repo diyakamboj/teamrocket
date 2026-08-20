@@ -1,5 +1,8 @@
 import uuid
+from datetime import datetime, timezone
 from typing import Optional
+
+from pydantic import BaseModel, Field
 
 from fastapi import APIRouter, Query
 from fastapi.concurrency import run_in_threadpool
@@ -16,6 +19,7 @@ from app.models.schemas import (
 )
 from app.services import handoff_service
 from app.services.candidate_matcher import candidate_matcher
+from app.services.vector_store import candidate_vectors, index_candidate
 from app.services.decision_service import CANDIDATE_DECISIONS, process_decision
 from app.services.resume_parser import resume_parser
 from app.storage.store import Store
@@ -44,6 +48,85 @@ def list_candidates(store: AppStore, recruiter_email: RecruiterEmail):
     """
     mine = store.candidates.query(lambda c: c.owner_email == recruiter_email)
     return sorted(mine, key=lambda c: c.created_at, reverse=True)
+
+
+class SemanticSearchResult(BaseModel):
+    """One semantic-search hit, with the candidate it points at."""
+
+    candidate_id: str
+    name: str
+    title: Optional[str] = None
+    # Absent for hybrid queries: those fuse vector and keyword rankings and
+    # produce no comparable similarity. Callers must not substitute 0.
+    similarity: Optional[float] = None
+    skills: list[str] = Field(default_factory=list)
+    employment_status: Optional[str] = None
+
+
+@router.get("/search", response_model=list[SemanticSearchResult])
+def semantic_candidate_search(
+    store: AppStore,
+    recruiter_email: RecruiterEmail,
+    q: str = Query(..., min_length=2, description="Free text: a role, a skill set, a JD excerpt"),
+    limit: int = Query(10, ge=1, le=50),
+    bench_only: bool = Query(False, description="Restrict to bench employees"),
+    hybrid: bool = Query(
+        False,
+        description="Also match literally — right for a search box, where most queries are names or exact skills",
+    ),
+):
+    """Find candidates by meaning rather than keyword.
+
+    Matches on an embedding of each candidate's skills and experience, so
+    "someone who has run Kubernetes in production" finds the right people
+    without them using those exact words. Scoped to this recruiter's pool.
+
+    `hybrid=true` additionally matches the query literally. Hybrid results
+    carry no `similarity`, because fusing two rankings produces a score on a
+    scale that is not comparable to cosine similarity.
+    """
+    if candidate_vectors.available is False:
+        raise ValidationAppError(
+            "Semantic search needs an embedding deployment "
+            "(AZURE_OPENAI_EMBEDDING_DEPLOYMENT_NAME)."
+        )
+
+    matches = candidate_vectors.search(
+        q,
+        limit=limit,
+        owner_email=recruiter_email,
+        employment_status="bench" if bench_only else None,
+        hybrid=hybrid,
+    )
+
+    results: list[SemanticSearchResult] = []
+    for match in matches:
+        candidate = store.candidates.get(match.id)
+        if not candidate:
+            continue  # indexed but since deleted
+        results.append(
+            SemanticSearchResult(
+                candidate_id=str(candidate.id),
+                name=candidate.name,
+                title=candidate.title,
+                similarity=match.score,
+                skills=[str(s) for s in (candidate.skills or [])][:10],
+                employment_status=candidate.employment_status,
+            )
+        )
+    return results
+
+
+@router.post("/reindex")
+def reindex_candidates(store: AppStore, recruiter_email: RecruiterEmail):
+    """Re-embed this recruiter's candidates.
+
+    Needed once for candidates added before the index existed, and after
+    changing the embedding model.
+    """
+    mine = store.candidates.query(lambda c: c.owner_email == recruiter_email)
+    indexed = sum(1 for candidate in mine if index_candidate(candidate))
+    return {"candidates": len(mine), "indexed": indexed}
 
 
 @router.get("/rank", response_model=list[RankedCandidate])
@@ -104,7 +187,9 @@ def update_candidate(
     recruiter_email: RecruiterEmail,
 ):
     candidate = store.candidates.get(candidate_id)
-    if not candidate:
+    # 404 rather than 403 for someone else's candidate: an id should not be
+    # confirmable by a recruiter who does not hold that person.
+    if not candidate or candidate.owner_email != recruiter_email:
         raise NotFoundError("Candidate not found", {"candidate_id": str(candidate_id)})
 
     updates = payload.model_dump(exclude_unset=True)
@@ -125,7 +210,18 @@ def update_candidate(
     for field, value in updates.items():
         setattr(candidate, field, value)
 
+    # Moving onto the bench starts the clock; coming off it stops.
+    if "employment_status" in updates:
+        if updates["employment_status"] == "bench" and not candidate.bench_since:
+            candidate.bench_since = datetime.now(timezone.utc).replace(tzinfo=None)
+        elif updates["employment_status"] != "bench":
+            candidate.bench_since = None
+
     store.candidates.save(candidate)
+    # Skills, title and employment status all feed the embedded document and
+    # the index filters, so a saved edit that is not re-indexed leaves search
+    # answering from the pre-edit version of this candidate.
+    index_candidate(candidate)
     _log_audit(
         store,
         recruiter_email=recruiter_email,
@@ -212,6 +308,7 @@ async def enrich_candidate(
         candidate.skills = merged
 
     store.candidates.save(candidate)
+    index_candidate(candidate)  # enrichment merges new skills into the profile
     _log_audit(
         store,
         recruiter_email=recruiter_email,

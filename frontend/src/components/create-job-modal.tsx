@@ -6,19 +6,21 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import {
-  Briefcase,
-  Globe,
-  Bot,
-  Sparkles,
-  CheckCircle2,
-  ArrowRight,
   ArrowLeft,
-  Share2,
+  ArrowRight,
+  Bot,
+  Briefcase,
+  CheckCircle2,
+  Globe,
   History,
   ListChecks,
+  Loader2,
+  Share2,
+  Sparkles,
+  Wand2,
 } from "lucide-react";
 import { toast } from "sonner";
-import { analyzeJob, createJob } from "@/lib/api";
+import { analyzeJob, createJob, polishJobDescription } from "@/lib/api";
 
 function getDynamicBenchmark(title: string) {
   const t = (title || "").toLowerCase();
@@ -69,10 +71,20 @@ type JobRoundDraft = {
   duration_minutes: number;
 };
 
+type CreateJobModalProps = {
+  isOpen: boolean;
+  onClose: () => void;
+};
+
 export function CreateJobModal({ isOpen, onClose }: CreateJobModalProps) {
 
   const navigate = useNavigate();
   const [step, setStep] = useState(1);
+  const [polishing, setPolishing] = useState(false);
+  // What the polish changed, shown so the recruiter can see the edit rather
+  // than just finding their text replaced.
+  const [polishChanges, setPolishChanges] = useState<string[]>([]);
+  const [prePolishDescription, setPrePolishDescription] = useState<string | null>(null);
   // The interview loop for this role. Seeded so a new job always has a
   // pipeline the board can render, and editable before the job is created.
   const [rounds, setRounds] = useState<JobRoundDraft[]>([
@@ -87,7 +99,7 @@ export function CreateJobModal({ isOpen, onClose }: CreateJobModalProps) {
   const [location, setLocation] = useState("");
   const [employmentType, setEmploymentType] = useState("Full-time");
   const [hiringManager, setHiringManager] = useState("");
-  const [openings, setOpenings] = useState(1);
+  const [openings, setOpenings] = useState<number | "">(1);
   const [newSkillInput, setNewSkillInput] = useState("");
   const [descriptionText, setDescriptionText] = useState("");
   const [copilotFeedback, setCopilotFeedback] = useState<string | null>(null);
@@ -142,6 +154,30 @@ export function CreateJobModal({ isOpen, onClose }: CreateJobModalProps) {
       setAnalyzing(false);
     }
   };
+
+  async function handlePolish() {
+    if (polishing) return;
+    setPolishing(true);
+    try {
+      const result = await polishJobDescription({
+        title: jobTitle || "this role",
+        description: descriptionText,
+      });
+      if (!result.polished) {
+        toast.info("No model available to polish with — your draft is unchanged.");
+        return;
+      }
+      // Keep the original so the recruiter can undo a rewrite they dislike.
+      setPrePolishDescription(descriptionText);
+      setDescriptionText(result.polished_description);
+      setPolishChanges(result.changes);
+      toast.success("Description polished");
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Could not polish the description");
+    } finally {
+      setPolishing(false);
+    }
+  }
 
   const handleCreateJob = async () => {
     if (!jobTitle.trim()) {
@@ -329,7 +365,47 @@ export function CreateJobModal({ isOpen, onClose }: CreateJobModalProps) {
               </div>
 
               <div className="space-y-2">
-                <label className="text-xs font-semibold text-slate-700">Job Description Text</label>
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <label className="text-xs font-semibold text-slate-700">Job Description Text</label>
+                  <div className="flex items-center gap-2">
+                    {prePolishDescription !== null && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setDescriptionText(prePolishDescription);
+                          setPrePolishDescription(null);
+                          setPolishChanges([]);
+                        }}
+                        className="text-[11px] font-medium text-slate-500 hover:text-slate-900"
+                      >
+                        Undo polish
+                      </button>
+                    )}
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      disabled={polishing || descriptionText.trim().length < 40}
+                      onClick={() => void handlePolish()}
+                      title={
+                        descriptionText.trim().length < 40
+                          ? "Write a bit more first"
+                          : "Rewrite for clarity and inclusive language"
+                      }
+                      className="h-7 rounded-lg border-blue-200 text-blue-700 text-[11px] hover:bg-blue-50"
+                    >
+                      {polishing ? (
+                        <>
+                          <Loader2 className="mr-1.5 h-3 w-3 animate-spin" /> Polishing…
+                        </>
+                      ) : (
+                        <>
+                          <Wand2 className="mr-1.5 h-3 w-3" /> Polish with AI
+                        </>
+                      )}
+                    </Button>
+                  </div>
+                </div>
                 <Textarea
                   value={descriptionText}
                   onChange={(e) => setDescriptionText(e.target.value)}
@@ -337,6 +413,20 @@ export function CreateJobModal({ isOpen, onClose }: CreateJobModalProps) {
                   placeholder="Paste job description text here (e.g., We are looking for a Senior Software Engineer with Python, SQL, Azure, and Docker experience)..."
                   className="bg-white border-slate-200 text-slate-900 text-xs font-sans leading-relaxed"
                 />
+
+                {polishChanges.length > 0 && (
+                  <div className="animate-fade rounded-lg border border-blue-200 bg-blue-50/60 p-3">
+                    <p className="text-[11px] font-bold text-blue-800">What the polish changed</p>
+                    <ul className="mt-1.5 space-y-1">
+                      {polishChanges.map((change, i) => (
+                        <li key={i} className="flex gap-1.5 text-[11px] text-slate-600">
+                          <span className="mt-1 h-1 w-1 shrink-0 rounded-full bg-blue-500" />
+                          {change}
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
               </div>
 
               {/* Copilot Assistant placed directly below the textarea */}

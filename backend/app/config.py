@@ -34,6 +34,38 @@ class Settings(BaseSettings):
     BLOB_CACHE_ENABLED: bool = True
     BLOB_LISTING_CACHE_SECONDS: float = 5.0
 
+    # Vector index backend for semantic candidate search.
+    #   "blob"   vectors persisted in the document store, exact cosine search
+    #   "search" Azure AI Search vector index (needs AZURE_SEARCH_* set)
+    #   "cosmos" Azure Cosmos DB NoSQL with VectorDistance() search — the
+    #            embedding lives on the candidate document itself
+    #   "qdrant" Qdrant, a purpose-built vector database (HNSW + payload
+    #            filtering). Embedded by default -- no server to run -- which
+    #            also means the index lives on this machine's disk rather
+    #            than being shared, so prefer "search" for a deployment more
+    #            than one process talks to.
+    VECTOR_BACKEND: str = "blob"
+
+    # Azure Cosmos DB (NoSQL API) vector store. The account needs the
+    # "Vector Search for NoSQL API" capability enabled before the container
+    # can be created with a vector policy.
+    COSMOS_ENDPOINT: Optional[str] = None
+    COSMOS_KEY: Optional[str] = None
+    COSMOS_DATABASE: str = "resumeiq"
+    COSMOS_CONTAINER: str = "candidate-vectors"
+
+    # Embedded storage path. Set QDRANT_URL instead to talk to a Qdrant
+    # server (e.g. http://localhost:6333) and this is ignored.
+    QDRANT_PATH: str = "./.qdrant"
+    QDRANT_URL: Optional[str] = None
+    QDRANT_API_KEY: Optional[str] = None
+    QDRANT_COLLECTION: str = "resumeiq-candidates"
+
+    # Where assessment invitations point. A placeholder host until a real
+    # assessment provider is integrated — the invitation, the record and the
+    # audit trail are real, the destination is not.
+    ASSESSMENT_BASE_URL: str = "https://assessments.resumeiq.example/take"
+
     # Azure AI Document Intelligence
     AZURE_DOCUMENT_INTELLIGENCE_KEY: Optional[str] = None
     AZURE_DOCUMENT_INTELLIGENCE_ENDPOINT: Optional[str] = None

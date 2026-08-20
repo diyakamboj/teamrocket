@@ -156,3 +156,17 @@ def test_dashboard_jobs_only_shows_your_own(client, store):
 
     titles = [j["title"] for j in client.get("/api/dashboard/jobs", headers=ALICE).json()]
     assert titles == ["Alice's Role"]
+
+
+def test_unknown_job_pipeline_does_not_fall_back_to_another_job(client, store):
+    """A mistyped id used to return whichever job was first in the store —
+    which, once jobs are owner-scoped, is another recruiter's pipeline."""
+    _job(store, "bob@example.com", "Bob's Role")
+
+    response = client.get(f"/api/dashboard/jobs/{uuid.uuid4()}/pipeline", headers=ALICE)
+    assert response.status_code == 404
+
+
+def test_another_recruiters_job_pipeline_is_not_readable(client, store):
+    theirs = _job(store, "bob@example.com", "Bob's Role")
+    assert client.get(f"/api/dashboard/jobs/{theirs.id}/pipeline", headers=ALICE).status_code == 404

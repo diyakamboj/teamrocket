@@ -1053,6 +1053,93 @@ class AzureSearchService:
         except Exception as exc:
             logger.warning("Azure Search upsert failed: %s", exc)
 
+    def delete_candidate(self, record_id: str) -> None:
+        if self.mock or not self._client:
+            return
+        try:
+            self._client.delete_documents(documents=[{"id": str(record_id)}])
+        except Exception as exc:
+            logger.warning("Azure Search delete failed for %s: %s", record_id, exc)
+
+    def upsert_candidates(self, candidates: list[dict[str, Any]]) -> int:
+        """Upload many documents at once. Returns how many were accepted."""
+        if self.mock or not self._client or not candidates:
+            return 0
+        accepted = 0
+        # The service caps a batch by size, not just count; 100 documents of
+        # a 1536-float vector each stays well inside it.
+        for start in range(0, len(candidates), 100):
+            chunk = candidates[start : start + 100]
+            try:
+                results = self._client.upload_documents(
+                    documents=[{**c, "@search.action": "mergeOrUpload"} for c in chunk]
+                )
+                accepted += sum(1 for r in results if getattr(r, "succeeded", False))
+            except Exception as exc:
+                logger.warning("Azure Search bulk upsert failed: %s", exc)
+        return accepted
+
+    def list_document_ids(self, *, limit: int = 5000) -> Optional[set[str]]:
+        """Every document id in the index, or None if it could not be read."""
+        if self.mock or not self._client:
+            return None
+        try:
+            found: set[str] = set()
+            results = self._client.search(search_text="*", select=["id"], top=limit)
+            for hit in results:
+                doc_id = hit.get("id")
+                if doc_id:
+                    found.add(str(doc_id))
+            return found
+        except Exception as exc:
+            logger.warning("Could not list Azure Search document ids: %s", exc)
+            return None
+
+    def vector_search(
+        self,
+        vector: list[float],
+        *,
+        limit: int = 10,
+        filter_expression: Optional[str] = None,
+        vector_field: str = "contentVector",
+        search_text: Optional[str] = None,
+    ) -> Optional[list[dict[str, Any]]]:
+        """Approximate nearest neighbours from the search index.
+
+        Passing `search_text` makes this a *hybrid* query: the index runs the
+        vector search and a normal lexical search and fuses the two rankings.
+        That is what makes an exact term ("Kubernetes") or a candidate's name
+        rank properly -- pure vector similarity is poor at short literal
+        queries, which is most of what a search box receives.
+
+        Note the scores differ between the two modes: a pure vector query
+        scores by the distance metric, while a fused query returns an RRF
+        score on a completely different scale. Callers must not mix them.
+
+        Returns None (rather than an empty list) when the service is
+        unavailable, so the caller can tell "no matches" apart from "could not
+        ask" and fall back to the local index instead of showing an empty
+        result as if it were an answer.
+        """
+        if self.mock or not self._client:
+            return None
+        try:
+            from azure.search.documents.models import VectorizedQuery
+
+            query = VectorizedQuery(
+                vector=vector, k_nearest_neighbors=limit, fields=vector_field
+            )
+            results = self._client.search(
+                search_text=search_text,
+                vector_queries=[query],
+                filter=filter_expression,
+                top=limit,
+            )
+            return [dict(hit) for hit in results]
+        except Exception as exc:
+            logger.warning("Azure Search vector query failed: %s", exc)
+            return None
+
 
 blob_service = AzureBlobService()
 openai_service = AzureOpenAIService()

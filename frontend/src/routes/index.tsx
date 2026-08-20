@@ -14,7 +14,9 @@ import {
 } from "lucide-react";
 import { getSession } from "@/lib/auth";
 import {
+  fetchCandidatesFromBackend,
   getJobPipeline,
+  listBench,
   listJobPipelines,
   type JobPipelineSummary,
   type PipelineCandidate,
@@ -49,6 +51,13 @@ function greeting(): string {
 function DashboardPage() {
   const session = getSession();
   const [jobs, setJobs] = useState<JobWithPipeline[]>([]);
+  // The candidate pool, counted from the same source the Candidates page
+  // uses. Deriving this from pipelines made the dashboard disagree with
+  // every other screen.
+  const [poolSize, setPoolSize] = useState(0);
+  // Bench count comes from the bench endpoint for the same reason: derived
+  // from pipelines it missed anyone not yet scored against a job.
+  const [benchSize, setBenchSize] = useState(0);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -76,13 +85,34 @@ function DashboardPage() {
         setLoading(false);
       });
 
+    fetchCandidatesFromBackend()
+      .then((candidates) => {
+        if (!cancelled) setPoolSize(candidates.length);
+      })
+      .catch(() => {
+        if (!cancelled) setPoolSize(0);
+      });
+
+    listBench()
+      .then((people) => {
+        if (!cancelled) setBenchSize(people.length);
+      })
+      .catch(() => {
+        if (!cancelled) setBenchSize(0);
+      });
+
     return () => {
       cancelled = true;
     };
   }, []);
 
   const stats = useMemo(() => {
-    const all = jobs.flatMap((j) => j.pipeline);
+    // Deduplicate by candidate: a person evaluated against three roles appears
+    // in three pipelines, and summing those made the tiles report more
+    // candidates than exist. Counts are of people, not of pipeline rows.
+    const all = Array.from(
+      new Map(jobs.flatMap((j) => j.pipeline).map((c) => [String(c.candidate_id), c])).values(),
+    );
     const internal = jobs.filter((j) => (j.sourcing_mode || "both") === "internal" || (j.sourcing_mode || "both") === "both");
     const external = jobs.filter((j) => (j.sourcing_mode || "both") === "external" || (j.sourcing_mode || "both") === "both");
     const topMatches = all.filter((c) => (c.overall_score ?? 0) >= TOP_MATCH_SCORE);
@@ -95,14 +125,16 @@ function DashboardPage() {
       totalJobs: jobs.length,
       internalRoles: internal.length,
       externalRoles: external.length,
-      totalCandidates: all.length,
-      internalCandidates: jobs.reduce((s, j) => s + j.internal_candidates, 0),
-      externalCandidates: jobs.reduce((s, j) => s + j.external_candidates, 0),
+      totalCandidates: poolSize,
+      inPipeline: all.length,
+      // Same deduplication for the internal/external split.
+      internalCandidates: all.filter((c) => c.source === "internal").length,
+      externalCandidates: all.filter((c) => c.source !== "internal").length,
       topMatches: topMatches.length,
       readyForInterview: readyForInterview.length,
-      benchPool: all.filter((c) => c.employment_status === "bench").length,
+      benchPool: benchSize,
     };
-  }, [jobs]);
+  }, [jobs, poolSize, benchSize]);
 
   const internalJobs = jobs
     .filter((j) => (j.sourcing_mode || "both") === "internal" || (j.sourcing_mode || "both") === "both")
@@ -250,7 +282,7 @@ function DashboardPage() {
                   </p>
                 ) : (
                   internalJobs.map((job) => (
-                    <Link key={(job as any).job_id || job.id} to="/jobs/$jobId" params={{ jobId: String((job as any).job_id || (job as any).id || "") }}>
+                    <Link key={job.job_id} to="/jobs/$jobId" params={{ jobId: String(job.job_id) }}>
 
                       <div className="group flex items-center justify-between rounded-lg border border-border p-3 transition-all hover:border-primary hover:shadow-xs">
                         <div>
@@ -344,7 +376,7 @@ function DashboardPage() {
                   </p>
                 ) : (
                   externalJobs.map((job) => (
-                    <Link key={(job as any).job_id || job.id} to="/jobs/$jobId" params={{ jobId: String((job as any).job_id || (job as any).id || "") }}>
+                    <Link key={job.job_id} to="/jobs/$jobId" params={{ jobId: String(job.job_id) }}>
 
                       <div className="group flex items-center justify-between rounded-lg border border-border p-3 transition-all hover:border-primary hover:shadow-xs">
                         <div>

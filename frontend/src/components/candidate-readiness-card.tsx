@@ -54,14 +54,25 @@ export function CandidateReadinessSection({ candidateId, candidateName, jobId }:
     if (!recommendation) return;
     try {
       setTriggering(true);
-      await triggerCandidateAssessment({
+      const record = await triggerCandidateAssessment({
         candidate_id: candidateId,
         job_id: jobId || recommendation.job_id || null,
         assessment_type: recommendation.assessment_type,
         target_competency: recommendation.target_competency,
         recommendation_reason: recommendation.reason,
       });
-      toast.success(`Assessment invitation sent to ${candidateName}!`);
+      // The assessment is always recorded; the email is a separate outcome.
+      // Reporting success for both hid the fact that no mail ever left.
+      if (record.notification_sent) {
+        toast.success(`Assessment invitation emailed to ${candidateName}.`);
+      } else {
+        toast.warning(`Assessment recorded, but no email was sent to ${candidateName}.`, {
+          description:
+            record.notification_error ||
+            "The mail server rejected the message. Check the backend logs.",
+          duration: 10000,
+        });
+      }
       await loadData();
     } catch (err: any) {
       toast.error(err.message || "Failed to trigger assessment");

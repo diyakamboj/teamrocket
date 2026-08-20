@@ -199,7 +199,43 @@ function recruiterHeaders(): HeadersInit {
   };
 }
 
+/**
+ * In-flight GETs, keyed by URL + recruiter.
+ *
+ * Independent components ask for the same thing at the same moment -- the
+ * sidebar and the dashboard both want /api/dashboard/jobs, and React's dev
+ * StrictMode runs every effect twice on top of that. Measured on the
+ * dashboard: 20 requests for 9 distinct URLs, with /api/dashboard/jobs
+ * fetched four times. Sharing one promise between concurrent callers makes
+ * those collapse into a single round trip without any caller having to
+ * coordinate.
+ *
+ * Nothing is retained after settling, so this is deduplication, not a cache:
+ * a later fetch still goes to the network and no caller can read stale data.
+ */
+const inFlight = new Map<string, Promise<unknown>>();
+
+function isGet(init?: RequestInit): boolean {
+  const method = (init?.method || "GET").toUpperCase();
+  return method === "GET";
+}
+
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
+  if (isGet(init)) {
+    const key = `${recruiterEmail() ?? ""}:${path}`;
+    const existing = inFlight.get(key) as Promise<T> | undefined;
+    if (existing) return existing;
+
+    const pending = performRequest<T>(path, init).finally(() => {
+      inFlight.delete(key);
+    });
+    inFlight.set(key, pending);
+    return pending;
+  }
+  return performRequest<T>(path, init);
+}
+
+async function performRequest<T>(path: string, init?: RequestInit): Promise<T> {
   const response = await fetch(`${API_BASE}${path}`, {
     ...init,
     headers: {
@@ -413,6 +449,117 @@ export async function removeConnection(id: string): Promise<void> {
     headers: { "X-Recruiter-Email": recruiterEmail() },
   });
   if (!response.ok) throw new Error(`Could not remove connection (${response.status})`);
+}
+
+// ---------- Bench employees ----------
+
+export type BenchEmployee = {
+  candidate_id: string;
+  name: string;
+  title?: string | null;
+  email: string;
+  skills: string[];
+  location?: string | null;
+  days_on_bench?: number | null;
+  bench_since?: string | null;
+  previous_assignment?: string | null;
+};
+
+export type BenchMatch = {
+  candidate_id: string;
+  name: string;
+  title?: string | null;
+  skills: string[];
+  days_on_bench?: number | null;
+  similarity: number;
+};
+
+export async function listBench(): Promise<BenchEmployee[]> {
+  return request<BenchEmployee[]>("/api/bench");
+}
+
+export async function placeOnBench(
+  candidateId: string,
+  previousAssignment?: string,
+): Promise<BenchEmployee> {
+  return request<BenchEmployee>(`/api/bench/${encodeURIComponent(candidateId)}/place`, {
+    method: "POST",
+    body: JSON.stringify({ previous_assignment: previousAssignment ?? null }),
+  });
+}
+
+export async function assignFromBench(
+  candidateId: string,
+  assignment: string,
+): Promise<BenchEmployee> {
+  return request<BenchEmployee>(`/api/bench/${encodeURIComponent(candidateId)}/assign`, {
+    method: "POST",
+    body: JSON.stringify({ assignment }),
+  });
+}
+
+export async function matchBenchToRole(params: {
+  jobId?: string;
+  q?: string;
+  limit?: number;
+}): Promise<BenchMatch[]> {
+  const search = new URLSearchParams();
+  if (params.jobId) search.set("job_id", params.jobId);
+  if (params.q) search.set("q", params.q);
+  if (params.limit) search.set("limit", String(params.limit));
+  return request<BenchMatch[]>(`/api/bench/match?${search.toString()}`);
+}
+
+// ---------- Semantic candidate search ----------
+
+export type SemanticMatch = {
+  candidate_id: string;
+  name: string;
+  title?: string | null;
+  /** Cosine similarity, or null for hybrid queries — those fuse vector and
+   *  keyword rankings and produce no comparable similarity. Render the
+   *  absence; do not fall back to 0. */
+  similarity: number | null;
+  skills: string[];
+  employment_status?: string | null;
+};
+
+export async function searchCandidates(
+  q: string,
+  options: { limit?: number; benchOnly?: boolean; hybrid?: boolean } = {},
+): Promise<SemanticMatch[]> {
+  const search = new URLSearchParams({ q });
+  if (options.limit) search.set("limit", String(options.limit));
+  if (options.benchOnly) search.set("bench_only", "true");
+  // A search box mostly receives names and exact skills, which pure vector
+  // similarity ranks poorly.
+  if (options.hybrid) search.set("hybrid", "true");
+  return request<SemanticMatch[]>(`/api/candidates/search?${search.toString()}`);
+}
+
+export async function reindexCandidates(): Promise<{ candidates: number; indexed: number }> {
+  return request<{ candidates: number; indexed: number }>("/api/candidates/reindex", {
+    method: "POST",
+  });
+}
+
+// ---------- AI job-description polish ----------
+
+export type PolishedJD = {
+  polished_description: string;
+  changes: string[];
+  polished: boolean;
+};
+
+export async function polishJobDescription(input: {
+  title: string;
+  description: string;
+  goal?: string;
+}): Promise<PolishedJD> {
+  return request<PolishedJD>("/api/jobs/polish-description", {
+    method: "POST",
+    body: JSON.stringify(input),
+  });
 }
 
 // ---------- Collaboration: shared candidates and messages ----------
@@ -1187,7 +1334,13 @@ export async function getInternalMatches(
 
 // ---------- ATS Benchmark Baseline Scoring ----------
 
-export type AtsVerdict = "semantic_stronger" | "keyword_stronger" | "aligned";
+export type AtsVerdict =
+  | "semantic_stronger"
+  | "keyword_stronger"
+  | "aligned"
+  // The two halves are only comparable when both exist.
+  | "no_keyword_baseline"   // the job lists no skills for the keyword scan
+  | "semantic_unavailable"; // the model returned no usable score
 
 export type EquivalentTerm = { resume_term: string; jd_keyword: string };
 
@@ -1197,13 +1350,13 @@ export type AtsBenchmark = {
   candidate_id: string;
   job_id: string;
   // Decimal fields serialize as JSON strings — parse with Number() to display.
-  keyword_score: string;
+  keyword_score: string | null;
   matched_keywords: string[];
   missing_keywords: string[];
-  semantic_score: string;
+  semantic_score: string | null;
   semantic_rationale?: string | null;
   equivalent_terms: EquivalentTerm[];
-  score_delta: string;
+  score_delta: string | null;
   verdict: AtsVerdict;
   created_at: string;
   updated_at: string;
@@ -1464,7 +1617,10 @@ export type CandidateAssessmentRecord = {
 
   recommendation_reason: string;
   target_competency: string;
+  /** True only when a mailer actually accepted the message. */
   notification_sent: boolean;
+  notification_source?: "live" | "mock" | null;
+  notification_error?: string | null;
   score?: number | null;
   result_summary?: string | null;
   recruiter_approved: boolean;

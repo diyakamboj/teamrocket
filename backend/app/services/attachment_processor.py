@@ -18,6 +18,7 @@ from typing import Any, Optional
 from app.models.candidate import Candidate
 from app.services.azure_services import blob_service, doc_intelligence_service, openai_service
 from app.services.resume_parser import resume_parser
+from app.services.vector_store import index_candidate
 from app.storage.store import Store, store
 from app.utils.logger import get_logger
 from app.utils.validators import is_valid_email
@@ -118,6 +119,13 @@ def upsert_candidate_from_parsed(
             portfolio_url=parsed.get("portfolio_url"),
         )
     active_store.candidates.save(candidate)
+
+    # Index for semantic search. Best-effort: a candidate that cannot be
+    # embedded is still a candidate, just not retrievable by similarity.
+    try:
+        index_candidate(candidate)
+    except Exception as exc:
+        logger.warning("Could not index candidate %s for search: %s", candidate.id, exc)
     return candidate
 
 

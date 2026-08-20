@@ -7,6 +7,7 @@ import {
 } from "@/components/job-workspace-tabs";
 import {
   getAtsBenchmark,
+  runAtsBenchmark,
   getJob,
   getJobPipeline,
   listJobs,
@@ -27,6 +28,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Slider } from "@/components/ui/slider";
 import { CandidateDetailModal } from "@/components/candidate-detail-modal";
+import { cn } from "@/lib/utils";
 import {
   Briefcase,
   Users,
@@ -57,6 +59,7 @@ type CandidateRow = {
   name: string;
   score: number;
   atsScore: number | null;
+  deltaValue: number | null;
   semanticScore: number | null;
   delta: string | null;
   skillsScore: number;
@@ -69,6 +72,13 @@ type CandidateRow = {
 
 /** Rows are derived from the backend-scored pool joined with the job's
  * pipeline stages; nothing here is hand-authored. */
+
+function scoreOrNull(value: string | number | null | undefined): number | null {
+  if (value === null || value === undefined || value === "") return null;
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : null;
+}
+
 function toRow(
   candidate: Candidate,
   stage: string | undefined,
@@ -80,6 +90,7 @@ function toRow(
       name: "Candidate",
       score: 0,
       atsScore: null,
+      deltaValue: null,
       semanticScore: null,
       delta: null,
       skillsScore: 0,
@@ -91,9 +102,13 @@ function toRow(
     };
   }
 
-  const semantic = benchmark && !isNaN(Number(benchmark.semantic_score)) ? Number(benchmark.semantic_score) : null;
-  const keyword = benchmark && !isNaN(Number(benchmark.keyword_score)) ? Number(benchmark.keyword_score) : null;
-  const delta = benchmark && !isNaN(Number(benchmark.score_delta)) ? Number(benchmark.score_delta) : null;
+  // Either half of the benchmark can legitimately be absent (a job with no
+  // skills listed, or a semantic run that returned nothing). `Number(null)`
+  // is 0 rather than NaN, so an isNaN guard alone let a missing score through
+  // as a real 0 and a missing delta as "+0.0%".
+  const semantic = scoreOrNull(benchmark?.semantic_score);
+  const keyword = scoreOrNull(benchmark?.keyword_score);
+  const delta = scoreOrNull(benchmark?.score_delta);
   const score = typeof candidate.score === "number" && !isNaN(candidate.score) ? candidate.score : 0;
 
   return {
@@ -101,6 +116,7 @@ function toRow(
     name: candidate.name || "Candidate",
     score,
     atsScore: keyword,
+    deltaValue: delta,
     semanticScore: semantic,
     delta: delta === null ? null : `${delta >= 0 ? "+" : ""}${delta.toFixed(1)}%`,
     skillsScore: candidate.categories?.skills ?? 0,
@@ -139,6 +155,24 @@ function JobWorkspacePage() {
   // candidate sits in, not just their stage.
   const [placements, setPlacements] = useState<Record<string, PipelineCandidate>>({});
   const [benchmarks, setBenchmarks] = useState<Record<string, AtsBenchmark | null>>({});
+  // A benchmark is computed on demand, so these columns start empty for every
+  // candidate nobody has run one for. Without a way to run it from here the
+  // ATS and DELTA columns just sat blank.
+  const [runningBenchmark, setRunningBenchmark] = useState<string | null>(null);
+
+  async function handleRunBenchmark(candidateId: string) {
+    setRunningBenchmark(candidateId);
+    try {
+      const result = await runAtsBenchmark(candidateId, jobId);
+      setBenchmarks((current) => ({ ...current, [candidateId]: result }));
+    } catch (error) {
+      toast.error(
+        error instanceof Error ? error.message : "Could not run the ATS benchmark",
+      );
+    } finally {
+      setRunningBenchmark(null);
+    }
+  }
   const [selectedCandidateId, setSelectedCandidateId] = useState<string | null>(null);
   const [selectedForCompare, setSelectedForCompare] = useState<string[]>([]);
   const [showWeightSliders, setShowWeightSliders] = useState(false);
@@ -387,8 +421,14 @@ function JobWorkspacePage() {
           ))}
         </div>
 
-        {activeTab === "candidates" && (
-          <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2">
+          {/* Blind review applies to every view that shows a name, so the
+              control belongs on each of them. It used to render only on the
+              Candidates tab, which meant switching to a board left names on
+              screen with no way to turn masking back on. */}
+          {(activeTab === "candidates" ||
+            activeTab === "overview" ||
+            activeTab === "pipeline") && (
             <Button
               variant="outline"
               size="sm"
@@ -398,7 +438,9 @@ function JobWorkspacePage() {
               {blindMode ? <EyeOff className="w-3.5 h-3.5 text-amber-600" /> : <Eye className="w-3.5 h-3.5 text-blue-600" />}
               {blindMode ? "Blind Mode ON" : "Blind Mode"}
             </Button>
+          )}
 
+          {activeTab === "candidates" && (
             <Button
               variant="outline"
               size="sm"
@@ -407,8 +449,8 @@ function JobWorkspacePage() {
             >
               <Sliders className="w-3.5 h-3.5 text-blue-600" /> Adjust Scoring Weights
             </Button>
-          </div>
-        )}
+          )}
+        </div>
       </div>
 
       {/* WEIGHT SLIDERS DRAWER IF OPEN */}
@@ -452,6 +494,7 @@ function JobWorkspacePage() {
       {activeTab === "overview" && (
         <div className="animate-rise">
           <PipelineOverviewTab
+            blindMode={blindMode}
             job={job}
             placements={placements}
             candidates={boardCandidates}
@@ -465,6 +508,7 @@ function JobWorkspacePage() {
       {activeTab === "pipeline" && (
         <div className="animate-rise">
           <StageBoardTab
+            blindMode={blindMode}
             job={job}
             jobId={jobId}
             placements={placements}
@@ -632,8 +676,37 @@ function JobWorkspacePage() {
                     <td className="p-3.5">
                       <span className="font-extrabold text-sm text-blue-600 bg-blue-50 px-2 py-0.5 rounded border border-blue-200">{c.score}%</span>
                     </td>
-                    <td className="p-3.5 text-slate-500">{c.atsScore === null ? "—" : `${Math.round(c.atsScore)}%`}</td>
-                    <td className="p-3.5 font-semibold text-emerald-600">{c.delta ?? "—"}</td>
+                    <td className="p-3.5 text-slate-500">
+                      {c.atsScore !== null ? (
+                        `${Math.round(c.atsScore)}%`
+                      ) : benchmarks[c.id] ? (
+                        // Computed, but this job lists no skills to scan for.
+                        <span title="This job lists no required or nice-to-have skills">—</span>
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={() => void handleRunBenchmark(c.id)}
+                          disabled={runningBenchmark === c.id}
+                          className="rounded border border-slate-200 px-2 py-0.5 text-[11px] font-semibold text-slate-600 transition-colors hover:bg-slate-50 disabled:opacity-60"
+                        >
+                          {runningBenchmark === c.id ? "Running…" : "Run"}
+                        </button>
+                      )}
+                    </td>
+                    {/* A negative delta means the keyword baseline ran hotter
+                        than the semantic read -- the opposite of good news, so
+                        it must not be painted the same green as a positive one. */}
+                    <td
+                      className={cn(
+                        "p-3.5 font-semibold",
+                        c.deltaValue === null && "text-slate-400",
+                        c.deltaValue !== null && c.deltaValue > 0 && "text-emerald-600",
+                        c.deltaValue !== null && c.deltaValue < 0 && "text-rose-600",
+                        c.deltaValue === 0 && "text-slate-600",
+                      )}
+                    >
+                      {c.delta ?? "—"}
+                    </td>
                     <td className="p-3.5 text-slate-700 font-mono">{c.skillsScore}%</td>
                     <td className="p-3.5">
                       <Badge variant="outline" className="text-slate-700 bg-slate-50 border-slate-200 text-xs">

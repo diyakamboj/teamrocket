@@ -17,6 +17,8 @@ import {
   decideJdRecommendation,
   getInternalMatches,
   getJdOptimization,
+  getJobPipeline,
+  type PipelineCandidate,
   listJobPipelines,
   type AgentEvaluationSummary,
   type JDRecommendation,
@@ -48,6 +50,11 @@ type ActionItem = {
   jobId: string;
   jobTitle: string;
   candidateName?: string;
+  /** Who this action is actually about. A count alone made it impossible to
+   *  tell whether two cards meant the same person on two different jobs. */
+  people: { id: string | null; name: string }[];
+  /** The concrete next step, in the imperative. */
+  whatToDo: string;
   urgency: "high" | "medium" | "low";
   targetUrl: string;
   actionLabel: string;
@@ -90,9 +97,10 @@ async function buildActions(jobs: JobPipelineSummary[]): Promise<ActionItem[]> {
     jobs.map(async (job) => {
       const items: ActionItem[] = [];
 
-      const [optimization, matches] = await Promise.all([
+      const [optimization, matches, pipeline] = await Promise.all([
         getJdOptimization(job.job_id).catch(() => null),
         getInternalMatches(job.job_id, true).catch(() => [] as AgentEvaluationSummary[]),
+        getJobPipeline(job.job_id, "all").catch(() => [] as PipelineCandidate[]),
       ]);
 
       for (const rec of optimization?.recommendations ?? []) {
@@ -107,6 +115,10 @@ async function buildActions(jobs: JobPipelineSummary[]): Promise<ActionItem[]> {
           urgency: jdUrgency(rec),
           targetUrl: "/insights",
           actionLabel: "Accept recommendation",
+          people: [],
+          whatToDo: rec.is_must_have
+            ? `Drop “${rec.skill}” from the must-haves, or accept a smaller pool.`
+            : `Reword or remove “${rec.skill}” — few candidates match it.`,
           recommendationId: rec.id,
         });
       }
@@ -125,21 +137,36 @@ async function buildActions(jobs: JobPipelineSummary[]): Promise<ActionItem[]> {
           urgency: (candidate.score ?? 0) >= 75 ? "high" : "medium",
           targetUrl: "/talent-marketplace",
           actionLabel: "Review & place employee",
+          people: [{ id: candidate.candidate_id ?? null, name: candidate.label }],
+          whatToDo: `Decide whether to put ${candidate.label} forward for this role.`,
         });
       }
 
-      const screened = job.stage_counts?.screened ?? 0;
-      if (screened > 0) {
+      // Name the candidates rather than only counting them. The count came
+      // from stage_counts, so the same person sitting on two boards produced
+      // two cards that each just said "1 candidate" with no way to tell they
+      // were the same human.
+      const awaiting = pipeline.filter((c) => c.stage === "screened");
+      if (awaiting.length > 0) {
         items.push({
           id: `readiness-${job.job_id}`,
           type: "readiness_assessment",
-          title: `${screened} candidate${screened === 1 ? "" : "s"} ready for assessment`,
-          description: `${screened} screened candidate${screened === 1 ? " has" : "s have"} not yet moved to interview. Run a readiness assessment to validate competency gaps first.`,
+          title:
+            awaiting.length === 1
+              ? `${awaiting[0]!.candidate_name} is screened but not yet in interview`
+              : `${awaiting.length} screened candidates are not yet in interview`,
+          description:
+            "A readiness assessment checks the competency gaps before you commit interview time.",
           jobId: job.job_id,
           jobTitle: job.title,
-          urgency: screened >= 5 ? "medium" : "low",
+          urgency: awaiting.length >= 5 ? "medium" : "low",
           targetUrl: "/candidates",
           actionLabel: "Send readiness assessments",
+          people: awaiting.map((c) => ({
+            id: c.candidate_id ?? null,
+            name: c.candidate_name ?? "Unknown candidate",
+          })),
+          whatToDo: "Send each of them a readiness assessment, or move them straight to interview.",
         });
       }
 
@@ -191,7 +218,22 @@ function ActionsPage() {
     [actions, filter, resolved],
   );
 
-  const pendingCount = actions.filter((a) => !resolved[a.id]).length;
+  const pending = useMemo(
+    () => actions.filter((a) => !resolved[a.id]),
+    [actions, resolved],
+  );
+  const pendingCount = pending.length;
+
+  // How many *people* are waiting on you, counted once each. Summing the
+  // per-card figures counted anyone sitting on two boards twice, which is
+  // why this number never matched the candidate list.
+  const peopleWaiting = useMemo(() => {
+    const seen = new Set<string>();
+    for (const action of pending) {
+      for (const person of action.people) seen.add(person.id ?? person.name);
+    }
+    return seen.size;
+  }, [pending]);
 
   async function handleExecute(item: ActionItem) {
     // Only JD recommendations have a backend decision endpoint; the others
@@ -240,6 +282,11 @@ function ActionsPage() {
         </div>
         <Badge className="border-warning/40 bg-warning/15 text-xs font-semibold text-warning-foreground dark:text-warning">
           ⚡ {pendingCount} pending action{pendingCount === 1 ? "" : "s"}
+          {peopleWaiting > 0 && (
+            <span className="ml-2 font-normal opacity-80">
+              · {peopleWaiting} candidate{peopleWaiting === 1 ? "" : "s"} involved
+            </span>
+          )}
         </Badge>
       </header>
 
@@ -315,6 +362,41 @@ function ActionsPage() {
                         <p className="max-w-3xl text-sm leading-relaxed text-muted-foreground">
                           {item.description}
                         </p>
+
+                        {/* The imperative, separated from the explanation --
+                            the old card left you to infer the next step from
+                            a paragraph of context. */}
+                        <p className="max-w-3xl pt-1 text-sm font-semibold text-foreground">
+                          → {item.whatToDo}
+                        </p>
+
+                        {item.people.length > 0 && (
+                          <div className="flex flex-wrap items-center gap-1.5 pt-2">
+                            <span className="text-xs text-muted-foreground">
+                              {item.people.length === 1 ? "Candidate:" : "Candidates:"}
+                            </span>
+                            {item.people.map((person) =>
+                              person.id ? (
+                                <Link
+                                  key={person.id}
+                                  to="/candidates"
+                                  search={{ focus: person.id }}
+                                  className="rounded-full border border-border px-2 py-0.5 text-xs font-medium transition-colors hover:border-primary hover:bg-primary/10 hover:text-primary"
+                                >
+                                  {person.name}
+                                </Link>
+                              ) : (
+                                <span
+                                  key={person.name}
+                                  className="rounded-full border border-border px-2 py-0.5 text-xs font-medium text-muted-foreground"
+                                >
+                                  {person.name}
+                                </span>
+                              ),
+                            )}
+                          </div>
+                        )}
+
                         <div className="flex items-center gap-2 pt-2">
                           <span className="text-xs text-muted-foreground">Target role:</span>
                           <Badge variant="outline" className="text-xs">

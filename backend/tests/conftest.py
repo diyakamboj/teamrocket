@@ -74,6 +74,34 @@ class InMemoryJsonBlobStore:
         return sorted(key for key in self._data if key.startswith(needle))
 
 
+@pytest.fixture(autouse=True)
+def never_send_real_email(monkeypatch):
+    """No test may put a message on the wire.
+
+    Once real SMTP credentials landed in .env the suite started delivering
+    genuine mail to the fixtures' example.com addresses on every run --
+    bouncing messages from the operator's own mailbox, and a fast way to get
+    an account rate-limited. Tests that exercise the live send path build
+    their own EmailService with a stubbed transport instead.
+    """
+    from app.services.email_service import email_service
+
+    monkeypatch.setattr(email_service, "mock", True)
+
+
+@pytest.fixture(autouse=True)
+def no_external_vector_backend(monkeypatch):
+    """Keep tests off Azure Search and Qdrant.
+
+    Whichever backend .env selects, the suite uses the in-process blob index
+    so a test run neither depends on a network service nor writes into the
+    real one.
+    """
+    from app.config import settings
+
+    monkeypatch.setattr(settings, "VECTOR_BACKEND", "blob")
+
+
 @pytest.fixture()
 def store() -> Generator[Store, None, None]:
     yield Store(InMemoryJsonBlobStore())

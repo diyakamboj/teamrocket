@@ -255,14 +255,15 @@ class AtsBenchmarkResponse(ORMModel):
     evaluation_id: UUID
     candidate_id: UUID
     job_id: UUID
-    keyword_score: Decimal
+    keyword_score: Optional[Decimal] = None
     matched_keywords: list[Any] = Field(default_factory=list)
     missing_keywords: list[Any] = Field(default_factory=list)
-    semantic_score: Decimal
+    semantic_score: Optional[Decimal] = None
     semantic_rationale: Optional[str] = None
     equivalent_terms: list[EquivalentTerm] = Field(default_factory=list)
-    score_delta: Decimal
+    score_delta: Optional[Decimal] = None
     verdict: str  # "semantic_stronger" | "keyword_stronger" | "aligned"
+    #              | "no_keyword_baseline" | "semantic_unavailable"
     created_at: datetime
     updated_at: datetime
 
