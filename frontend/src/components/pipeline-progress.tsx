@@ -233,7 +233,7 @@ export function CandidateStatusTab({
                         {stage}
                       </Badge>
                     </div>
-                    <MovedByTag placement={placement} />
+                    <MovedByTag placement={placement ?? null} />
                     <p className="mt-1 text-[11px] text-muted-foreground">
                       ATS {candidate.score}
                       {candidate.skills.slice(0, 3).length > 0
@@ -251,7 +251,7 @@ export function CandidateStatusTab({
                   </Button>
                 </div>
                 <div className="mt-4 rounded-xl border bg-secondary/30 px-3 py-4">
-                  <PipelineProgress rounds={rounds} placement={placement} />
+                  <PipelineProgress rounds={rounds} placement={placement ?? null} />
                 </div>
               </li>
             );

@@ -569,7 +569,7 @@ function RoundRoster({
               {blindLabel(candidate, order, blindMode)}
             </p>
             <p className="truncate text-[11px] text-muted-foreground">{candidate.title || "—"}</p>
-            <MovedByTag placement={placements[candidate.id]} />
+            <MovedByTag placement={placements[candidate.id] ?? null} />
           </div>
           <span className="metric shrink-0 text-xs font-bold text-primary">{candidate.score}</span>
 
@@ -737,7 +737,7 @@ export function StageBoardTab({
                       <p className="truncate text-[11px] text-muted-foreground">
                         {candidate.title || "—"}
                       </p>
-                      <MovedByTag placement={placements[candidate.id]} />
+                      <MovedByTag placement={placements[candidate.id] ?? null} />
                     </div>
                     <span className="metric shrink-0 text-xs font-bold text-primary">
                       {candidate.score}

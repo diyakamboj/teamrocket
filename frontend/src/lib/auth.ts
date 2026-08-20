@@ -61,9 +61,11 @@ export function isSignedIn(): boolean {
 }
 
 function errorFrom(response: Response, data: Record<string, unknown>): string {
+  // Bracket access: these keys come from an index signature, which
+  // noPropertyAccessFromIndexSignature requires be read explicitly.
   const fromBody =
-    (typeof data.error === "string" && data.error) ||
-    (typeof data.detail === "string" && data.detail);
+    (typeof data["error"] === "string" && data["error"]) ||
+    (typeof data["detail"] === "string" && data["detail"]);
   if (fromBody) return fromBody;
   if (response.status === 502 || response.status === 503 || response.status === 504) {
     return "Can't reach the API. Start the backend on port 8000 and try again.";
