@@ -157,7 +157,7 @@ function RootComponent() {
             <PageTransition>
               <Outlet />
             </PageTransition>
-            <Toaster position="bottom-center" richColors />
+            <Toaster position="top-center" richColors closeButton />
           </>
         ) : (
           <RequireAuth>
@@ -170,7 +170,7 @@ function RootComponent() {
                   </PageTransition>
                 </AppShell>
                 <CopilotLauncher />
-                <Toaster position="bottom-center" richColors />
+                <Toaster position="top-center" richColors closeButton />
               </CopilotProvider>
             </AppStateProvider>
           </RequireAuth>

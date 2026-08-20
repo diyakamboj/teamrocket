@@ -234,6 +234,7 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
         if (item.duplicate || item.status === "duplicate") {
           toast.error(`${item.filename} was not added`, {
             description: item.error ?? "That candidate is already in your pool.",
+            duration: 8000,
           });
         }
       }
@@ -280,6 +281,7 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
               toast.error(`${row.name} was not added`, {
                 description:
                   update.detail.error ?? "That candidate is already in your pool.",
+                duration: 8000,
               });
             }
             return {
