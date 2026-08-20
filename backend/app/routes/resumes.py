@@ -12,6 +12,7 @@ from app.models.evaluation import AuditLog, ResumeUpload
 from app.models.schemas import ResumeDetailResponse, ResumeUploadItem, ResumeUploadResponse
 from app.services.attachment_processor import upsert_candidate_from_parsed
 from app.services.azure_services import blob_service
+from app.services import candidate_dedupe
 from app.services.resume_parser import resume_parser
 from app.storage.store import Store, store
 from app.utils.error_handlers import NotFoundError, ValidationAppError
@@ -55,6 +56,27 @@ def _process_resume(upload_id: uuid.UUID) -> None:
         store.resume_uploads.save(upload)
 
         parsed = asyncio.run(resume_parser.parse_resume(text))
+
+        # The same person can arrive as a different file — a re-export, a
+        # newer version, a different name on disk. Content hashing cannot see
+        # that; the parsed identity can, and this is the first moment it is
+        # known. Refuse rather than quietly merging, so the recruiter learns
+        # the person is already theirs and can add them to another role from
+        # the profile instead.
+        existing = candidate_dedupe.find_existing_candidate(
+            store,
+            owner_email=upload.recruiter_email,
+            email=parsed.get("email"),
+            name=parsed.get("name"),
+            phone=parsed.get("phone"),
+        )
+        if existing is not None:
+            upload.status = "duplicate"
+            upload.progress = 100
+            upload.candidate_id = existing.id
+            upload.error = candidate_dedupe.already_in_pool_message(existing)
+            store.resume_uploads.save(upload)
+            return
 
         candidate = upsert_candidate_from_parsed(
             store,
@@ -136,11 +158,9 @@ async def upload_resumes(
     # Only filenames that already produced a candidate count as duplicates —
     # a prior failed/unprocessed attempt with the same name must not block a
     # retry from ever being processed.
-    seen_names = {
-        row.filename.lower()
-        for row in store.resume_uploads.query(lambda r: r.recruiter_email == recruiter_email)
-        if row.candidate_id is not None
-    }
+    #: Digests seen earlier in *this* batch, so the same file dropped twice
+    #: in one go is caught before either copy is processed.
+    seen_digests: set[str] = set()
 
     for file in files:
         filename = file.filename or "resume.pdf"
@@ -185,8 +205,27 @@ async def upload_resumes(
             )
             continue
 
-        is_duplicate = filename.lower() in seen_names
-        seen_names.add(filename.lower())
+        # Identity by content, not by filename: "resume (1).pdf" is the same
+        # résumé, and two different people both called it "resume.pdf".
+        digest = candidate_dedupe.content_digest(content)
+        duplicate_of = candidate_dedupe.find_duplicate_upload(
+            store, recruiter_email=recruiter_email, digest=digest
+        )
+        if duplicate_of is None and digest in seen_digests:
+            duplicate_of = "pending"  # same file twice within this one batch
+        is_duplicate = duplicate_of is not None
+        seen_digests.add(digest)
+
+        duplicate_error = None
+        if is_duplicate:
+            existing = (
+                store.candidates.get(duplicate_of) if duplicate_of != "pending" else None
+            )
+            duplicate_error = (
+                candidate_dedupe.already_in_pool_message(existing)
+                if existing
+                else "That résumé is already in this upload."
+            )
 
         blob_path = blob_service.upload_bytes(
             content,
@@ -202,9 +241,11 @@ async def upload_resumes(
             current_position=current_position if source == "internal" else None,
             current_role_duties=current_role_duties if source == "internal" else None,
             filename=filename,
+            content_sha256=digest,
             blob_path=blob_path,
             status="duplicate" if is_duplicate else "queued",
-            progress=10 if not is_duplicate else 0,
+            progress=100 if is_duplicate else 10,
+            error=duplicate_error,
         )
         store.resume_uploads.save(upload)
 

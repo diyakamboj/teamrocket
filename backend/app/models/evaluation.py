@@ -127,6 +127,9 @@ class ResumeUpload(BaseModel):
     current_position: Optional[str] = None
     current_role_duties: Optional[str] = None
     filename: str
+    #: SHA-256 of the uploaded bytes. Identity by content, so the same résumé
+    #: re-exported under a different filename is still recognised.
+    content_sha256: Optional[str] = None
     blob_path: Optional[str] = None
     status: str = "queued"
     progress: int = 0

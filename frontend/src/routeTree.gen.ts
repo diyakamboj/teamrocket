@@ -21,6 +21,7 @@ import { Route as InternalHiringRouteImport } from './routes/internal-hiring'
 import { Route as JobAnalysisRouteImport } from './routes/job-analysis'
 import { Route as LoginRouteImport } from './routes/login'
 import { Route as NetworkRouteImport } from './routes/network'
+import { Route as PeopleRouteImport } from './routes/people'
 import { Route as RegisterRouteImport } from './routes/register'
 import { Route as ScreeningRouteImport } from './routes/screening'
 import { Route as SettingsRouteImport } from './routes/settings'
@@ -92,6 +93,11 @@ const NetworkRoute = NetworkRouteImport.update({
   path: '/network',
   getParentRoute: () => rootRouteImport,
 } as any)
+const PeopleRoute = PeopleRouteImport.update({
+  id: '/people',
+  path: '/people',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const RegisterRoute = RegisterRouteImport.update({
   id: '/register',
   path: '/register',
@@ -156,6 +162,7 @@ export interface FileRoutesByFullPath {
   '/job-analysis': typeof JobAnalysisRoute
   '/login': typeof LoginRoute
   '/network': typeof NetworkRoute
+  '/people': typeof PeopleRoute
   '/register': typeof RegisterRoute
   '/screening': typeof ScreeningRoute
   '/settings': typeof SettingsRoute
@@ -180,6 +187,7 @@ export interface FileRoutesByTo {
   '/job-analysis': typeof JobAnalysisRoute
   '/login': typeof LoginRoute
   '/network': typeof NetworkRoute
+  '/people': typeof PeopleRoute
   '/register': typeof RegisterRoute
   '/screening': typeof ScreeningRoute
   '/settings': typeof SettingsRoute
@@ -205,6 +213,7 @@ export interface FileRoutesById {
   '/job-analysis': typeof JobAnalysisRoute
   '/login': typeof LoginRoute
   '/network': typeof NetworkRoute
+  '/people': typeof PeopleRoute
   '/register': typeof RegisterRoute
   '/screening': typeof ScreeningRoute
   '/settings': typeof SettingsRoute
@@ -231,6 +240,7 @@ export interface FileRouteTypes {
     | '/job-analysis'
     | '/login'
     | '/network'
+    | '/people'
     | '/register'
     | '/screening'
     | '/settings'
@@ -255,6 +265,7 @@ export interface FileRouteTypes {
     | '/job-analysis'
     | '/login'
     | '/network'
+    | '/people'
     | '/register'
     | '/screening'
     | '/settings'
@@ -279,6 +290,7 @@ export interface FileRouteTypes {
     | '/job-analysis'
     | '/login'
     | '/network'
+    | '/people'
     | '/register'
     | '/screening'
     | '/settings'
@@ -304,6 +316,7 @@ export interface RootRouteChildren {
   JobAnalysisRoute: typeof JobAnalysisRoute
   LoginRoute: typeof LoginRoute
   NetworkRoute: typeof NetworkRoute
+  PeopleRoute: typeof PeopleRoute
   RegisterRoute: typeof RegisterRoute
   ScreeningRoute: typeof ScreeningRoute
   SettingsRoute: typeof SettingsRoute
@@ -402,6 +415,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof NetworkRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/people': {
+      id: '/people'
+      path: '/people'
+      fullPath: '/people'
+      preLoaderRoute: typeof PeopleRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/register': {
       id: '/register'
       path: '/register'
@@ -488,6 +508,7 @@ const rootRouteChildren: RootRouteChildren = {
   JobAnalysisRoute: JobAnalysisRoute,
   LoginRoute: LoginRoute,
   NetworkRoute: NetworkRoute,
+  PeopleRoute: PeopleRoute,
   RegisterRoute: RegisterRoute,
   ScreeningRoute: ScreeningRoute,
   SettingsRoute: SettingsRoute,

@@ -226,6 +226,17 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
           };
         }),
       );
+
+      // Refusals are the whole point of the check, so say so out loud rather
+      // than leaving a "Duplicate" chip in a list the recruiter may not be
+      // looking at.
+      for (const item of res.files) {
+        if (item.duplicate || item.status === "duplicate") {
+          toast.error(`${item.filename} was not added`, {
+            description: item.error ?? "That candidate is already in your pool.",
+          });
+        }
+      }
     } catch (err) {
       const message = err instanceof Error ? err.message : "Upload failed";
       setFiles((prev) =>
@@ -264,6 +275,13 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
           prev.map((row) => {
             const update = updates.find((u) => u.row.id === row.id);
             if (!update) return row;
+            // Only on the transition, so the 1.2s poll does not repeat it.
+            if (update.detail.status === "duplicate" && row.stage !== "duplicate") {
+              toast.error(`${row.name} was not added`, {
+                description:
+                  update.detail.error ?? "That candidate is already in your pool.",
+              });
+            }
             return {
               ...row,
               stage: toStage(update.detail.status),

@@ -17,6 +17,8 @@ import {
   Armchair,
   Network,
   Building2,
+  Users,
+  UserSearch,
 } from "lucide-react";
 import { useEffect, useState, type ReactNode } from "react";
 import { useAppState } from "@/lib/app-state";
@@ -49,6 +51,13 @@ const NAV_GROUPS = [
     items: [
       { to: "/", label: "Dashboard", icon: LayoutDashboard },
       { to: "/actions", label: "Actions Center", icon: Zap },
+    ],
+  },
+  {
+    heading: "People",
+    items: [
+      { to: "/people", label: "Everyone", icon: Users },
+      { to: "/candidates", label: "Candidates", icon: UserSearch },
     ],
   },
   {

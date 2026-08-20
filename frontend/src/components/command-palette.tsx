@@ -12,6 +12,7 @@ import {
   Settings,
   Sun,
   Upload,
+  UserSearch,
   Users,
   Zap,
 } from "lucide-react";
@@ -41,7 +42,8 @@ import { OPEN_COMMAND_PALETTE, openCreateJob } from "@/lib/app-events";
 
 const DESTINATIONS = [
   { to: "/", label: "Dashboard", icon: LayoutDashboard, keywords: "home overview pipeline" },
-  { to: "/candidates", label: "Candidates", icon: Users, keywords: "people applicants pool" },
+  { to: "/people", label: "Everyone", icon: Users, keywords: "people employees candidates directory all" },
+  { to: "/candidates", label: "Candidates", icon: UserSearch, keywords: "applicants pool ranking" },
   { to: "/internal-hiring", label: "Internal Hiring", icon: Briefcase, keywords: "mobility" },
   { to: "/external-hiring", label: "External Hiring", icon: Globe, keywords: "sourcing market" },
   { to: "/bench", label: "Bench Employees", icon: Armchair, keywords: "available staff" },
