@@ -26,6 +26,7 @@ from app.models.evaluation import CandidateDecision
 from app.models.handoff import InterviewHandoff
 from app.models.job_posting import JobPosting
 from app.models.placement import STAGE_ORDER, CandidatePlacement
+from app.services.placement_service import actor_snapshot
 from app.storage.store import Store
 
 __all__ = [
@@ -255,6 +256,11 @@ def get_job_pipeline_candidates(
             handoffs_by_candidate.get(candidate_id, []),
             placement,
         )
+        moved_by = placement.moved_by if placement else None
+        moved_by_name = placement.moved_by_name if placement else None
+        moved_by_role = placement.moved_by_role if placement else None
+        if moved_by and not moved_by_name:
+            _, moved_by_name, moved_by_role = actor_snapshot(store, moved_by)
         results.append(
             {
                 "candidate_id": candidate.id if candidate else candidate_id,
@@ -273,7 +279,9 @@ def get_job_pipeline_candidates(
                 "round_id": placement.round_id if placement else None,
                 "round_name": round_names.get(placement.round_id) if placement else None,
                 "round_sequence": placement.round_sequence if placement else None,
-                "moved_by": placement.moved_by if placement else None,
+                "moved_by": moved_by,
+                "moved_by_name": moved_by_name,
+                "moved_by_role": moved_by_role,
                 "updated_at": placement.updated_at
                 if placement
                 else (evaluation.created_at if evaluation else job.created_at),

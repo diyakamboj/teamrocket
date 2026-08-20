@@ -37,6 +37,7 @@ import {
   type PipelineColumn,
 } from "@/lib/pipeline";
 import { cn } from "@/lib/utils";
+import { MovedByTag } from "@/components/pipeline-progress";
 
 /**
  * Which stages have a candidate-facing email behind them.
@@ -290,6 +291,41 @@ export function PipelineOverviewTab({
 
   return (
     <div className="flow">
+      {/* Everyone not currently in a round, so the overview can move a
+          candidate all the way from screened to hired without the board. */}
+      <section className="rounded-2xl border bg-card p-6 shadow-sm">
+        <h3 className="text-sm font-semibold">Before and after the loop</h3>
+        <p className="mt-1 text-xs text-muted-foreground">
+          Candidates waiting to start, and those the loop is done with.
+        </p>
+        <div className="stagger mt-4 grid gap-3 md:grid-cols-2">
+          {columns
+            .filter((column) => !column.roundId)
+            .map((column) => (
+              <div key={column.key} className="lift rounded-xl border p-4">
+                <div className="flex items-center gap-2">
+                  <h4 className={cn("text-xs font-bold uppercase tracking-wide", column.tone)}>
+                    {column.label}
+                  </h4>
+                  <span className="metric ml-auto rounded-full bg-secondary px-2 py-0.5 text-[10px] font-bold">
+                    {(byColumn[column.key] ?? []).length}
+                  </span>
+                </div>
+                <RoundRoster
+                  order={order}
+                  blindMode={blindMode}
+                  occupants={byColumn[column.key] ?? []}
+                  columns={columns}
+                  currentKey={column.key}
+                  moving={moving}
+                  onMove={move}
+                  placements={placements}
+                />
+              </div>
+            ))}
+        </div>
+      </section>
+
       <section className="edge-accent rounded-2xl border bg-card p-6 shadow-sm">
         <header className="flex flex-wrap items-center justify-between gap-3">
           <div>
@@ -437,6 +473,7 @@ export function PipelineOverviewTab({
                       currentKey={`interviewing:${round.id}`}
                       moving={moving}
                       onMove={move}
+                      placements={placements}
                     />
                   </>
                 )}
@@ -482,40 +519,6 @@ export function PipelineOverviewTab({
           ))}
         </div>
       </section>
-
-      {/* Everyone not currently in a round, so the overview can move a
-          candidate all the way from screened to hired without the board. */}
-      <section className="rounded-2xl border bg-card p-6 shadow-sm">
-        <h3 className="text-sm font-semibold">Before and after the loop</h3>
-        <p className="mt-1 text-xs text-muted-foreground">
-          Candidates waiting to start, and those the loop is done with.
-        </p>
-        <div className="stagger mt-4 grid gap-3 md:grid-cols-2">
-          {columns
-            .filter((column) => !column.roundId)
-            .map((column) => (
-              <div key={column.key} className="lift rounded-xl border p-4">
-                <div className="flex items-center gap-2">
-                  <h4 className={cn("text-xs font-bold uppercase tracking-wide", column.tone)}>
-                    {column.label}
-                  </h4>
-                  <span className="metric ml-auto rounded-full bg-secondary px-2 py-0.5 text-[10px] font-bold">
-                    {(byColumn[column.key] ?? []).length}
-                  </span>
-                </div>
-                <RoundRoster
-                  order={order}
-                  blindMode={blindMode}
-                  occupants={byColumn[column.key] ?? []}
-                  columns={columns}
-                  currentKey={column.key}
-                  moving={moving}
-                  onMove={move}
-                />
-              </div>
-            ))}
-        </div>
-      </section>
     </div>
   );
 }
@@ -533,6 +536,7 @@ function RoundRoster({
   onMove,
   order,
   blindMode,
+  placements,
 }: {
   occupants: BoardCandidate[];
   columns: PipelineColumn[];
@@ -541,6 +545,7 @@ function RoundRoster({
   onMove: (candidate: BoardCandidate, column: PipelineColumn) => void;
   order: Map<string, number>;
   blindMode: boolean;
+  placements: Record<string, PipelineCandidate>;
 }) {
   if (occupants.length === 0) {
     return (
@@ -564,6 +569,7 @@ function RoundRoster({
               {blindLabel(candidate, order, blindMode)}
             </p>
             <p className="truncate text-[11px] text-muted-foreground">{candidate.title || "—"}</p>
+            <MovedByTag placement={placements[candidate.id]} />
           </div>
           <span className="metric shrink-0 text-xs font-bold text-primary">{candidate.score}</span>
 
@@ -731,6 +737,7 @@ export function StageBoardTab({
                       <p className="truncate text-[11px] text-muted-foreground">
                         {candidate.title || "—"}
                       </p>
+                      <MovedByTag placement={placements[candidate.id]} />
                     </div>
                     <span className="metric shrink-0 text-xs font-bold text-primary">
                       {candidate.score}

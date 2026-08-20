@@ -190,6 +190,14 @@ export type JobResponse = {
   sourcing_mode?: string;
   /** The interview loop for this role, in order. */
   rounds?: InterviewRound[];
+  /** Per-role ranking weights, as percentages. */
+  scoring_weights?: {
+    skills: number;
+    experience: number;
+    education: number;
+    certifications: number;
+    projects: number;
+  };
 };
 
 
@@ -806,6 +814,7 @@ export async function createJob(input: {
   sourcing_mode?: string;
   /** The interview loop; omitted means the backend's default loop. */
   rounds?: Array<Omit<InterviewRound, "id"> & { id?: string }>;
+  scoring_weights?: JobResponse["scoring_weights"];
 }): Promise<JobResponse> {
 
   return request<JobResponse>("/api/jobs", {
@@ -1247,6 +1256,8 @@ export type PipelineCandidate = {
   round_name?: string | null;
   round_sequence?: number | null;
   moved_by?: string | null;
+  moved_by_name?: string | null;
+  moved_by_role?: string | null;
   updated_at: string;
   employment_status?: string | null;
 };
@@ -1259,6 +1270,8 @@ export type CandidatePlacement = {
   round_name?: string | null;
   round_sequence?: number | null;
   moved_by?: string | null;
+  moved_by_name?: string | null;
+  moved_by_role?: string | null;
   note?: string | null;
   updated_at: string;
 };

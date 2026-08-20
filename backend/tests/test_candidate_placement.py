@@ -74,6 +74,28 @@ def test_move_places_candidate_in_named_round(store, looped_job, candidate):
     assert placement.moved_by == RECRUITER
 
 
+def test_move_records_the_actors_name_and_role(store, looped_job, candidate):
+    """The board needs a name and role, not just an email, so others can
+    see whether a recruiter, hiring manager or IT admin made the change."""
+    from app.models.roles import Role
+    from app.models.user import User
+
+    store.users.save(
+        User(
+            email=RECRUITER,
+            name="Alex Recruiter",
+            role=Role.HIRING_MANAGER,
+            password_hash="x",
+            password_salt="y",
+        )
+    )
+    placement = _move(store, looped_job, candidate, "interviewing", round_id="r1")
+
+    assert placement.moved_by == RECRUITER
+    assert placement.moved_by_name == "Alex Recruiter"
+    assert placement.moved_by_role == "Hiring Manager"
+
+
 def test_interviewing_without_a_round_starts_at_the_first(store, looped_job, candidate):
     placement = _move(store, looped_job, candidate, "interviewing")
 

@@ -8,7 +8,7 @@ from fastapi import APIRouter
 
 from app.dependencies import AppStore, RecruiterEmail
 from app.models.evaluation import AuditLog
-from app.models.job_posting import DEFAULT_ROUNDS, InterviewRound, JobPosting
+from app.models.job_posting import DEFAULT_ROUNDS, InterviewRound, JobPosting, ScoringWeights
 from app.models.schemas import (
     JobRoundsUpdate,
     JobAnalyzeResponse,
@@ -45,6 +45,7 @@ async def create_job(payload: JobCreate, store: AppStore, recruiter_email: Recru
         nice_to_have_skills=payload.nice_to_have_skills,
         sourcing_mode=payload.sourcing_mode or "both",
         rounds=payload.rounds or [InterviewRound(**r) for r in DEFAULT_ROUNDS],
+        scoring_weights=payload.scoring_weights or ScoringWeights(),
         created_by=payload.created_by or recruiter_email,
     )
 

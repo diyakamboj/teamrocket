@@ -60,17 +60,33 @@ export function isSignedIn(): boolean {
   return getSession() !== null;
 }
 
-async function post(path: string, body: unknown): Promise<AuthPayload> {
-  const response = await fetch(`${API_BASE}${path}`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(body),
-  });
-  const data = await response.json().catch(() => ({}));
-  if (!response.ok) {
-    throw new Error(data?.error || data?.detail || "Something went wrong. Try again.");
+function errorFrom(response: Response, data: Record<string, unknown>): string {
+  const fromBody =
+    (typeof data.error === "string" && data.error) ||
+    (typeof data.detail === "string" && data.detail);
+  if (fromBody) return fromBody;
+  if (response.status === 502 || response.status === 503 || response.status === 504) {
+    return "Can't reach the API. Start the backend on port 8000 and try again.";
   }
-  return data as AuthPayload;
+  return "Something went wrong. Try again.";
+}
+
+async function post(path: string, body: unknown): Promise<AuthPayload> {
+  let response: Response;
+  try {
+    response = await fetch(`${API_BASE}${path}`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    });
+  } catch {
+    throw new Error("Can't reach the API. Start the backend on port 8000 and try again.");
+  }
+  const data = (await response.json().catch(() => ({}))) as Record<string, unknown>;
+  if (!response.ok) {
+    throw new Error(errorFrom(response, data));
+  }
+  return data as unknown as AuthPayload;
 }
 
 export async function register(input: {
