@@ -54,7 +54,11 @@ provider "azurerm" {
   }
 }
 
-# Identity Terraform itself is running as — used to grant this identity
-# (currently the interactive user; later a GitHub Actions OIDC service
-# principal) management rights on resources this config creates.
+# Identity Terraform itself is running as. Used directly in a couple of
+# places (e.g. the vault's tenant_id); note that keyvault.tf's
+# terraform_secrets_officer deliberately does NOT use
+# data.azurerm_client_config.current.object_id for its principal_id
+# despite what an earlier version of this comment implied — see that
+# resource's own comment for why a dynamic principal broke once a second
+# identity (GitHub Actions) started running Terraform too.
 data "azurerm_client_config" "current" {}

@@ -73,14 +73,20 @@ resource "azurerm_key_vault_secret" "search_endpoint" {
   depends_on   = [azurerm_role_assignment.terraform_secrets_officer]
 }
 
-# Note: the embedding key points at the same sharedfoundry host as
-# openai_api_key/openai_endpoint above — kept as a separate secret here in
-# case it ever diverges, but today AZURE_OPENAI_API_KEY doubles as the
-# embedding call's credential too. (No separate embedding endpoint secret —
-# see variables.tf's comment on the dropped embedding_endpoint variable.)
+# The backend's embedding client (backend/app/services/azure_services.py)
+# reads AZURE_OPENAI_EMBEDDING_API_KEY/ENDPOINT as settings distinct from
+# the main AZURE_OPENAI_API_KEY/ENDPOINT above, with no fallback between
+# them — both secrets are genuinely needed, not redundant with each other.
 resource "azurerm_key_vault_secret" "embedding_api_key" {
   name         = "AZURE-OPENAI-EMBEDDING-API-KEY"
   value        = var.embedding_api_key
+  key_vault_id = azurerm_key_vault.main.id
+  depends_on   = [azurerm_role_assignment.terraform_secrets_officer]
+}
+
+resource "azurerm_key_vault_secret" "embedding_endpoint" {
+  name         = "AZURE-OPENAI-EMBEDDING-ENDPOINT"
+  value        = var.embedding_endpoint
   key_vault_id = azurerm_key_vault.main.id
   depends_on   = [azurerm_role_assignment.terraform_secrets_officer]
 }

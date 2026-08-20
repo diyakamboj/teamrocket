@@ -75,11 +75,11 @@ variable "embedding_api_key" {
   sensitive   = true
 }
 
-# No embedding_endpoint variable — the equivalent data source in the
-# original data.tf was already dead code (defined, never referenced;
-# keyvault.tf only ever stores an embedding *key* secret, reusing
-# openai_endpoint's value for the endpoint side). Caught and dropped here
-# rather than carried forward. See keyvault.tf's embedding_api_key comment.
+variable "embedding_endpoint" {
+  description = "Copied from Group5-6's 'Group5-6-text-embedding-3-small-EndPoint' secret. RE-ADDED 2026-08-19: an earlier version of this comment called this dead code, reasoning the original (pre-refactor) data source was never referenced anywhere. That was true of the data source, but wrong about the underlying need — backend/app/services/azure_services.py's embedding client reads AZURE_OPENAI_EMBEDDING_API_KEY and AZURE_OPENAI_EMBEDDING_ENDPOINT as two distinct settings, with no fallback to the main AZURE_OPENAI_* ones. app_service.tf never wired either into app_settings, so this was a real, live gap, not dead code — confirmed directly against the backend source before re-adding this."
+  type        = string
+  sensitive   = true
+}
 
 variable "search_api_key" {
   description = "Copied from Group5-6's 'AISearch-APIKey' secret."
@@ -182,16 +182,16 @@ variable "github_token" {
   sensitive   = true
 }
 
-# HACKERRANK_API_KEY intentionally has no variable here — confirmed dead
-# code in backend/app/services/profile_enrichment_service.py (no live API
-# call exists). See KNOWN-ISSUES.md #8. Add one only if that changes.
-
 # -----------------------------------------------------------------------------
-# Alerts / Monitoring (alerts.tf, monitoring.tf)
+# Alerting (monitoring.tf)
 # -----------------------------------------------------------------------------
 
 variable "alert_notification_email" {
-  description = "Email address the alerts.tf action group notifies. Empty by default (no team inbox decided yet) — the alert rules and action group are still created and visible/actionable in the Azure Portal either way; set this to wire up actual email notifications without any other Terraform change."
+  description = "Email address the action group in monitoring.tf notifies when a metric alert fires. Not a secret, but personal/team contact info — kept out of tracked .tfvars the same way smtp_username etc. are; supply via a gitignored *.auto.tfvars file. No default: alerts with nowhere to send are worse than an apply that fails loudly and asks for one."
   type        = string
-  default     = ""
+  sensitive   = true
 }
+
+# HACKERRANK_API_KEY intentionally has no variable here — confirmed dead
+# code in backend/app/services/profile_enrichment_service.py (no live API
+# call exists). See KNOWN-ISSUES.md #8. Add one only if that changes.
