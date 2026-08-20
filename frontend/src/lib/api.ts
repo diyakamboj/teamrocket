@@ -1876,16 +1876,25 @@ export type RankedCandidate = {
 
 /**
  * Ranks every stored candidate against a job using the backend's own
- * three-signal matching engine. Category weights are intentionally left at
- * the server defaults — the UI re-weights the returned per-category scores
- * locally so the sliders stay responsive.
+ * three-signal matching engine.
+ *
+ * The saved weights are sent along. They used to be left at the server
+ * defaults while the candidates page re-weighted its own copy locally, so
+ * the same person could show one ATS score on that page and a different one
+ * in the job workspace, with nothing on screen explaining the gap. Sliders
+ * still re-rank locally for responsiveness; saving is what makes the server
+ * agree.
  */
 export async function rankCandidatesApi(
   jobId: string,
-  options?: { blindMode?: boolean },
+  options?: { blindMode?: boolean; weights?: Record<string, number> },
 ): Promise<RankedCandidate[]> {
   const params = new URLSearchParams({ job_id: jobId });
   if (options?.blindMode) params.set("blind_mode", "true");
+  for (const [key, value] of Object.entries(options?.weights ?? {})) {
+    // The endpoint takes fractions; the UI works in whole percentages.
+    params.set(key, String(value / 100));
+  }
   return request<RankedCandidate[]>(`/api/candidates/rank?${params.toString()}`);
 }
 
@@ -1992,4 +2001,89 @@ export type InternalEmployee = {
  *  people who were not already on it. */
 export async function listInternalEmployees(): Promise<InternalEmployee[]> {
   return request<InternalEmployee[]>("/api/bench/employees");
+}
+
+
+// ---------- Hiring progress ----------
+
+export type ProgressStepState = "done" | "current" | "todo" | "skipped";
+
+export type ProgressStep = {
+  key: string;
+  label: string;
+  state: ProgressStepState;
+  detail: string;
+  hint: string;
+  interviewer?: string | null;
+};
+
+export type NextAction = {
+  kind: "send_assessment" | "wait" | "advance" | "decide";
+  label: string;
+  why: string;
+  /** Which workspace tab this action is performed on, when it is not done
+   *  inline. The checklist says what to do; this says where. */
+  goto: "pipeline" | "candidates" | null;
+  goto_label: string | null;
+};
+
+export type CandidateProgress = {
+  candidate_id: string;
+  candidate_name: string;
+  stage: string;
+  hiring_status: "active" | "hired" | "rejected";
+  steps: ProgressStep[];
+  /** The single next thing to do. Null once they are hired or rejected. */
+  next_action: NextAction | null;
+  assessment_id: string | null;
+  assessment_status: string | null;
+};
+
+/** Per-candidate checklist for a job, with the next action computed
+ *  server-side so the board cannot disagree with anything else. */
+export async function getJobProgress(
+  jobId: string,
+  source?: string,
+): Promise<CandidateProgress[]> {
+  const qs = source && source !== "all" ? `?source=${encodeURIComponent(source)}` : "";
+  return request<CandidateProgress[]>(`/api/dashboard/jobs/${encodeURIComponent(jobId)}/progress${qs}`);
+}
+
+export type HiredPerson = {
+  candidate_id: string;
+  name: string;
+  title?: string | null;
+  email?: string | null;
+  hired_at?: string | null;
+  source?: string | null;
+  current_assignment?: string | null;
+};
+
+/** Who was hired into this role. */
+export async function getJobHires(jobId: string): Promise<HiredPerson[]> {
+  return request<HiredPerson[]>(`/api/dashboard/jobs/${encodeURIComponent(jobId)}/hired`);
+}
+
+/** Record a deliberate decision not to assess someone. */
+export async function skipAssessment(input: {
+  candidate_id: string;
+  job_id?: string | null;
+  job_title?: string | null;
+  reason?: string | null;
+}): Promise<CandidateAssessmentRecord> {
+  return request<CandidateAssessmentRecord>("/api/readiness/skip", {
+    method: "POST",
+    body: JSON.stringify(input),
+  });
+}
+
+
+/** Update the signed-in account. Email and role are not editable here:
+ *  the email is the login every record is scoped by, and the role is an
+ *  administrative decision rather than a self-service one. */
+export async function updateMyProfile(input: {
+  name?: string;
+  department?: string;
+}): Promise<{ id: string; email: string; name: string; role: string; department: string }> {
+  return request("/api/auth/me", { method: "PATCH", body: JSON.stringify(input) });
 }

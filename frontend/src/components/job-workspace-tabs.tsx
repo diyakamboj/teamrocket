@@ -1,3 +1,4 @@
+import { BoardGuide } from "@/components/board-guide";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   UserRound,
@@ -226,6 +227,7 @@ export function PipelineOverviewTab({
   onJobUpdated,
   onMoved,
   blindMode,
+  roundsOnly = false,
 }: {
   job: JobResponse | null;
   placements: Record<string, PipelineCandidate>;
@@ -233,6 +235,10 @@ export function PipelineOverviewTab({
   onJobUpdated: (job: JobResponse) => void;
   onMoved: () => void;
   blindMode: boolean;
+  /** Render only the interview-loop editor. The standalone overview tab was
+   *  removed, but editing the rounds still has to live somewhere — it is now
+   *  a panel on the board itself. */
+  roundsOnly?: boolean;
 }) {
   const [rounds, setRounds] = useState<InterviewRound[]>(job?.rounds ?? []);
   const [editing, setEditing] = useState(false);
@@ -289,8 +295,195 @@ export function PipelineOverviewTab({
     }
   }
 
+  // Board panel: the loop editor on its own.
+  if (roundsOnly) {
+    return (
+        <section className="edge-accent rounded-2xl border bg-card p-6 shadow-sm">
+          <header className="flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-primary">
+                <Layers className="h-4 w-4" /> Interview loop
+              </div>
+              <h3 className="mt-1 text-lg font-semibold tracking-tight">
+                Rounds for this role
+              </h3>
+              <p className="mt-1 text-xs text-muted-foreground">
+                The stages a candidate moves through. These drive the board and what the
+                interviewer sees on a handoff.
+              </p>
+            </div>
+            {editing ? (
+              <div className="flex gap-2">
+                <Button size="sm" className="rounded-lg" disabled={saving} onClick={() => void save()}>
+                  {saving ? <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" /> : null}
+                  Save loop
+                </Button>
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  className="rounded-lg"
+                  onClick={() => {
+                    setRounds(job?.rounds ?? []);
+                    setEditing(false);
+                  }}
+                >
+                  Cancel
+                </Button>
+              </div>
+            ) : (
+              <Button size="sm" variant="outline" className="rounded-lg" onClick={() => setEditing(true)}>
+                Edit loop
+              </Button>
+            )}
+          </header>
+  
+          {rounds.length === 0 ? (
+            <p className="mt-5 rounded-xl border border-dashed px-4 py-8 text-center text-xs text-muted-foreground">
+              No rounds defined yet. Edit the loop to add them.
+            </p>
+          ) : (
+            <ol className="stagger mt-5 grid gap-3 md:grid-cols-2">
+              {rounds.map((round, index) => (
+                <li key={round.id ?? index} className="lift rounded-xl border p-4">
+                  {editing ? (
+                    <div className="space-y-2">
+                      <div className="flex items-center gap-2">
+                        <GripVertical className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+                        <Input
+                          value={round.name}
+                          onChange={(e) =>
+                            setRounds((prev) =>
+                              prev.map((r, i) => (i === index ? { ...r, name: e.target.value } : r)),
+                            )
+                          }
+                          className="h-8 rounded-lg text-xs"
+                          placeholder="Round name"
+                        />
+                        <Button
+                          size="icon"
+                          variant="ghost"
+                          aria-label={`Remove ${round.name}`}
+                          className="h-8 w-8 shrink-0 text-muted-foreground hover:text-destructive"
+                          onClick={() => setRounds((prev) => prev.filter((_, i) => i !== index))}
+                        >
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </Button>
+                      </div>
+                      <Input
+                        value={round.focus ?? ""}
+                        onChange={(e) =>
+                          setRounds((prev) =>
+                            prev.map((r, i) => (i === index ? { ...r, focus: e.target.value } : r)),
+                          )
+                        }
+                        className="h-8 rounded-lg text-xs"
+                        placeholder="What this round is for"
+                      />
+                      {/* Assigning the round here is what makes the board
+                          answer "what is waiting on me" for a hiring manager. */}
+                      <div className="flex gap-2">
+                        <Input
+                          value={round.interviewer_name ?? ""}
+                          onChange={(e) =>
+                            setRounds((prev) =>
+                              prev.map((r, i) =>
+                                i === index ? { ...r, interviewer_name: e.target.value } : r,
+                              ),
+                            )
+                          }
+                          className="h-8 rounded-lg text-xs"
+                          placeholder="Interviewer name"
+                        />
+                        <Input
+                          value={round.interviewer_email ?? ""}
+                          onChange={(e) =>
+                            setRounds((prev) =>
+                              prev.map((r, i) =>
+                                i === index ? { ...r, interviewer_email: e.target.value } : r,
+                              ),
+                            )
+                          }
+                          className="h-8 rounded-lg text-xs"
+                          placeholder="Interviewer email"
+                        />
+                      </div>
+                    </div>
+                  ) : (
+                    <>
+                      <div className="flex items-center gap-2">
+                        <span className="grid h-6 w-6 shrink-0 place-items-center rounded-lg bg-primary/10 text-xs font-bold text-primary">
+                          {index + 1}
+                        </span>
+                        <p className="text-sm font-semibold">{round.name}</p>
+                        <span className="ml-auto text-xs text-muted-foreground">
+                          {round.duration_minutes}m
+                        </span>
+                      </div>
+                      {round.focus && (
+                        <p className="mt-2 pl-8 text-xs leading-relaxed text-muted-foreground">
+                          {round.focus}
+                        </p>
+                      )}
+                      <p
+                        className={cn(
+                          "mt-1 flex items-center gap-1 pl-8 text-xs",
+                          round.interviewer_name
+                            ? "text-muted-foreground"
+                            : "text-muted-foreground/60 italic",
+                        )}
+                        title={round.interviewer_email || undefined}
+                      >
+                        <UserRound className="h-3 w-3 shrink-0" />
+                        {round.interviewer_name || "No interviewer assigned"}
+                      </p>
+  
+                      <RoundRoster
+                        order={order}
+                        blindMode={blindMode}
+                        occupants={byColumn[`interviewing:${round.id}`] ?? []}
+                        columns={columns}
+                        currentKey={`interviewing:${round.id}`}
+                        moving={moving}
+                        onMove={move}
+                        placements={placements}
+                      />
+                    </>
+                  )}
+                </li>
+              ))}
+            </ol>
+          )}
+  
+          {editing && (
+            <Button
+              size="sm"
+              variant="outline"
+              className="mt-4 rounded-lg"
+              onClick={() =>
+                setRounds((prev) => [
+                  ...prev,
+                  {
+                    id: `new-${prev.length + 1}`,
+                    name: "New round",
+                    sequence: prev.length + 1,
+                    focus: "",
+                    interview_type: "Technical Interview",
+                    duration_minutes: 45,
+                  },
+                ])
+              }
+            >
+              <Plus className="mr-1.5 h-3.5 w-3.5" /> Add round
+            </Button>
+          )}
+        </section>
+    );
+  }
+
   return (
     <div className="flow">
+      <BoardGuide columns={columns} variant="overview" />
+
       {/* Everyone not currently in a round, so the overview can move a
           candidate all the way from screened to hired without the board. */}
       <section className="rounded-2xl border bg-card p-6 shadow-sm">
@@ -671,6 +864,8 @@ export function StageBoardTab({
 
   return (
     <div className="flow-tight">
+      <BoardGuide columns={columns} variant="board" />
+
       <p className="px-1 text-xs text-muted-foreground">
         Drag a candidate between columns, or use the menu on a card. Moving someone never emails
         them on its own — the toast offers that separately.

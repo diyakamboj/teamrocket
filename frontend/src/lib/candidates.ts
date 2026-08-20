@@ -251,7 +251,7 @@ export function mapRankedCandidate(
  */
 export async function fetchCandidatePool(
   jobId: string,
-  options?: { blindMode?: boolean },
+  options?: { blindMode?: boolean; weights?: Record<string, number> },
 ): Promise<Candidate[]> {
   const [ranked, profiles] = await Promise.all([
     rankCandidatesApi(jobId, options),

@@ -12,6 +12,8 @@ from app.models.evaluation import AuditLog, ResumeUpload
 from app.models.schemas import ResumeDetailResponse, ResumeUploadItem, ResumeUploadResponse
 from app.services.attachment_processor import upsert_candidate_from_parsed
 from app.services.azure_services import blob_service
+from starlette.concurrency import run_in_threadpool
+
 from app.services import candidate_dedupe
 from app.services.resume_parser import resume_parser
 from app.storage.store import Store, store
@@ -162,6 +164,13 @@ async def upload_resumes(
     #: in one go is caught before either copy is processed.
     seen_digests: set[str] = set()
 
+    # One scan of prior uploads, in a worker thread. This reads every upload
+    # record from blob storage: run per file, and on the event loop, it made
+    # a multi-file upload block the whole server.
+    known_digests = await run_in_threadpool(
+        candidate_dedupe.digests_for_recruiter, store, recruiter_email
+    )
+
     for file in files:
         filename = file.filename or "resume.pdf"
         if not is_allowed_resume_filename(filename):
@@ -208,9 +217,7 @@ async def upload_resumes(
         # Identity by content, not by filename: "resume (1).pdf" is the same
         # résumé, and two different people both called it "resume.pdf".
         digest = candidate_dedupe.content_digest(content)
-        duplicate_of = candidate_dedupe.find_duplicate_upload(
-            store, recruiter_email=recruiter_email, digest=digest
-        )
+        duplicate_of = known_digests.get(digest)
         if duplicate_of is None and digest in seen_digests:
             duplicate_of = "pending"  # same file twice within this one batch
         is_duplicate = duplicate_of is not None

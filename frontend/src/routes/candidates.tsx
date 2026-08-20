@@ -18,8 +18,6 @@ import { allSkills, DEFAULT_WEIGHTS, rankCandidates, type Candidate } from "@/li
 import { useCandidatePool } from "@/lib/use-candidate-pool";
 import {
   listJobPipelines,
-  submitCandidateDecision,
-  type CandidateDecisionKind,
   type InterviewSlot,
   type JobPipelineSummary,
 } from "@/lib/api";
@@ -39,16 +37,6 @@ import { Input } from "@/components/ui/input";
 import { Slider } from "@/components/ui/slider";
 import { Switch } from "@/components/ui/switch";
 import { cn } from "@/lib/utils";
-
-type DecisionState =
-  | { status: "sending" }
-  | {
-      status: "done";
-      decision: CandidateDecision;
-      source: "live" | "mock";
-      slots: InterviewSlot[];
-      error?: string | null | undefined;
-    };
 
 export const Route = createFileRoute("/candidates")({
   head: () => ({
@@ -112,130 +100,29 @@ function rankReason(c: Candidate, allRows: Candidate[]): string {
 }
 
 /**
- * What a recruiter can do to a candidate, mirroring the backend's
- * CANDIDATE_DECISIONS. Each carries the wording of the email that goes out,
- * so the confirmation step says exactly what will be sent.
+ * Where to act on this candidate.
+ *
+ * Advance / Select / Hire / Reject used to sit here. They looked like
+ * pipeline controls and were not: this page has no job context, so the
+ * decision was recorded against `candidate.title` -- the candidate's own job
+ * title, matching no role -- no placement was written, and the email still
+ * went out. Deciding needs a role, so this points at the one they are on.
  */
-type CandidateDecision = CandidateDecisionKind;
-
-const DECISIONS: Record<
-  CandidateDecision,
-  { label: string; done: string; confirm: string; icon: typeof Check; tone: string; doneTone: string }
-> = {
-  advanced: {
-    label: "Advance",
-    done: "Advanced to next round",
-    confirm: "Send next-round invitation",
-    icon: ArrowRight,
-    tone: "border-primary/30 text-primary hover:bg-primary/10 dark:border-primary/30 dark:text-primary dark:hover:bg-primary/10",
-    doneTone: "bg-primary/10 text-primary dark:bg-primary/15 dark:text-primary",
-  },
-  approved: {
-    label: "Select",
-    done: "Selected",
-    confirm: "Send selection",
-    icon: Check,
-    tone: "border-success/40 text-success hover:bg-success/10 dark:border-success/40 dark:text-success dark:hover:bg-success/10",
-    doneTone: "bg-success/10 text-success dark:bg-success/15 dark:text-success",
-  },
-  hired: {
-    label: "Hire",
-    done: "Hired",
-    confirm: "Send offer",
-    icon: Trophy,
-    tone: "border-primary/40 text-primary hover:bg-primary-soft dark:border-primary/30 dark:text-primary dark:hover:bg-primary/10",
-    doneTone: "bg-primary-soft text-primary dark:bg-primary/15 dark:text-primary",
-  },
-  rejected: {
-    label: "Reject",
-    done: "Rejected",
-    confirm: "Send rejection",
-    icon: X,
-    tone: "border-destructive/30 text-destructive hover:bg-destructive/10 dark:border-destructive/30 dark:text-destructive dark:hover:bg-destructive/10",
-    doneTone: "bg-destructive/10 text-destructive dark:bg-destructive/15 dark:text-destructive",
-  },
-};
-
-function DecisionControls({
-  candidate,
-  state,
-  onDecide,
-  blindMode,
-  displayName,
-}: {
-  candidate: Candidate;
-  state: DecisionState | undefined;
-  onDecide: (decision: CandidateDecision) => void;
-  blindMode: boolean;
-  displayName: string;
-}) {
-  const [pending, setPending] = useState<CandidateDecision | null>(null);
-
-  if (state?.status === "sending") {
+function OpenInRole({ candidate }: { candidate: Candidate }) {
+  if (!candidate.jobId) {
     return (
-      <span className="inline-flex items-center gap-1.5 rounded-xl bg-secondary px-3 py-1.5 text-xs font-semibold text-muted-foreground">
-        <Loader2 className="h-3.5 w-3.5 animate-spin" /> Sending email…
+      <span className="text-[11px] text-muted-foreground">
+        Not on a role yet — add them to one to advance, hire or reject.
       </span>
     );
   }
-
-  if (state?.status === "done") {
-    const meta = DECISIONS[state.decision];
-    const Icon = meta.icon;
-    return (
-      <span
-        className={cn(
-          "animate-pop inline-flex items-center gap-1.5 rounded-xl px-3 py-1.5 text-xs font-semibold",
-          meta.doneTone,
-        )}
-      >
-        <Icon className="h-3.5 w-3.5" />
-        {meta.done} — email {state.source === "mock" ? "logged (mock)" : "sent"}
-      </span>
-    );
-  }
-
-  if (pending) {
-    return (
-      <div className="animate-fade flex flex-wrap items-center gap-2 text-xs">
-        <span className="text-muted-foreground">
-          {DECISIONS[pending].confirm} email to {blindMode ? displayName : candidate.email}?
-        </span>
-        <Button
-          size="sm"
-          className="rounded-xl"
-          onClick={() => {
-            onDecide(pending);
-            setPending(null);
-          }}
-        >
-          Confirm
-        </Button>
-        <Button size="sm" variant="ghost" className="rounded-xl" onClick={() => setPending(null)}>
-          Cancel
-        </Button>
-      </div>
-    );
-  }
-
   return (
-    <div className="flex flex-wrap items-center gap-2">
-      {(Object.keys(DECISIONS) as CandidateDecision[]).map((key) => {
-        const meta = DECISIONS[key];
-        const Icon = meta.icon;
-        return (
-          <Button
-            key={key}
-            size="sm"
-            variant="outline"
-            className={cn("rounded-xl", meta.tone)}
-            onClick={() => setPending(key)}
-          >
-            <Icon className="mr-1.5 h-3.5 w-3.5" /> {meta.label}
-          </Button>
-        );
-      })}
-    </div>
+    <Link to="/jobs/$jobId" params={{ jobId: candidate.jobId }}>
+      <Button size="sm" className="press rounded-xl text-xs">
+        Open in the hiring steps
+        <ArrowRight className="ml-1.5 h-3.5 w-3.5" />
+      </Button>
+    </Link>
   );
 }
 
@@ -245,6 +132,8 @@ function Candidates() {
     weights,
     setWeights,
     resetWeights,
+    saveWeights,
+    savedWeights,
     blindMode,
     setBlindMode,
     compareIds,
@@ -282,53 +171,18 @@ function Candidates() {
     row?.scrollIntoView({ behavior: "smooth", block: "center" });
   }, [focus]);
   const [panelOpen, setPanelOpen] = useState(true);
-  const [decisions, setDecisions] = useState<Record<string, DecisionState>>({});
 
   // Candidates and their per-category scores both come from the backend
   // scoring pipeline; only the weighting of those categories is re-applied
   // locally so the sliders stay responsive.
   const { candidates: pool, loading: poolLoading, error: poolError } = useCandidatePool();
   const ranked = useMemo(() => rankCandidates(pool, weights), [pool, weights]);
+  const weightsDirty = useMemo(
+    () => WEIGHT_KEYS.some((key) => weights[key] !== savedWeights[key]),
+    [weights, savedWeights],
+  );
   const skillOptions = useMemo(() => allSkills(pool), [pool]);
 
-
-  async function handleDecision(candidate: Candidate, decision: CandidateDecision) {
-    setDecisions((d) => ({ ...d, [candidate.id]: { status: "sending" } }));
-    try {
-      const result = await submitCandidateDecision({
-        candidate_id: candidate.id,
-        name: candidate.name,
-        email: candidate.email,
-        decision,
-        job_title: candidate.title,
-      });
-      setDecisions((d) => ({
-        ...d,
-        [candidate.id]: {
-          status: "done",
-          decision: result.decision,
-          source: result.email_source,
-          slots: result.calendar_slots,
-          error: result.email_error,
-        },
-      }));
-      if (result.email_sent) {
-        const label = blindMode ? `Candidate #${candidate.rank}` : candidate.name;
-        toast.success(
-          `${DECISIONS[decision].done} — email ${result.email_source === "mock" ? "logged (mock — configure SMTP to send for real)" : `sent to ${label}`}`,
-        );
-      } else {
-        toast.error(`Email failed to send: ${result.email_error ?? "unknown error"}`);
-      }
-    } catch (error) {
-      setDecisions((d) => {
-        const next = { ...d };
-        delete next[candidate.id];
-        return next;
-      });
-      toast.error(error instanceof Error ? error.message : "Could not submit decision");
-    }
-  }
 
   const filtered = useMemo(
     () =>
@@ -359,7 +213,9 @@ function Candidates() {
               ? "Scoring candidates against the active job…"
               : poolError
                 ? `Could not load candidates: ${poolError}`
-                : `${filtered.length} candidates match your filters`}
+                : !activeJobId
+                  ? "No role selected"
+                  : `${filtered.length} candidates match your filters`}
           </p>
         </div>
         <div className="flex shrink-0 items-center gap-2">
@@ -549,13 +405,7 @@ function Candidates() {
                         candidateName={blindMode ? displayName : c.name}
                         jobId={activeJobId}
                       />
-                      <DecisionControls
-                        candidate={c}
-                        state={decisions[c.id]}
-                        onDecide={(decision) => void handleDecision(c, decision)}
-                        blindMode={blindMode}
-                        displayName={displayName}
-                      />
+                      <OpenInRole candidate={c} />
                     </div>
                   </div>
 
@@ -605,36 +455,6 @@ function Candidates() {
                           : "Add to comparison"}
                       </Button>
 
-                      {(() => {
-                        const state = decisions[c.id];
-                        if (
-                          state?.status !== "done" ||
-                          state.decision !== "approved" ||
-                          state.slots.length === 0
-                        ) {
-                          return null;
-                        }
-                        return (
-                          <div>
-                            <p className="text-xs font-bold uppercase tracking-wide text-muted-foreground">
-                              Interview slots included in the email
-                            </p>
-                            <div className="mt-2 flex flex-wrap gap-2">
-                              {state.slots.map((s: InterviewSlot) => (
-                                <a
-                                  key={s.outlook_url}
-                                  href={s.outlook_url}
-                                  target="_blank"
-                                  rel="noreferrer"
-                                  className="inline-flex items-center gap-1.5 rounded-full border bg-background px-3 py-1 text-xs font-medium text-muted-foreground hover:border-primary/40 hover:text-foreground"
-                                >
-                                  <Calendar className="h-3 w-3" /> {s.label}
-                                </a>
-                              ))}
-                            </div>
-                          </div>
-                        );
-                      })()}
 
 
                       <CandidateInterviewSection
@@ -661,6 +481,19 @@ function Candidates() {
                   </span>
                 ) : poolError ? (
                   `Could not load ranked candidates — ${poolError}`
+                ) : !activeJobId ? (
+                  // Candidates are ranked *against a role*, so with no role
+                  // chosen there is nothing to rank and the page previously
+                  // just said "0 candidates match your filters" — which
+                  // reads as an empty pool rather than a missing selection.
+                  <span className="inline-flex flex-col items-center gap-2">
+                    <span>Pick a role first — candidates are scored against one.</span>
+                    <Link to="/">
+                      <Button size="sm" className="press rounded-xl text-xs">
+                        Choose a role
+                      </Button>
+                    </Link>
+                  </span>
                 ) : (
                   "No candidates match these filters."
                 )}
@@ -698,8 +531,12 @@ function Candidates() {
         {panelOpen && (
           <aside className="card-surface h-fit space-y-5 p-5 lg:sticky lg:top-24">
             <div>
-              <h2 className="text-base font-bold">Score weights</h2>
-              <p className="text-xs text-muted-foreground">Re-ranks the list instantly</p>
+              <h2 className="font-display text-base font-bold">Score weights</h2>
+              <p className="text-xs text-muted-foreground">
+                {weightsDirty
+                  ? "Preview only — save to use these everywhere."
+                  : "In use across every ATS score on the site."}
+              </p>
             </div>
 
             {WEIGHT_KEYS.map((key) => (
@@ -717,13 +554,31 @@ function Candidates() {
               </div>
             ))}
 
+            {/* Sliders re-rank this list live, but until they are saved the
+                rest of the site is still scoring on the old numbers. Saying
+                so, and making saving an explicit act, is what stopped the
+                two disagreeing. */}
+            <Button
+              size="sm"
+              disabled={!weightsDirty}
+              className="press w-full rounded-xl"
+              onClick={() => {
+                saveWeights(weights);
+                toast.success("Weights saved", {
+                  description: "Every ATS score on the site now uses these.",
+                });
+              }}
+            >
+              {weightsDirty ? "Save weights" : "Weights saved"}
+            </Button>
+
             <Button
               variant="outline"
               size="sm"
               className="w-full rounded-xl"
-              onClick={() => setWeights(DEFAULT_WEIGHTS)}
+              onClick={() => resetWeights()}
             >
-              Reset weights
+              Reset to defaults
             </Button>
 
             <div className="flex items-center justify-between gap-3 rounded-xl bg-secondary/60 p-3">

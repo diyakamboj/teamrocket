@@ -3,7 +3,6 @@ import { useState } from "react";
 import { toast } from "sonner";
 
 import {
-  markCandidateInternal,
   moveCandidateToRole,
   placeOnBench,
   type JobPipelineSummary,
@@ -49,6 +48,7 @@ export function CandidateRoleActions({
 }) {
   const [busy, setBusy] = useState<"role" | "bench" | "remove" | null>(null);
   const onBench = employmentStatus === "bench";
+  const internal = source === "internal";
 
   async function changeRole(nextJobId: string) {
     setBusy("role");
@@ -89,18 +89,6 @@ export function CandidateRoleActions({
   async function bench() {
     setBusy("bench");
     try {
-      // The bench is internal employees only. Rather than reclassifying
-      // silently — which is what the API used to do — say what is happening
-      // and let the recruiter decide.
-      if (source !== "internal") {
-        const confirmed = window.confirm(
-          `${candidateName} is currently an external candidate.\n\n` +
-            "The bench is for internal employees between assignments. " +
-            "Mark them as an internal employee and place them on the bench?",
-        );
-        if (!confirmed) return;
-        await markCandidateInternal(candidateId);
-      }
       await placeOnBench(candidateId);
       toast.success(`${candidateName} is on the bench`);
       onChanged?.();
@@ -162,6 +150,11 @@ export function CandidateRoleActions({
         </button>
       )}
 
+      {/* The bench is internal employees between assignments. Offering it on
+          an external applicant only ever led to a prompt asking whether to
+          reclassify them as staff, which is not a decision to surface as a
+          side effect of a bench button. */}
+      {internal && (
       <button
         type="button"
         onClick={() => void bench()}
@@ -182,6 +175,7 @@ export function CandidateRoleActions({
         )}
         {onBench ? "On bench" : "Bench"}
       </button>
+      )}
     </div>
   );
 }

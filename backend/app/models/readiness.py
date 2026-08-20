@@ -4,7 +4,18 @@ from typing import Literal, Optional
 from pydantic import BaseModel, Field
 
 AssessmentType = Literal["technical_depth", "aptitude", "communication", "domain_knowledge"]
-AssessmentStatus = Literal["recommended", "sent", "in_progress", "completed", "reviewed", "cancelled"]
+AssessmentStatus = Literal[
+    "recommended",
+    "sent",
+    "in_progress",
+    "completed",
+    "reviewed",
+    "cancelled",
+    # An explicit recruiter decision not to assess this person, recorded so
+    # the board can distinguish "we chose to skip this" from "nobody has
+    # done anything yet". Without it a blank looks identical to an oversight.
+    "skipped",
+]
 
 
 class AssessmentRecommendation(BaseModel):
@@ -29,6 +40,9 @@ class CandidateAssessmentRecord(BaseModel):
     title: str
     status: AssessmentStatus = "recommended"
     recommendation_reason: str
+    #: Why the assessment was skipped, when it was.
+    skip_reason: Optional[str] = None
+    skipped_by: Optional[str] = None
     target_competency: str
     notification_sent: bool = False
     #: "live" when SMTP delivered it, "mock" when it was logged because SMTP

@@ -18,23 +18,32 @@ import { getSession } from "./auth";
 
 export type CompanyDocCategory = "vision" | "values" | "culture" | "guidelines";
 
+/**
+ * Browser-local *preferences* only.
+ *
+ * Identity (name, email, department) deliberately does not live here any
+ * more. It was merged over the session, so a value saved once won
+ * permanently — including after signing in as somebody else, which is how
+ * one account ended up displaying another recruiter's name and address on
+ * outgoing candidate emails. Identity is account data and is read from, and
+ * written to, the account itself.
+ */
 export type RecruiterSettings = {
-  recruiterName: string;
-  recruiterEmail: string;
-  department: string;
   emailSignature: string;
   defaultWeights: Weights;
 };
 
-const STORAGE_KEY = "resumeiq_settings";
+function storageKey(): string {
+  // Scoped to the account. A shared key meant one recruiter's saved
+  // preferences showed up for the next person to sign in on that machine.
+  const session = getSession();
+  return session?.email ? `resumeiq_settings:${session.email}` : "resumeiq_settings";
+}
 
-/** Identity comes from the signed-in session, so the form is never blank. */
+/** Signature is seeded from the session so the field is never blank. */
 function defaults(): RecruiterSettings {
   const session = getSession();
   return {
-    recruiterName: session?.name ?? "",
-    recruiterEmail: session?.email ?? "",
-    department: session?.department ?? "",
     emailSignature: session
       ? `${session.name}\n${session.role}\n${session.department}`
       : "",
@@ -46,7 +55,7 @@ export function getRecruiterSettings(): RecruiterSettings {
   const base = defaults();
   try {
     if (typeof window !== "undefined" && window.localStorage) {
-      const raw = localStorage.getItem(STORAGE_KEY);
+      const raw = localStorage.getItem(storageKey());
       if (raw) {
         const parsed = JSON.parse(raw) as Partial<RecruiterSettings>;
         // Merge over the session-derived defaults, so a value the recruiter
@@ -66,6 +75,6 @@ export function getRecruiterSettings(): RecruiterSettings {
 
 export function saveRecruiterSettings(settings: RecruiterSettings): void {
   if (typeof window !== "undefined" && window.localStorage) {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(settings));
+    localStorage.setItem(storageKey(), JSON.stringify(settings));
   }
 }

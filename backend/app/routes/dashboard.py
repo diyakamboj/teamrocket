@@ -1,7 +1,9 @@
 import uuid
+from datetime import datetime
 from typing import Optional
 
 from fastapi import APIRouter, Query
+from pydantic import BaseModel
 
 from app.dependencies import AppStore, RecruiterEmail
 from app.models.schemas import (
@@ -15,7 +17,7 @@ from app.models.schemas import (
     JobPipelineSummary,
     PipelineCandidate,
 )
-from app.services import job_pipeline_service, placement_service
+from app.services import hiring_progress, job_pipeline_service, placement_service
 from app.services.hiring_insights import hiring_insights
 from app.services.jd_optimizer import jd_optimizer
 from app.utils.error_handlers import NotFoundError
@@ -63,6 +65,61 @@ async def job_distribution(job_id: uuid.UUID, store: AppStore):
 def list_job_pipelines(store: AppStore, recruiter_email: RecruiterEmail):
     """Top-level recruiter dashboard: this recruiter's jobs with pipeline counts."""
     return job_pipeline_service.get_job_pipeline_summaries(store, recruiter_email)
+
+
+class HiredCandidate(BaseModel):
+    """Someone who filled this role. No longer an open candidate."""
+
+    candidate_id: str
+    name: str
+    title: Optional[str] = None
+    email: Optional[str] = None
+    hired_at: Optional[datetime] = None
+    source: Optional[str] = None
+    current_assignment: Optional[str] = None
+
+
+@router.get("/jobs/{job_id}/progress")
+def get_job_progress(
+    job_id: uuid.UUID,
+    store: AppStore,
+    recruiter_email: RecruiterEmail,
+    source: Optional[str] = Query(None),
+):
+    """Per-candidate checklist and the single next action for each.
+
+    Computed server-side so the board and any other view cannot disagree
+    about what the recruiter should do next.
+    """
+    job = store.jobs.get(job_id)
+    if not job or (job.created_by and job.created_by != recruiter_email):
+        raise NotFoundError("Job posting not found", {"job_id": str(job_id)})
+
+    rows = job_pipeline_service.get_job_pipeline_candidates(store, job, source)
+    return hiring_progress.candidate_progress_for_job(store, job, rows)
+
+
+@router.get("/jobs/{job_id}/hired", response_model=list[HiredCandidate])
+def get_job_hires(job_id: uuid.UUID, store: AppStore, recruiter_email: RecruiterEmail):
+    """Who was hired into this role."""
+    job = store.jobs.get(job_id)
+    if not job or (job.created_by and job.created_by != recruiter_email):
+        raise NotFoundError("Job posting not found", {"job_id": str(job_id)})
+
+    hires = job_pipeline_service.hired_candidates_for_job(store, job)
+    hires.sort(key=lambda c: c.hired_at or c.created_at, reverse=True)
+    return [
+        HiredCandidate(
+            candidate_id=str(c.id),
+            name=c.name,
+            title=c.title,
+            email=c.email,
+            hired_at=c.hired_at,
+            source=c.source,
+            current_assignment=c.current_assignment,
+        )
+        for c in hires
+    ]
 
 
 @router.get("/jobs/{job_id}/pipeline", response_model=list[PipelineCandidate])

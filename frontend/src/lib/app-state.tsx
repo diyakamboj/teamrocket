@@ -19,6 +19,9 @@ import {
 } from "./api";
 import { DEFAULT_WEIGHTS, type Weights } from "./candidates";
 
+//: Persisted scoring weights.
+const WEIGHTS_KEY = "resumeiq_weights";
+
 export type UploadStage =
   "queued" | "uploading" | "ocr" | "parsing" | "complete" | "failed" | "duplicate" | "skipped";
 
@@ -74,6 +77,10 @@ type Ctx = {
   overallProgress: number;
   weights: Weights;
   setWeights: (w: Weights) => void;
+  /** Persist the current weights so every ATS score on the site uses them. */
+  saveWeights: (w: Weights) => void;
+  /** What was last persisted — lets the UI show unsaved changes. */
+  savedWeights: Weights;
   resetWeights: () => void;
   blindMode: boolean;
   setBlindMode: (v: boolean) => void;
@@ -97,7 +104,28 @@ const AppCtx = createContext<Ctx | null>(null);
 
 export function AppStateProvider({ children }: { children: ReactNode }) {
   const [files, setFiles] = useState<UploadFile[]>([]);
-  const [weights, setWeights] = useState<Weights>(DEFAULT_WEIGHTS);
+  // Weights decide every ATS score on the site, so they outlive the tab.
+  // Held in memory only, they reset on reload and silently disagreed with
+  // the scores the backend had already computed.
+  const [weights, setWeights] = useState<Weights>(() => {
+    try {
+      const stored = localStorage.getItem(WEIGHTS_KEY);
+      return stored ? { ...DEFAULT_WEIGHTS, ...(JSON.parse(stored) as Weights) } : DEFAULT_WEIGHTS;
+    } catch {
+      return DEFAULT_WEIGHTS;
+    }
+  });
+  const [savedWeights, setSavedWeights] = useState<Weights>(weights);
+
+  const saveWeights = useCallback((next: Weights) => {
+    try {
+      localStorage.setItem(WEIGHTS_KEY, JSON.stringify(next));
+    } catch {
+      // A full or blocked storage quota must not stop the weights applying
+      // to this session.
+    }
+    setSavedWeights(next);
+  }, []);
   const [blindMode, setBlindMode] = useState(true);
 
   const [compareIds, setCompareIds] = useState<string[]>([]);
@@ -409,7 +437,12 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
     overallProgress,
     weights,
     setWeights,
-    resetWeights: () => setWeights(DEFAULT_WEIGHTS),
+    saveWeights,
+    savedWeights,
+    resetWeights: () => {
+      setWeights(DEFAULT_WEIGHTS);
+      saveWeights(DEFAULT_WEIGHTS);
+    },
     blindMode,
     setBlindMode,
     compareIds,

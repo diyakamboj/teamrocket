@@ -50,10 +50,7 @@ def test_an_identical_file_is_recognised_whatever_it_is_called(store, pooled):
     )
 
     # Same bytes, different filename — still the same résumé.
-    assert (
-        candidate_dedupe.find_duplicate_upload(store, recruiter_email=OWNER, digest=digest)
-        == str(pooled.id)
-    )
+    assert candidate_dedupe.digests_for_recruiter(store, OWNER).get(digest) == str(pooled.id)
 
 
 def test_another_recruiters_upload_does_not_block_yours(store, pooled):
@@ -68,9 +65,7 @@ def test_another_recruiters_upload_does_not_block_yours(store, pooled):
         )
     )
 
-    assert (
-        candidate_dedupe.find_duplicate_upload(store, recruiter_email=OWNER, digest=digest) is None
-    )
+    assert digest not in candidate_dedupe.digests_for_recruiter(store, OWNER)
 
 
 def test_an_upload_that_never_produced_a_candidate_does_not_block_a_retry(store):
@@ -81,9 +76,7 @@ def test_an_upload_that_never_produced_a_candidate_does_not_block_a_retry(store)
         )
     )
 
-    assert (
-        candidate_dedupe.find_duplicate_upload(store, recruiter_email=OWNER, digest=digest) is None
-    )
+    assert digest not in candidate_dedupe.digests_for_recruiter(store, OWNER)
 
 
 def test_email_identifies_the_same_person(store, pooled):
@@ -149,3 +142,25 @@ def test_the_refusal_names_the_right_list(store, pooled):
 
     pooled.source = "internal"
     assert "employee list" in candidate_dedupe.already_in_pool_message(pooled)
+
+
+def test_prior_digests_come_back_as_one_map(store, pooled):
+    """The upload route builds this once and then does dict lookups. It used
+    to re-scan every upload record per file, on the event loop, which made a
+    multi-file upload block every other request to the server."""
+    for text in (b"one", b"two", b"three"):
+        store.resume_uploads.save(
+            ResumeUpload(
+                recruiter_email=OWNER,
+                filename=f"{text.decode()}.pdf",
+                content_sha256=candidate_dedupe.content_digest(text),
+                candidate_id=pooled.id,
+                status="complete",
+            )
+        )
+
+    digests = candidate_dedupe.digests_for_recruiter(store, OWNER)
+
+    assert len(digests) == 3
+    for text in (b"one", b"two", b"three"):
+        assert candidate_dedupe.content_digest(text) in digests

@@ -50,16 +50,23 @@ def _is_placeholder(email: Optional[str]) -> bool:
     return bool(email) and str(email).startswith("candidate.") and "@example.com" in str(email)
 
 
-def find_duplicate_upload(
-    store: Store, *, recruiter_email: Optional[str], digest: str
-) -> Optional[str]:
-    """The candidate id an identical file already produced, if any."""
+def digests_for_recruiter(store: Store, recruiter_email: Optional[str]) -> dict[str, str]:
+    """Map of content digest -> candidate id for everything this recruiter has
+    already uploaded successfully.
+
+    Built once per request. This reads every upload record, which against real
+    blob storage is a slow, network-bound scan — doing it per file inside the
+    upload loop meant one full listing per résumé, and doing it on the event
+    loop froze every other request while it ran.
+    """
+    found: dict[str, str] = {}
     for row in store.resume_uploads.query(
         lambda r: r.recruiter_email == recruiter_email and r.candidate_id is not None
     ):
-        if getattr(row, "content_sha256", None) == digest:
-            return str(row.candidate_id)
-    return None
+        digest = getattr(row, "content_sha256", None)
+        if digest:
+            found.setdefault(digest, str(row.candidate_id))
+    return found
 
 
 def find_existing_candidate(

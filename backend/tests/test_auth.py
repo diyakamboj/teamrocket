@@ -174,3 +174,47 @@ def test_verify_password_accepts_only_the_original():
     digest, salt = auth_service.hash_password("a good password")
     assert auth_service.verify_password("a good password", digest, salt)
     assert not auth_service.verify_password("a good passworD", digest, salt)
+
+
+def _session(client, email, **overrides):
+    """A registered account and its bearer header."""
+    token = register(client, email=email, **overrides).json()["token"]
+    return {"Authorization": f"Bearer {token}"}
+
+
+def test_a_recruiter_can_update_their_own_name_and_department(client):
+    """Identity is account data.
+
+    It used to live in browser localStorage merged over the session, so a
+    value saved once won permanently -- including after signing in as a
+    different person, which is how one account displayed another's name.
+    """
+    auth = _session(client, "pat@example.com", name="Pat Original")
+
+    response = client.patch(
+        "/api/auth/me",
+        json={"name": "Pat Renamed", "department": "Engineering Hiring"},
+        headers=auth,
+    )
+    assert response.status_code == 200
+    assert response.json()["name"] == "Pat Renamed"
+    assert response.json()["department"] == "Engineering Hiring"
+
+    # And it survives a re-read, rather than living only in the response.
+    assert client.get("/api/auth/me", headers=auth).json()["name"] == "Pat Renamed"
+
+
+def test_the_login_email_cannot_be_changed_from_the_profile(client):
+    """Every candidate, job and document is scoped by it."""
+    auth = _session(client, "quinn@example.com")
+    client.patch("/api/auth/me", json={"email": "someone.else@example.com"}, headers=auth)
+    assert client.get("/api/auth/me", headers=auth).json()["email"] == "quinn@example.com"
+
+
+def test_a_blank_name_is_rejected(client):
+    auth = _session(client, "rae@example.com")
+    assert client.patch("/api/auth/me", json={"name": "   "}, headers=auth).status_code == 422
+
+
+def test_updating_a_profile_needs_a_valid_session(client):
+    assert client.patch("/api/auth/me", json={"name": "Nobody"}).status_code == 401

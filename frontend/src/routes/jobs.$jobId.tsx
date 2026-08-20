@@ -28,10 +28,10 @@ import { Input } from "@/components/ui/input";
 import { Slider } from "@/components/ui/slider";
 import { CandidateDetailModal } from "@/components/candidate-detail-modal";
 import { CandidateRoleActions } from "@/components/candidate-role-actions";
+import { HiringStepsBoard } from "@/components/hiring-steps-board";
 import { InternalIntakeDialog, type InternalIntake } from "@/components/internal-intake-dialog";
 import { CurrentRoleButton, SourceBadge } from "@/components/source-badge";
 import { atsTierLabel, atsToneClass, atsVerdictLabel } from "@/lib/ats-score";
-import { CandidateStatusTab } from "@/components/pipeline-progress";
 import { cn } from "@/lib/utils";
 import {
   Briefcase,
@@ -141,7 +141,11 @@ function JobWorkspacePage() {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { setActiveJobId, addFiles, refreshPool, blindMode, setBlindMode } = useAppState();
 
-  const [activeTab, setActiveTab] = useState<"overview" | "candidates" | "status" | "jd" | "upload" | "pipeline" | "insights">("candidates");
+  // "steps" is the default: it is the view that tells you what to do next,
+  // which is what someone running their first hiring loop needs to land on.
+  const [activeTab, setActiveTab] = useState<
+    "steps" | "candidates" | "jd" | "upload" | "pipeline" | "insights"
+  >("steps");
   const [searchQuery, setSearchQuery] = useState("");
   const [job, setJob] = useState<JobResponse | null>(null);
   // Full pipeline rows, keyed by candidate — the board needs the round a
@@ -263,6 +267,7 @@ function JobWorkspacePage() {
 
   /** Every role this recruiter owns, so a candidate can be moved to another
    *  one straight from this table. */
+  const [editingRounds, setEditingRounds] = useState(false);
   const [allJobs, setAllJobs] = useState<JobPipelineSummary[]>([]);
   useEffect(() => {
     let cancelled = false;
@@ -407,12 +412,14 @@ function JobWorkspacePage() {
       <div className="flex items-center justify-between border-b border-border pb-3">
         <div className="flex items-center gap-2">
           {[
+            { id: "steps", label: "Hiring steps" },
             { id: "candidates", label: `Candidates (${candidates.length})` },
-            { id: "status", label: "Candidate Status" },
             { id: "jd", label: "Original JD & Requirements" },
-            { id: "overview", label: "Pipeline Overview" },
+            // Named for what they do, not what they are. "Pipeline
+            // Overview" and "Stage Kanban Board" gave no clue which one
+            // you move people on.
+            { id: "pipeline", label: "Move people (board)" },
             { id: "upload", label: "Bulk Resume Upload" },
-            { id: "pipeline", label: "Stage Kanban Board" },
             { id: "insights", label: "Job Description Insights" },
           ].map((tab) => (
             <button
@@ -435,8 +442,6 @@ function JobWorkspacePage() {
               Candidates tab, which meant switching to a board left names on
               screen with no way to turn masking back on. */}
           {(activeTab === "candidates" ||
-            activeTab === "status" ||
-            activeTab === "overview" ||
             activeTab === "pipeline") && (
             <Button
               variant="outline"
@@ -500,22 +505,54 @@ function JobWorkspacePage() {
       )}
 
       {/* TAB: PIPELINE OVERVIEW — the job's interview loop */}
-      {activeTab === "overview" && (
-        <div className="animate-rise">
-          <PipelineOverviewTab
-            blindMode={blindMode}
-            job={job}
-            placements={placements}
-            candidates={boardCandidates}
-            onJobUpdated={setJob}
-            onMoved={refreshPipeline}
+      {activeTab === "steps" && (
+        <div className="animate-rise flow-stack">
+          <div className="surface-lift edge-glow p-5">
+            <h2 className="font-display text-base font-bold">How this works</h2>
+            <p className="mt-1 max-w-2xl text-sm text-muted-foreground">
+              Each candidate below has the same checklist. Work down it. The grey box on each
+              card names the one thing to do next — you do not need to know the process, and you
+              do not need to be technical to send a skills assessment or skip one.
+            </p>
+          </div>
+
+          <HiringStepsBoard
+            jobId={jobId}
+            jobTitle={job?.title ?? null}
+            onChanged={refreshPipeline}
+            onGoto={(tab) => setActiveTab(tab)}
           />
         </div>
       )}
 
-      {/* TAB: STAGE KANBAN BOARD */}
       {activeTab === "pipeline" && (
-        <div className="animate-rise">
+        <div className="animate-rise flow-stack">
+          <div className="flex justify-end">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setEditingRounds((open) => !open)}
+              className="press gap-1.5 rounded-xl text-xs"
+            >
+              <Layers className="h-3.5 w-3.5" />
+              {editingRounds ? "Done editing" : "Edit rounds"}
+            </Button>
+          </div>
+
+          {/* The loop editor used to live on the removed overview tab. It
+              belongs with the board it defines the columns of. */}
+          {editingRounds && (
+            <PipelineOverviewTab
+              roundsOnly
+              blindMode={blindMode}
+              job={job}
+              placements={placements}
+              candidates={boardCandidates}
+              onJobUpdated={setJob}
+              onMoved={refreshPipeline}
+            />
+          )}
+
           <StageBoardTab
             blindMode={blindMode}
             job={job}
@@ -748,19 +785,6 @@ function JobWorkspacePage() {
         </div>
       )}
 
-      {activeTab === "status" && (
-        <div className="animate-rise">
-          <CandidateStatusTab
-            rounds={job?.rounds}
-            candidates={candidates}
-            placements={placements}
-            blindMode={blindMode}
-            onOpen={setSelectedCandidateId}
-          />
-        </div>
-      )}
-
-      {/* TAB 3: BULK RESUME UPLOAD */}
       {activeTab === "upload" && (
         <Card className="bg-card border-border p-8 space-y-6 rounded-xl shadow-xs">
           <input

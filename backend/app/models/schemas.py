@@ -41,6 +41,16 @@ class CandidateBase(BaseModel):
     current_role_duties: Optional[str] = None
     bench_since: Optional[datetime] = None
 
+    #: The role this résumé was uploaded against. Never returned before, so
+    #: the interface could not tell which board anyone belonged to and every
+    #: candidate read as "not on a role yet".
+    job_id: Optional[UUID] = None
+    #: "active" | "hired" | "rejected" -- what stops a hired person still
+    #: being offered as an open candidate.
+    hiring_status: str = "active"
+    hired_for_job_id: Optional[UUID] = None
+    hired_at: Optional[datetime] = None
+
 
 class CandidateCreate(CandidateBase):
     resume_text: Optional[str] = None

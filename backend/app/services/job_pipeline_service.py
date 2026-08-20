@@ -33,6 +33,7 @@ __all__ = [
     "STAGE_ORDER",
     "candidate_ids_for_job",
     "rankable_candidate_ids_for_job",
+    "hired_candidates_for_job",
     "get_job_pipeline_summaries",
     "get_job_pipeline_candidates",
     "job_pipeline_progression",
@@ -106,6 +107,23 @@ def candidate_ids_for_job(store: Store, job: JobPosting) -> set[str]:
     return belongs - excluded
 
 
+def hired_candidates_for_job(store: Store, job: JobPosting) -> list:
+    """Everyone hired into this role.
+
+    Kept deliberately apart from the pipeline: a hired person is no longer a
+    candidate to compare or action, but the role still has to show who
+    filled it. Matches on the recorded hire when there is one, falling back
+    to the role they were uploaded against.
+    """
+    return store.candidates.query(
+        lambda c: c.hiring_status == "hired"
+        and (
+            (c.hired_for_job_id is not None and str(c.hired_for_job_id) == str(job.id))
+            or (c.hired_for_job_id is None and str(c.job_id or "") == str(job.id))
+        )
+    )
+
+
 def rankable_candidate_ids_for_job(store: Store, job: JobPosting) -> set[str]:
     """Who may be *scored* against this job.
 
@@ -126,7 +144,11 @@ def rankable_candidate_ids_for_job(store: Store, job: JobPosting) -> set[str]:
         if c.job_id is None
         and not any(str(x) == str(job.id) for x in (c.excluded_job_ids or []))
     }
-    return candidate_ids_for_job(store, job) | unassigned
+    # Someone already hired or rejected is not an open candidate. Ranking
+    # them again is what left a "Hire" button beside a person who had
+    # already been hired.
+    open_ids = {str(c.id) for c in mine if c.hiring_status == "active"}
+    return (candidate_ids_for_job(store, job) | unassigned) & open_ids
 
 
 def _placements_by_candidate(store: Store, job_id: UUID) -> dict[str, CandidatePlacement]:

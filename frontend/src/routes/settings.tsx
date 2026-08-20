@@ -2,6 +2,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Bot, Building2, Check, CheckCircle2, Database, FileText, Info, Loader2, Lock, Moon, Palette, ShieldCheck, Sliders, Sparkles, Sun, Trash2, Upload, User } from "lucide-react";
 import { toast } from "sonner";
+import { verifySession } from "@/lib/auth";
 import { useTheme } from "@/lib/theme";
 import {
   getRecruiterSettings,
@@ -14,6 +15,7 @@ import {
   listCompanyDocuments,
   uploadCompanyDocument,
   type CompanyDocument,
+  updateMyProfile,
 } from "@/lib/api";
 import { VectorIndexCard } from "@/components/vector-index-card";
 import { useAppState } from "@/lib/app-state";
@@ -185,6 +187,45 @@ function SettingsPage() {
   const { theme, toggle } = useTheme();
   const { setWeights } = useAppState();
   const [settings, setSettings] = useState<RecruiterSettings>(getRecruiterSettings);
+
+  // Identity is read from the account, not from browser storage, so it is
+  // right for whoever is actually signed in.
+  const [identity, setIdentity] = useState({ name: "", email: "", department: "", role: "" });
+  const [identitySaving, setIdentitySaving] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    verifySession()
+      .then((account) => {
+        if (cancelled || !account) return;
+        setIdentity({
+          name: account.name ?? "",
+          email: account.email ?? "",
+          department: account.department ?? "",
+          role: account.role ?? "",
+        });
+      })
+      .catch(() => undefined);
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  async function saveIdentity() {
+    setIdentitySaving(true);
+    try {
+      const updated = await updateMyProfile({
+        name: identity.name,
+        department: identity.department,
+      });
+      setIdentity((prev) => ({ ...prev, name: updated.name, department: updated.department }));
+      toast.success("Profile updated");
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Could not update your profile");
+    } finally {
+      setIdentitySaving(false);
+    }
+  }
   const [saved, setSaved] = useState(false);
   const [docs, setDocs] = useState<CompanyDocument[]>([]);
   const [docsError, setDocsError] = useState<string | null>(null);
@@ -381,29 +422,32 @@ function SettingsPage() {
             id="profile"
             eyebrow="Profile"
             title="Recruiter identity"
-            description="Prefilled from your signed-in account. Used on interview invitations and decision emails."
+            description="Read from the account you signed in with. Used on interview invitations and decision emails."
             icon={User}
           >
             <div className="grid gap-4 sm:grid-cols-2">
               <Field label="Full name">
                 <Input
-                  value={settings.recruiterName}
-                  onChange={(e) => setSettings({ ...settings, recruiterName: e.target.value })}
+                  value={identity.name}
+                  onChange={(e) => setIdentity({ ...identity, name: e.target.value })}
                   className="rounded-lg"
                 />
               </Field>
-              <Field label="Work email">
+              <Field
+                label="Work email"
+                hint="This is your sign-in, and everything you own is filed under it."
+              >
                 <Input
                   type="email"
-                  value={settings.recruiterEmail}
-                  onChange={(e) => setSettings({ ...settings, recruiterEmail: e.target.value })}
-                  className="rounded-lg"
+                  value={identity.email}
+                  readOnly
+                  className="rounded-lg bg-secondary/60 text-muted-foreground"
                 />
               </Field>
               <Field label="Department">
                 <Input
-                  value={settings.department}
-                  onChange={(e) => setSettings({ ...settings, department: e.target.value })}
+                  value={identity.department}
+                  onChange={(e) => setIdentity({ ...identity, department: e.target.value })}
                   className="rounded-lg"
                 />
               </Field>
@@ -415,6 +459,21 @@ function SettingsPage() {
                   className="rounded-lg font-mono text-xs"
                 />
               </Field>
+            </div>
+
+            <div className="mt-4 flex items-center gap-3">
+              <Button
+                size="sm"
+                disabled={identitySaving}
+                onClick={() => void saveIdentity()}
+                className="press rounded-xl text-xs"
+              >
+                {identitySaving ? "Saving…" : "Save profile"}
+              </Button>
+              <span className="text-[11px] text-muted-foreground">
+                Signed in as {identity.email || "—"}
+                {identity.role ? ` · ${identity.role}` : ""}
+              </span>
             </div>
           </SectionCard>
 

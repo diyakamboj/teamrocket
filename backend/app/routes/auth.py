@@ -143,6 +143,48 @@ def me(store: AppStore, authorization: Optional[str] = Header(None)):
     return PublicUser.of(user)
 
 
+class ProfileUpdate(BaseModel):
+    """What a recruiter may change about their own account.
+
+    Not the email: it is the login and the key every candidate, job and
+    document is scoped by, so changing it here would orphan their data.
+    Not the role either — that is an administrative decision, not a
+    self-service one.
+    """
+
+    name: Optional[str] = None
+    department: Optional[str] = None
+
+
+@router.patch("/me", response_model=PublicUser)
+def update_me(
+    payload: ProfileUpdate,
+    store: AppStore,
+    authorization: Optional[str] = Header(None),
+):
+    """Update the signed-in account.
+
+    Recruiter identity used to live in browser localStorage, merged *over*
+    the session, so a value saved once won permanently — including after
+    signing in as somebody else, which is how one account ended up showing
+    another's name. Identity is account data and belongs on the account.
+    """
+    user = auth_service.find_by_token(store, _bearer(authorization))
+    if not user:
+        raise UnauthorizedError()
+
+    if payload.name is not None:
+        name = payload.name.strip()
+        if not name:
+            raise ValidationAppError("Name cannot be empty")
+        user.name = name
+    if payload.department is not None:
+        user.department = payload.department.strip()
+
+    store.users.save(user)
+    return PublicUser.of(user)
+
+
 @router.post("/logout", status_code=204)
 def logout(store: AppStore, authorization: Optional[str] = Header(None)):
     token = _bearer(authorization)

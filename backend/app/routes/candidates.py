@@ -31,6 +31,21 @@ router = APIRouter()
 logger = get_logger(__name__)
 
 
+def _job_id_for_title(store: Store, job_title: Optional[str], recruiter_email: str):
+    """The recruiter's job matching this title, if there is exactly one.
+
+    CandidateDecision carries a title rather than a job id (it predates jobs
+    having real pipelines), so this is best-effort: an ambiguous or unknown
+    title records no job rather than guessing at one.
+    """
+    if not job_title:
+        return None
+    matches = store.jobs.query(
+        lambda j: j.title == job_title and (not j.created_by or j.created_by == recruiter_email)
+    )
+    return matches[0].id if len(matches) == 1 else None
+
+
 def _log_audit(store: Store, **fields) -> None:
     try:
         store.audit_logs.save(AuditLog(**fields))
@@ -640,6 +655,27 @@ async def submit_candidate_decision(
         job_title=payload.job_title or "this role",
         recruiter_email=recruiter_email,
     )
+
+    # Mirror the outcome onto the candidate. Without this the decision lived
+    # only in the decisions log, so every other view still treated a hired
+    # person as an open candidate.
+    candidate = store.candidates.get(payload.candidate_id)
+    if candidate is not None and candidate.owner_email == recruiter_email:
+        if payload.decision == "hired":
+            candidate.hiring_status = "hired"
+            candidate.hired_at = datetime.now(timezone.utc).replace(tzinfo=None)
+            candidate.hired_for_job_id = _job_id_for_title(store, payload.job_title, recruiter_email)
+            # They work here now, so they stop being an applicant and become
+            # an employee on the assignment they were hired into.
+            candidate.source = "internal"
+            candidate.employment_status = "assigned"
+            candidate.current_assignment = payload.job_title or candidate.current_assignment
+        elif payload.decision == "rejected":
+            candidate.hiring_status = "rejected"
+        else:
+            candidate.hiring_status = "active"
+        store.candidates.save(candidate)
+        index_candidate(candidate)
 
     store.candidate_decisions.save(
         CandidateDecision(

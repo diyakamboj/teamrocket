@@ -18,7 +18,7 @@ export type CandidatePool = {
  * pipeline reports newly parsed candidates via `poolVersion`.
  */
 export function useCandidatePool(): CandidatePool {
-  const { activeJobId, blindMode, poolVersion } = useAppState();
+  const { activeJobId, blindMode, poolVersion, savedWeights } = useAppState();
   const [candidates, setCandidates] = useState<Candidate[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -30,7 +30,10 @@ export function useCandidatePool(): CandidatePool {
     setLoading(true);
     setError(null);
 
-    fetchCandidatePool(activeJobId, { blindMode })
+    // Saved weights, not the live sliders: the server should score on what
+    // the recruiter committed to, and re-fetching on every slider drag would
+    // be a request per pixel.
+    fetchCandidatePool(activeJobId, { blindMode, weights: savedWeights })
       .then((pool) => {
         if (cancelled) return;
         setCandidates(pool);
@@ -45,7 +48,7 @@ export function useCandidatePool(): CandidatePool {
     return () => {
       cancelled = true;
     };
-  }, [activeJobId, blindMode, poolVersion]);
+  }, [activeJobId, blindMode, poolVersion, savedWeights]);
 
   return { candidates, loading, error };
 }

@@ -53,6 +53,18 @@ class Candidate(BaseModel):
     source: str = "external"
     employment_status: Optional[str] = None   # "bench" | "assigned" | None — only meaningful when source == "internal"
     current_assignment: Optional[str] = None  # free-text project/team; blank when on bench
+    #: Where this person stands overall, independent of any one board.
+    #:
+    #: "hired" and "rejected" used to exist only as a CandidateDecision row
+    #: and a stage derived from it, so nothing outside the pipeline could see
+    #: them: the ranking list happily offered "Hire" on someone already
+    #: hired, and their résumé kept coming back in search. This is the single
+    #: fact everything else reads.
+    hiring_status: str = "active"  # "active" | "hired" | "rejected"
+    #: The role they were hired for, so it can be shown against that job.
+    hired_for_job_id: Optional[uuid.UUID] = None
+    hired_at: Optional[datetime] = None
+
     #: What they actually do in that position — the duties a recruiter needs
     #: in order to judge whether a move sideways is a step up or a repeat.
     #: A job title alone ("Engineer II") does not carry that.
