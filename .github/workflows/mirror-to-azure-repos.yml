@@ -1,0 +1,73 @@
+# Keeps Azure Repos (dev.azure.com/Intern2026/Team Rocket/teamrocket-app)
+# as a live, read-only copy of this repo's application code. GitHub stays
+# the authoritative side — PRs and reviews happen here, exactly as today —
+# because that's the actual reason this exists: the team wants to keep
+# using GitHub's PR workflow while satisfying the requirement that
+# application code "live in" Azure Repos.
+#
+# NEVER commit directly to teamrocket-app on the Azure DevOps side — this
+# workflow force-syncs content on every push to `main` here, so anything
+# committed only there gets silently overwritten on the next run.
+#
+# EXCLUDED PATHS below are not arbitrary — they match exactly what the
+# original one-time migration (see teamrocket-infra/azure-repos-migration.md)
+# already left out: `.github/` and `infra/` because Terraform + its
+# GitHub Actions workflows are explicitly meant to stay GitHub-only per
+# the project's own infra/app split, and `node_modules/`/`portfolio/`
+# because the migration excluded them too (confirmed directly against
+# both repos' actual tree contents before writing this, not assumed).
+#
+# This workflow itself is the one deliberate exception to "GitHub only
+# holds Terraform code" — it has to live here because GitHub Actions can
+# only react to events in the repo it's defined in, and the whole point
+# is reacting to pushes of app code on GitHub's `main`.
+#
+# PREREQUISITE: a repo secret named AZURE_DEVOPS_PAT — an Azure DevOps
+# Personal Access Token scoped to Code (Read & Write) on the Team Rocket
+# project. Not something this workflow file can create; add it under
+# Settings -> Secrets and variables -> Actions.
+
+name: Mirror app code to Azure Repos
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch: {} # manual trigger, e.g. to force a re-sync
+
+jobs:
+  mirror:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout GitHub main
+        uses: actions/checkout@v4
+        with:
+          path: github-src
+
+      - name: Checkout Azure Repos main
+        run: |
+          git clone "https://x-token-auth:${AZURE_DEVOPS_PAT}@dev.azure.com/Intern2026/Team%20Rocket/_git/teamrocket-app" azure-dst
+        env:
+          AZURE_DEVOPS_PAT: ${{ secrets.AZURE_DEVOPS_PAT }}
+
+      - name: Sync app-code paths only (mirrors the original migration's exclusions)
+        run: |
+          rsync -a --delete \
+            --exclude='.git/' \
+            --exclude='.github/' \
+            --exclude='infra/' \
+            --exclude='node_modules/' \
+            --exclude='portfolio/' \
+            github-src/ azure-dst/
+
+      - name: Commit and push if anything changed
+        working-directory: azure-dst
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add -A
+          if git diff --cached --quiet; then
+            echo "No changes to mirror — Azure Repos already matches GitHub."
+          else
+            git commit -m "Sync from GitHub ${{ github.sha }}"
+            git push origin main
+          fi
