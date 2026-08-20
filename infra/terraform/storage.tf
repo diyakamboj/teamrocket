@@ -9,7 +9,12 @@ resource "random_string" "storage_suffix" {
 # Single storage account serves two purposes:
 #   1. Blob backend for the resume-screening app (phase-2 dropped Postgres
 #      entirely in favor of blob-backed state — see KNOWN-ISSUES.md R4).
-#   2. Static website hosting for the frontend SPA (Vite build output).
+#   2. Static website hosting for the frontend build output. As of
+#      2026-08-19 the frontend's default build output isn't plain static
+#      (TanStack Start, server-rendered by default) — a teammate is
+#      reconfiguring it to build statically instead of this setup being
+#      replaced with real compute. See app_service.tf's header comment for
+#      the full story if this container ends up empty/wrong for a while.
 resource "azurerm_storage_account" "main" {
   name                = "st${var.project_name}${var.environment}${random_string.storage_suffix.result}"
   resource_group_name = data.azurerm_resource_group.main.name

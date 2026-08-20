@@ -1,0 +1,78 @@
+# PR-only validation for app code, run from GitHub (pipeline 15,
+# diyakamboj.teamrocket). Exists because the real deploy pipeline
+# (azure-pipelines.yml, pipeline 16) now triggers off Azure Repos, not
+# GitHub — Azure Repos never sees GitHub PR events, so nothing was
+# validating app-code PRs before merge anymore once pipeline 15's
+# original push trigger was disabled to avoid double-deploys.
+#
+# `trigger: none` is deliberate and load-bearing, not a placeholder —
+# it's what guarantees this pipeline can never fire a deploy no matter
+# how its Azure DevOps trigger settings get configured later. Only the
+# `pr:` block below can start a run here. No Deploy or SmokeTest stage
+# exists in this file at all, so even a misconfigured trigger override
+# couldn't cause this to touch Azure resources.
+#
+# Full deploy pipeline stays as-is in azure-pipelines.yml (pipeline 16,
+# Azure Repos-triggered) — this file only ever runs Build.
+
+trigger: none
+
+pr:
+  branches:
+    include:
+      - main
+  paths:
+    include:
+      - backend/**
+      - frontend/**
+
+variables:
+  vmImageName: "ubuntu-latest"
+
+stages:
+  - stage: Build
+    jobs:
+      - job: BuildBackend
+        displayName: "Build & Test Backend"
+        pool:
+          vmImage: $(vmImageName)
+        steps:
+          - task: UsePythonVersion@0
+            inputs:
+              versionSpec: "3.12"
+
+          - script: |
+              cd backend
+              python -m pip install --upgrade pip
+              pip install -r requirements.txt
+            displayName: "Install backend dependencies"
+
+          - script: |
+              cd backend
+              pytest
+            displayName: "Run backend tests"
+
+      - job: BuildFrontend
+        displayName: "Build Frontend"
+        pool:
+          vmImage: $(vmImageName)
+        steps:
+          - task: UseNode@1
+            inputs:
+              version: "22.x"
+
+          - script: |
+              cd frontend
+              npm install
+            displayName: "Install frontend dependencies"
+
+          - script: |
+              cd frontend
+              npm run build
+            displayName: "Build frontend (vite build)"
+            env:
+              # No real backend URL to point at here — this is PR
+              # validation only, confirming the build succeeds, not a
+              # deploy. Matches azure-pipelines.yml's actual build env
+              # shape closely enough to catch real build breaks.
+              VITE_API_BASE_URL: "http://localhost:8000"

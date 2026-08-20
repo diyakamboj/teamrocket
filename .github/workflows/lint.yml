@@ -1,0 +1,70 @@
+# Lints CI/CD YAML itself — catches syntax/semantic errors before they ever
+# reach a real pipeline run. Two separate jobs because the two files need
+# fundamentally different checks:
+#
+# 1. actionlint understands GitHub Actions' schema specifically (invalid
+#    expressions, unknown context references, shellcheck on `run:` blocks) —
+#    only applicable to .github/workflows/*.yml.
+# 2. azure-pipelines.yml has no equivalent schema-aware linter readily
+#    available, so this only does a basic YAML-syntax validity check — but
+#    that alone would have caught a real bug hit in this project: a `\$`
+#    escape sequence that isn't valid in a YAML double-quoted scalar
+#    (CHANGELOG.md, "unknown escape character" incident). Deliberately runs
+#    here, on GitHub Actions, rather than as a step inside azure-pipelines.yml
+#    itself — if that file's YAML is malformed, Azure DevOps can't parse it
+#    far enough to run any step inside it at all, so self-linting it from
+#    within itself doesn't work even in principle.
+
+name: Lint CI/CD YAML
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/**"
+      - "azure-pipelines.yml"
+      - "azure-pipelines-pr-validation.yml"
+
+jobs:
+  actionlint:
+    name: Lint GitHub Actions workflows
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: reviewdog/action-actionlint@v1
+        with:
+          fail_on_error: true
+          # Only report on lines actually touched by the PR — avoids
+          # failing on pre-existing issues in files this PR didn't change.
+          filter_mode: added
+
+  yaml-syntax-check:
+    name: Validate Azure Pipelines YAML syntax
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # Covers both pipeline files — azure-pipelines.yml (the real deploy
+      # pipeline, now Azure-Repos-triggered) and
+      # azure-pipelines-pr-validation.yml (pipeline 15's PR-only
+      # validation, added after disabling 15's push trigger silently
+      # stopped validating GitHub PRs). Same rationale as before: Azure
+      # DevOps can't self-report malformed YAML in either file, so this
+      # has to run here.
+      - name: Parse Azure Pipelines YAML files with PyYAML
+        run: |
+          python3 -c "
+          import yaml, sys
+          files = ['azure-pipelines.yml', 'azure-pipelines-pr-validation.yml']
+          failed = False
+          for path in files:
+              try:
+                  with open(path) as f:
+                      yaml.safe_load(f)
+                  print(f'{path}: valid YAML syntax')
+              except yaml.YAMLError as e:
+                  print(f'::error file={path}::Invalid YAML syntax: {e}')
+                  failed = True
+          if failed:
+              sys.exit(1)
+          "
