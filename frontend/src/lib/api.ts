@@ -202,6 +202,17 @@ export type JobResponse = {
 
 
 function recruiterHeaders(): HeadersInit {
+  return {
+    "Content-Type": "application/json",
+    ...recruiterIdentityHeaders(),
+  };
+}
+
+// Identity headers only, no Content-Type. A multipart/form-data request must
+// let the browser set its own Content-Type (with the boundary) — forcing
+// "application/json" here breaks the boundary and the server can't parse the
+// body at all, so every field including the file looks missing.
+function recruiterIdentityHeaders(): HeadersInit {
   const email = recruiterEmail();
   // The session token is what actually proves who is calling. Until now only
   // the email header was sent, so the API had nothing to verify identity
@@ -209,7 +220,6 @@ function recruiterHeaders(): HeadersInit {
   // header. The header stays for audit logging; the token is the authority.
   const token = getSession()?.token;
   return {
-    "Content-Type": "application/json",
     "X-Recruiter-Email": email,
     ...(token ? { Authorization: `Bearer ${token}` } : {}),
   };
@@ -379,14 +389,13 @@ export async function uploadChatAttachment(
   file: File,
   sessionId?: string | null,
 ): Promise<ChatAttachmentInfo> {
-  const email = recruiterEmail();
   const form = new FormData();
   form.append("file", file);
   if (sessionId) form.append("session_id", sessionId);
 
   const response = await fetch(`${API_BASE}/api/agent/attachments`, {
     method: "POST",
-    headers: recruiterHeaders(),
+    headers: recruiterIdentityHeaders(),
     body: form,
   });
 
@@ -785,7 +794,7 @@ export async function uploadCompanyDocument(
     method: "POST",
     // Only the identity header: the browser must not set Content-Type here,
     // or the multipart boundary is lost.
-    headers: recruiterHeaders(),
+    headers: recruiterIdentityHeaders(),
     body: form,
   });
 
@@ -1885,10 +1894,9 @@ export async function uploadResumesToBackend(
     if (internalRole?.duties) formData.append("current_role_duties", internalRole.duties);
   }
 
-  const email = recruiterEmail();
   const res = await fetch(`${API_BASE}/api/resumes/upload`, {
     method: "POST",
-    headers: recruiterHeaders(),
+    headers: recruiterIdentityHeaders(),
     body: formData,
   });
 
