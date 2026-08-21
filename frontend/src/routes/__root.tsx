@@ -103,7 +103,17 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
 });
 
 /** Pages reachable without an account: the front door and the auth forms. */
-const PUBLIC_ROUTES = ["/welcome", "/login", "/register"];
+// Reachable without a session. Password recovery has to be here for the
+// obvious reason: someone who has forgotten their password cannot sign in
+// to reach the page that fixes it. Left out, the auth gate bounced them
+// straight back to /welcome and the link looked broken.
+const PUBLIC_ROUTES = [
+  "/welcome",
+  "/login",
+  "/register",
+  "/forgot-password",
+  "/reset-password",
+];
 
 /**
  * Gate for everything else.

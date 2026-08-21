@@ -2150,3 +2150,23 @@ export async function generateRoundQuestions(
     { method: "POST" },
   );
 }
+
+
+// ---------- Password reset & account deletion ----------
+
+/** Start a reset. Always resolves the same way, registered or not — the
+ *  API deliberately does not reveal which addresses have accounts. */
+export async function requestPasswordReset(email: string): Promise<{ message: string }> {
+  return request<{ message: string }>("/api/auth/forgot-password", {
+    method: "POST",
+    body: JSON.stringify({ email }),
+  });
+}
+
+/** Delete the signed-in account and everything it owns. Irreversible. */
+export async function deleteMyAccount(password: string): Promise<void> {
+  await request<void>("/api/auth/delete-account", {
+    method: "POST",
+    body: JSON.stringify({ password }),
+  });
+}

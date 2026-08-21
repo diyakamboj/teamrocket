@@ -20,7 +20,9 @@ from app.dependencies import AppStore
 from app.models.evaluation import AuditLog
 from app.models.roles import ROLE_DESCRIPTIONS, ROLE_LABELS, Role, normalise_role
 from app.models.user import PublicUser, User
+from app.config import settings
 from app.services import auth_service
+from app.services.email_service import email_service
 from app.utils.error_handlers import UnauthorizedError, ValidationAppError
 from app.utils.logger import get_logger
 from app.utils.validators import normalize_email
@@ -201,3 +203,104 @@ def list_roles():
         {"value": role.value, "label": ROLE_LABELS[role], "description": ROLE_DESCRIPTIONS[role]}
         for role in Role
     ]
+
+
+class ForgotPasswordRequest(BaseModel):
+    email: str
+
+
+@router.post("/forgot-password", status_code=202)
+def forgot_password(payload: ForgotPasswordRequest, store: AppStore):
+    """Start a password reset.
+
+    Always answers the same way, whether or not the address is registered.
+    Saying "no such account" would turn this into a way to discover who has
+    one, and the recruiter directory makes that worth something.
+    """
+    email = (payload.email or "").strip().lower()
+    user = auth_service.find_by_email(store, email) if email else None
+
+    if user is not None:
+        token = auth_service.issue_reset_token(store, user)
+        reset_url = f"{settings.FRONTEND_URL.rstrip('/')}/reset-password?token={token}"
+        result = email_service.send_password_reset(
+            to_email=user.email,
+            to_name=user.name,
+            reset_url=reset_url,
+            minutes_valid=int(auth_service.RESET_TOKEN_TTL.total_seconds() // 60),
+        )
+        if not result.sent:
+            # The caller still gets the same answer; the operator needs to
+            # know the mail never left.
+            logger.warning("Password reset email not sent to %s: %s", user.email, result.error)
+
+    return {
+        "message": "If that address has an account, a reset link is on its way.",
+    }
+
+
+class ResetPasswordRequest(BaseModel):
+    token: str
+    new_password: str
+
+
+@router.post("/reset-password", response_model=AuthResponse)
+def reset_password(payload: ResetPasswordRequest, store: AppStore):
+    """Finish a reset and sign the account in.
+
+    Every existing session is dropped. Someone resetting a password may be
+    doing it precisely because another party has access, and leaving their
+    sessions alive would defeat the point.
+    """
+    user = auth_service.find_by_reset_token(store, payload.token)
+    if user is None:
+        raise ValidationAppError(
+            "That reset link is invalid or has expired. Request a new one."
+        )
+
+    problem = auth_service.password_problem(payload.new_password)
+    if problem:
+        raise ValidationAppError(problem)
+
+    user.password_hash, user.password_salt = auth_service.hash_password(payload.new_password)
+    auth_service.clear_reset_token(user)
+
+    token = auth_service.new_session_token()
+    user.session_tokens = [token]
+    user.last_login_at = datetime.now(timezone.utc).replace(tzinfo=None)
+    store.users.save(user)
+
+    return AuthResponse(token=token, user=PublicUser.of(user))
+
+
+class DeleteAccountRequest(BaseModel):
+    #: Re-authentication. Deleting everything you own should not be possible
+    #: from a session someone left open.
+    password: str
+
+
+@router.post("/delete-account", status_code=204)
+def delete_account(
+    payload: DeleteAccountRequest,
+    store: AppStore,
+    authorization: Optional[str] = Header(None),
+):
+    """Delete the signed-in account and everything it owns.
+
+    Candidates, jobs, uploads and the rest go with it. Leaving them behind
+    would orphan records that no one can reach but that still hold real
+    people's résumés and contact details.
+    """
+    user = auth_service.find_by_token(store, _bearer(authorization))
+    if not user:
+        raise UnauthorizedError()
+
+    if not auth_service.verify_password(
+        payload.password, user.password_hash, user.password_salt
+    ):
+        raise ValidationAppError("That password is not correct.")
+
+    removed = auth_service.purge_account_data(store, user)
+    logger.info("Deleted account %s and %d owned record(s)", user.email, removed)
+    store.users.delete(user.id)
+    return None

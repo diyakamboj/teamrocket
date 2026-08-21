@@ -46,6 +46,14 @@ class User(BaseModel):
     created_at: datetime = Field(default_factory=_utcnow)
     last_login_at: Optional[datetime] = None
 
+    #: Password reset. The token is stored hashed for the same reason the
+    #: password is: a leaked database should not hand out working reset
+    #: links. Single-use and time-limited -- consumed on success, and
+    #: ignored after `reset_expires_at`.
+    reset_token_hash: Optional[str] = None
+    reset_token_salt: Optional[str] = None
+    reset_expires_at: Optional[datetime] = None
+
 
 class PublicUser(BaseModel):
     """What the API returns about an account — never the hash or the salt."""

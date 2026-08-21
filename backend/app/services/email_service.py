@@ -113,6 +113,51 @@ class EmailService:
         return self.send(to_email=candidate_email, to_name=candidate_name, subject=subject, body_text=body)
 
 
+    def send_password_reset(
+        self,
+        *,
+        to_email: str,
+        to_name: str,
+        reset_url: str,
+        minutes_valid: int,
+    ) -> EmailResult:
+        """The reset link.
+
+        Deliberately plain: a password email that looks like marketing is
+        the one people distrust. It says what was requested, how long the
+        link lasts, and what to do if it was not them.
+        """
+        subject = "Reset your ResumeIQ password"
+        text = (
+            f"Hi {to_name},\n\n"
+            "Someone asked to reset the password on your ResumeIQ account.\n\n"
+            f"Reset it here (the link works for {minutes_valid} minutes):\n"
+            f"{reset_url}\n\n"
+            "If this wasn't you, ignore this email — your password has not "
+            "changed and the link will expire on its own.\n"
+        )
+        html = f"""
+        <div style="font-family:system-ui,-apple-system,sans-serif;font-size:15px;line-height:1.6;color:#1a1a1a">
+          <p>Hi {to_name},</p>
+          <p>Someone asked to reset the password on your ResumeIQ account.</p>
+          <p>
+            <a href="{reset_url}"
+               style="display:inline-block;background:#5b3df5;color:#fff;padding:10px 18px;
+                      border-radius:8px;text-decoration:none;font-weight:600">
+              Reset your password
+            </a>
+          </p>
+          <p style="color:#555">This link works for {minutes_valid} minutes.</p>
+          <p style="color:#555">
+            If this wasn't you, ignore this email — your password has not changed
+            and the link will expire on its own.
+          </p>
+        </div>
+        """
+        return self.send_email(
+            to_email=to_email, to_name=to_name, subject=subject, html_body=html, text_body=text
+        )
+
     def send_assessment_invitation(
         self,
         *,

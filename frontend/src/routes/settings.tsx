@@ -3,6 +3,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Bot, Building2, Check, CheckCircle2, Database, FileText, Info, Loader2, Lock, Moon, Palette, ShieldCheck, Sliders, Sparkles, Sun, Trash2, Upload, User } from "lucide-react";
 import { toast } from "sonner";
 import { verifySession } from "@/lib/auth";
+import { DeleteAccount } from "@/components/delete-account";
 import { useTheme } from "@/lib/theme";
 import {
   getRecruiterSettings,
@@ -474,6 +475,10 @@ function SettingsPage() {
                 Signed in as {identity.email || "—"}
                 {identity.role ? ` · ${identity.role}` : ""}
               </span>
+            </div>
+
+            <div className="mt-6 border-t border-border pt-5">
+              <DeleteAccount email={identity.email} />
             </div>
           </SectionCard>
 

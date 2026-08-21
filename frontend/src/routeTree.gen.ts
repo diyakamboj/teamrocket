@@ -15,6 +15,7 @@ import { Route as BenchRouteImport } from './routes/bench'
 import { Route as CandidatesRouteImport } from './routes/candidates'
 import { Route as CompareRouteImport } from './routes/compare'
 import { Route as ExternalHiringRouteImport } from './routes/external-hiring'
+import { Route as ForgotPasswordRouteImport } from './routes/forgot-password'
 import { Route as FraudDetectionRouteImport } from './routes/fraud-detection'
 import { Route as InsightsRouteImport } from './routes/insights'
 import { Route as InternalHiringRouteImport } from './routes/internal-hiring'
@@ -23,6 +24,7 @@ import { Route as LoginRouteImport } from './routes/login'
 import { Route as NetworkRouteImport } from './routes/network'
 import { Route as PeopleRouteImport } from './routes/people'
 import { Route as RegisterRouteImport } from './routes/register'
+import { Route as ResetPasswordRouteImport } from './routes/reset-password'
 import { Route as ScreeningRouteImport } from './routes/screening'
 import { Route as SettingsRouteImport } from './routes/settings'
 import { Route as UploadRouteImport } from './routes/upload'
@@ -63,6 +65,11 @@ const ExternalHiringRoute = ExternalHiringRouteImport.update({
   path: '/external-hiring',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ForgotPasswordRoute = ForgotPasswordRouteImport.update({
+  id: '/forgot-password',
+  path: '/forgot-password',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const FraudDetectionRoute = FraudDetectionRouteImport.update({
   id: '/fraud-detection',
   path: '/fraud-detection',
@@ -101,6 +108,11 @@ const PeopleRoute = PeopleRouteImport.update({
 const RegisterRoute = RegisterRouteImport.update({
   id: '/register',
   path: '/register',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ResetPasswordRoute = ResetPasswordRouteImport.update({
+  id: '/reset-password',
+  path: '/reset-password',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ScreeningRoute = ScreeningRouteImport.update({
@@ -156,6 +168,7 @@ export interface FileRoutesByFullPath {
   '/candidates': typeof CandidatesRoute
   '/compare': typeof CompareRoute
   '/external-hiring': typeof ExternalHiringRoute
+  '/forgot-password': typeof ForgotPasswordRoute
   '/fraud-detection': typeof FraudDetectionRoute
   '/insights': typeof InsightsRoute
   '/internal-hiring': typeof InternalHiringRoute
@@ -164,6 +177,7 @@ export interface FileRoutesByFullPath {
   '/network': typeof NetworkRoute
   '/people': typeof PeopleRoute
   '/register': typeof RegisterRoute
+  '/reset-password': typeof ResetPasswordRoute
   '/screening': typeof ScreeningRoute
   '/settings': typeof SettingsRoute
   '/upload': typeof UploadRoute
@@ -181,6 +195,7 @@ export interface FileRoutesByTo {
   '/candidates': typeof CandidatesRoute
   '/compare': typeof CompareRoute
   '/external-hiring': typeof ExternalHiringRoute
+  '/forgot-password': typeof ForgotPasswordRoute
   '/fraud-detection': typeof FraudDetectionRoute
   '/insights': typeof InsightsRoute
   '/internal-hiring': typeof InternalHiringRoute
@@ -189,6 +204,7 @@ export interface FileRoutesByTo {
   '/network': typeof NetworkRoute
   '/people': typeof PeopleRoute
   '/register': typeof RegisterRoute
+  '/reset-password': typeof ResetPasswordRoute
   '/screening': typeof ScreeningRoute
   '/settings': typeof SettingsRoute
   '/upload': typeof UploadRoute
@@ -207,6 +223,7 @@ export interface FileRoutesById {
   '/candidates': typeof CandidatesRoute
   '/compare': typeof CompareRoute
   '/external-hiring': typeof ExternalHiringRoute
+  '/forgot-password': typeof ForgotPasswordRoute
   '/fraud-detection': typeof FraudDetectionRoute
   '/insights': typeof InsightsRoute
   '/internal-hiring': typeof InternalHiringRoute
@@ -215,6 +232,7 @@ export interface FileRoutesById {
   '/network': typeof NetworkRoute
   '/people': typeof PeopleRoute
   '/register': typeof RegisterRoute
+  '/reset-password': typeof ResetPasswordRoute
   '/screening': typeof ScreeningRoute
   '/settings': typeof SettingsRoute
   '/upload': typeof UploadRoute
@@ -234,6 +252,7 @@ export interface FileRouteTypes {
     | '/candidates'
     | '/compare'
     | '/external-hiring'
+    | '/forgot-password'
     | '/fraud-detection'
     | '/insights'
     | '/internal-hiring'
@@ -242,6 +261,7 @@ export interface FileRouteTypes {
     | '/network'
     | '/people'
     | '/register'
+    | '/reset-password'
     | '/screening'
     | '/settings'
     | '/upload'
@@ -259,6 +279,7 @@ export interface FileRouteTypes {
     | '/candidates'
     | '/compare'
     | '/external-hiring'
+    | '/forgot-password'
     | '/fraud-detection'
     | '/insights'
     | '/internal-hiring'
@@ -267,6 +288,7 @@ export interface FileRouteTypes {
     | '/network'
     | '/people'
     | '/register'
+    | '/reset-password'
     | '/screening'
     | '/settings'
     | '/upload'
@@ -284,6 +306,7 @@ export interface FileRouteTypes {
     | '/candidates'
     | '/compare'
     | '/external-hiring'
+    | '/forgot-password'
     | '/fraud-detection'
     | '/insights'
     | '/internal-hiring'
@@ -292,6 +315,7 @@ export interface FileRouteTypes {
     | '/network'
     | '/people'
     | '/register'
+    | '/reset-password'
     | '/screening'
     | '/settings'
     | '/upload'
@@ -310,6 +334,7 @@ export interface RootRouteChildren {
   CandidatesRoute: typeof CandidatesRoute
   CompareRoute: typeof CompareRoute
   ExternalHiringRoute: typeof ExternalHiringRoute
+  ForgotPasswordRoute: typeof ForgotPasswordRoute
   FraudDetectionRoute: typeof FraudDetectionRoute
   InsightsRoute: typeof InsightsRoute
   InternalHiringRoute: typeof InternalHiringRoute
@@ -318,6 +343,7 @@ export interface RootRouteChildren {
   NetworkRoute: typeof NetworkRoute
   PeopleRoute: typeof PeopleRoute
   RegisterRoute: typeof RegisterRoute
+  ResetPasswordRoute: typeof ResetPasswordRoute
   ScreeningRoute: typeof ScreeningRoute
   SettingsRoute: typeof SettingsRoute
   UploadRoute: typeof UploadRoute
@@ -371,6 +397,13 @@ declare module '@tanstack/react-router' {
       path: '/external-hiring'
       fullPath: '/external-hiring'
       preLoaderRoute: typeof ExternalHiringRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/forgot-password': {
+      id: '/forgot-password'
+      path: '/forgot-password'
+      fullPath: '/forgot-password'
+      preLoaderRoute: typeof ForgotPasswordRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/fraud-detection': {
@@ -427,6 +460,13 @@ declare module '@tanstack/react-router' {
       path: '/register'
       fullPath: '/register'
       preLoaderRoute: typeof RegisterRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/reset-password': {
+      id: '/reset-password'
+      path: '/reset-password'
+      fullPath: '/reset-password'
+      preLoaderRoute: typeof ResetPasswordRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/screening': {
@@ -502,6 +542,7 @@ const rootRouteChildren: RootRouteChildren = {
   CandidatesRoute: CandidatesRoute,
   CompareRoute: CompareRoute,
   ExternalHiringRoute: ExternalHiringRoute,
+  ForgotPasswordRoute: ForgotPasswordRoute,
   FraudDetectionRoute: FraudDetectionRoute,
   InsightsRoute: InsightsRoute,
   InternalHiringRoute: InternalHiringRoute,
@@ -510,6 +551,7 @@ const rootRouteChildren: RootRouteChildren = {
   NetworkRoute: NetworkRoute,
   PeopleRoute: PeopleRoute,
   RegisterRoute: RegisterRoute,
+  ResetPasswordRoute: ResetPasswordRoute,
   ScreeningRoute: ScreeningRoute,
   SettingsRoute: SettingsRoute,
   UploadRoute: UploadRoute,

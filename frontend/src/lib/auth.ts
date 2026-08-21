@@ -106,6 +106,20 @@ export async function login(email: string, password: string): Promise<UserSessio
 }
 
 /**
+ * Finish a password reset, which signs you in.
+ *
+ * Goes through the same `store()` path as register and login so the session
+ * is persisted identically — a reset that stored its session by hand would
+ * be the one place the shape could drift.
+ */
+export async function completePasswordReset(
+  token: string,
+  newPassword: string,
+): Promise<UserSession> {
+  return store(await post("/api/auth/reset-password", { token, new_password: newPassword }));
+}
+
+/**
  * Confirm the stored token is still valid, refreshing the cached profile.
  * Returns null when the session is gone — the caller should send the user to
  * sign in. A network failure is *not* treated as signed-out, so a brief API
