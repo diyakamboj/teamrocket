@@ -846,6 +846,7 @@ function JobWorkspacePage() {
           jobId={jobId}
           isOpen={selectedCandidateId !== null}
           onClose={() => setSelectedCandidateId(null)}
+          listScore={boardCandidates.find((c) => c.id === selectedCandidateId)?.score ?? null}
         />
       )}
 

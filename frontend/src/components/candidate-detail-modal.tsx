@@ -30,6 +30,15 @@ export type CandidateDetailModalProps = {
   jobId?: string | null;
   isOpen: boolean;
   onClose: () => void;
+  /**
+   * The ATS score already shown for this candidate in whatever list opened
+   * the modal (ranked with the caller's current category weights). The
+   * `/score` endpoint recomputes against its own default weights rather
+   * than the job's configured ones, so without this override the modal's
+   * ring can show a different number than the row the recruiter just
+   * clicked — pass it through so the two always agree.
+   */
+  listScore?: number | null;
 };
 
 function pct(value: number | null | undefined): string {
@@ -59,6 +68,7 @@ export function CandidateDetailModal({
   jobId,
   isOpen,
   onClose,
+  listScore,
 }: CandidateDetailModalProps) {
   const [blindReview, setBlindReview] = useState(false);
   const [profile, setProfile] = useState<BackendCandidate | null>(null);
@@ -105,7 +115,10 @@ export function CandidateDetailModal({
   if (!candidateId) return null;
 
   const displayName = blindReview ? `Candidate #${candidateId.slice(0, 6)}` : (profile?.name ?? "");
-  const overall = score?.overall_score;
+  // Prefer the score the recruiter already saw in the list they clicked
+  // from — it reflects the job's actual configured weights, unlike a fresh
+  // `/score` call which falls back to generic defaults (see `listScore` doc).
+  const overall = listScore ?? score?.overall_score;
   const evidence = score?.dimensions?.["overall_fit"]?.evidence ?? score?.evidence ?? [];
 
   // De-duplicated: the overall_fit dimension repeats the other dimensions' evidence.
