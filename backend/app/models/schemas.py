@@ -5,6 +5,8 @@ from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, EmailStr, Field, model_validator
 
+from app.models.job_posting import InterviewRound, ScoringWeights
+
 
 
 class ORMModel(BaseModel):
@@ -33,7 +35,21 @@ class CandidateBase(BaseModel):
 
     employment_status: Optional[str] = None  # "bench" | "assigned" | None
     current_assignment: Optional[str] = None
+    #: What the employee does in that role. Captured at internal intake and
+    #: stored on the candidate, but previously never returned, so the profile
+    #: could not show it.
+    current_role_duties: Optional[str] = None
     bench_since: Optional[datetime] = None
+
+    #: The role this résumé was uploaded against. Never returned before, so
+    #: the interface could not tell which board anyone belonged to and every
+    #: candidate read as "not on a role yet".
+    job_id: Optional[UUID] = None
+    #: "active" | "hired" | "rejected" -- what stops a hired person still
+    #: being offered as an open candidate.
+    hiring_status: str = "active"
+    hired_for_job_id: Optional[UUID] = None
+    hired_at: Optional[datetime] = None
 
 
 class CandidateCreate(CandidateBase):
@@ -57,6 +73,7 @@ class CandidateUpdate(BaseModel):
     source: Optional[str] = None
     employment_status: Optional[str] = None
     current_assignment: Optional[str] = None
+    current_role_duties: Optional[str] = None
     bench_since: Optional[datetime] = None
 
 
@@ -111,7 +128,17 @@ class JobCreate(BaseModel):
     required_experience_years: Optional[int] = None
     education_requirements: Optional[str] = None
     nice_to_have_skills: list[str] = Field(default_factory=list)
+    sourcing_mode: Optional[str] = "both"
+    #: The interview loop. Omitted means the default loop, so a job always has
+    #: rounds for the pipeline board to render.
+    rounds: Optional[list[InterviewRound]] = None
+    scoring_weights: Optional[ScoringWeights] = None
     created_by: Optional[str] = None
+
+
+class JobRoundsUpdate(BaseModel):
+    rounds: list[InterviewRound]
+
 
 
 class JobDraftAnalyzeRequest(BaseModel):
@@ -142,6 +169,9 @@ class JobResponse(ORMModel):
     nice_to_have_skills: Optional[list[Any]] = None
     status: str = "open"
     sourcing_mode: str = "both"
+    #: The interview loop, so the workspace can render the pipeline and board.
+    rounds: list[InterviewRound] = Field(default_factory=list)
+    scoring_weights: ScoringWeights = Field(default_factory=ScoringWeights)
     created_by: Optional[str] = None
     created_at: datetime
     updated_at: datetime
@@ -242,14 +272,19 @@ class AtsBenchmarkResponse(ORMModel):
     evaluation_id: UUID
     candidate_id: UUID
     job_id: UUID
-    keyword_score: Decimal
+    keyword_score: Optional[Decimal] = None
     matched_keywords: list[Any] = Field(default_factory=list)
     missing_keywords: list[Any] = Field(default_factory=list)
-    semantic_score: Decimal
+    missing_required: list[Any] = Field(default_factory=list)
+    missing_nice_to_have: list[Any] = Field(default_factory=list)
+    required_coverage_pct: Optional[Decimal] = None
+    meets_required: bool = False
+    semantic_score: Optional[Decimal] = None
     semantic_rationale: Optional[str] = None
     equivalent_terms: list[EquivalentTerm] = Field(default_factory=list)
-    score_delta: Decimal
+    score_delta: Optional[Decimal] = None
     verdict: str  # "semantic_stronger" | "keyword_stronger" | "aligned"
+    #              | "no_keyword_baseline" | "semantic_unavailable"
     created_at: datetime
     updated_at: datetime
 
@@ -371,12 +406,14 @@ class JobPipelineSummary(BaseModel):
     job_id: UUID
     title: str
     status: str
+    sourcing_mode: str = "both"
     created_at: datetime
     total_candidates: int
     internal_candidates: int
     external_candidates: int
     average_score: float
     stage_counts: dict[str, int]
+
 
 
 class PipelineCandidate(BaseModel):
@@ -387,6 +424,38 @@ class PipelineCandidate(BaseModel):
     employment_status: Optional[str] = None
     overall_score: Optional[float] = None
     stage: str
+    #: Which interview round they are in, set only while stage is
+    #: "interviewing" and only once someone has been placed explicitly.
+    round_id: Optional[str] = None
+    round_name: Optional[str] = None
+    round_sequence: Optional[int] = None
+    #: Who last moved them — blank for a stage that was derived, not chosen.
+    moved_by: Optional[str] = None
+    moved_by_name: Optional[str] = None
+    moved_by_role: Optional[str] = None
+    updated_at: datetime
+
+
+class CandidateMoveRequest(BaseModel):
+    """Move one candidate to a stage, optionally into a specific round."""
+
+    stage: str
+    round_id: Optional[str] = None
+    candidate_name: Optional[str] = None
+    note: Optional[str] = None
+
+
+class CandidatePlacementResponse(BaseModel):
+    job_id: UUID
+    candidate_id: str
+    stage: str
+    round_id: Optional[str] = None
+    round_name: Optional[str] = None
+    round_sequence: Optional[int] = None
+    moved_by: Optional[str] = None
+    moved_by_name: Optional[str] = None
+    moved_by_role: Optional[str] = None
+    note: Optional[str] = None
     updated_at: datetime
 
 

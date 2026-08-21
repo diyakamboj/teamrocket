@@ -10,6 +10,7 @@ from app.services.candidate_matcher import CandidateMatcher
 @pytest.fixture()
 def internal_candidate(store):
     candidate = Candidate(
+        owner_email="recruiter@example.com",
         id=uuid.uuid4(),
         name="Priya Nair",
         email="priya.nair@example.com",

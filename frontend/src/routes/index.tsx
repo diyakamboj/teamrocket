@@ -6,7 +6,6 @@ import { Button } from "@/components/ui/button";
 import {
   Briefcase,
   Globe,
-  PlusCircle,
   Zap,
   Users,
   Loader2,
@@ -14,13 +13,16 @@ import {
   Sparkles,
 } from "lucide-react";
 import { getSession } from "@/lib/auth";
-import { CreateJobModal } from "@/components/create-job-modal";
 import {
+  fetchCandidatesFromBackend,
   getJobPipeline,
+  listBench,
   listJobPipelines,
   type JobPipelineSummary,
   type PipelineCandidate,
 } from "@/lib/api";
+import { GuidedFlow } from "@/components/guided-flow";
+import { ProductName } from "@/components/product-name";
 
 export const Route = createFileRoute("/")({
   head: () => ({
@@ -50,8 +52,14 @@ function greeting(): string {
 
 function DashboardPage() {
   const session = getSession();
-  const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [jobs, setJobs] = useState<JobWithPipeline[]>([]);
+  // The candidate pool, counted from the same source the Candidates page
+  // uses. Deriving this from pipelines made the dashboard disagree with
+  // every other screen.
+  const [poolSize, setPoolSize] = useState(0);
+  // Bench count comes from the bench endpoint for the same reason: derived
+  // from pipelines it missed anyone not yet scored against a job.
+  const [benchSize, setBenchSize] = useState(0);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -75,8 +83,24 @@ function DashboardPage() {
       })
       .catch((err: unknown) => {
         if (cancelled) return;
-        setError(err instanceof Error ? err.message : "Could not reach the screening API");
+        setError(err instanceof Error ? err.message : "Could not load hiring data");
         setLoading(false);
+      });
+
+    fetchCandidatesFromBackend()
+      .then((candidates) => {
+        if (!cancelled) setPoolSize(candidates.length);
+      })
+      .catch(() => {
+        if (!cancelled) setPoolSize(0);
+      });
+
+    listBench()
+      .then((people) => {
+        if (!cancelled) setBenchSize(people.length);
+      })
+      .catch(() => {
+        if (!cancelled) setBenchSize(0);
       });
 
     return () => {
@@ -85,9 +109,14 @@ function DashboardPage() {
   }, []);
 
   const stats = useMemo(() => {
-    const all = jobs.flatMap((j) => j.pipeline);
-    const internal = jobs.filter((j) => j.internal_candidates > 0);
-    const external = jobs.filter((j) => j.external_candidates > 0);
+    // Deduplicate by candidate: a person evaluated against three roles appears
+    // in three pipelines, and summing those made the tiles report more
+    // candidates than exist. Counts are of people, not of pipeline rows.
+    const all = Array.from(
+      new Map(jobs.flatMap((j) => j.pipeline).map((c) => [String(c.candidate_id), c])).values(),
+    );
+    const internal = jobs.filter((j) => (j.sourcing_mode || "both") === "internal" || (j.sourcing_mode || "both") === "both");
+    const external = jobs.filter((j) => (j.sourcing_mode || "both") === "external" || (j.sourcing_mode || "both") === "both");
     const topMatches = all.filter((c) => (c.overall_score ?? 0) >= TOP_MATCH_SCORE);
     const readyForInterview = all.filter(
       (c) => c.stage === "interviewing" || c.stage === "interviewed",
@@ -98,17 +127,24 @@ function DashboardPage() {
       totalJobs: jobs.length,
       internalRoles: internal.length,
       externalRoles: external.length,
-      totalCandidates: all.length,
-      internalCandidates: jobs.reduce((s, j) => s + j.internal_candidates, 0),
-      externalCandidates: jobs.reduce((s, j) => s + j.external_candidates, 0),
+      totalCandidates: poolSize,
+      inPipeline: all.length,
+      // Same deduplication for the internal/external split.
+      internalCandidates: all.filter((c) => c.source === "internal").length,
+      externalCandidates: all.filter((c) => c.source !== "internal").length,
       topMatches: topMatches.length,
       readyForInterview: readyForInterview.length,
-      benchPool: all.filter((c) => c.employment_status === "bench").length,
+      benchPool: benchSize,
     };
-  }, [jobs]);
+  }, [jobs, poolSize, benchSize]);
 
-  const internalJobs = jobs.filter((j) => j.internal_candidates > 0).slice(0, 3);
-  const externalJobs = jobs.filter((j) => j.external_candidates > 0).slice(0, 3);
+  const internalJobs = jobs
+    .filter((j) => (j.sourcing_mode || "both") === "internal" || (j.sourcing_mode || "both") === "both")
+    .slice(0, 5);
+  const externalJobs = jobs
+    .filter((j) => (j.sourcing_mode || "both") === "external" || (j.sourcing_mode || "both") === "both")
+    .slice(0, 5);
+
 
   function topMatchesFor(job: JobWithPipeline): number {
     return job.pipeline.filter((c) => (c.overall_score ?? 0) >= TOP_MATCH_SCORE).length;
@@ -120,30 +156,31 @@ function DashboardPage() {
 
   const metrics = [
     {
-      label: "Active Job Openings",
+      label: "Open roles",
       val: `${stats.openRoles} Role${stats.openRoles === 1 ? "" : "s"}`,
-      sub: `${stats.internalRoles} with internal • ${stats.externalRoles} with external`,
+      sub: `${stats.internalRoles} Internal • ${stats.externalRoles} External`,
+
       icon: Briefcase,
       color: "text-primary",
     },
     {
-      label: "Total Candidates",
+      label: "People in your pool",
       val: `${stats.totalCandidates}`,
       sub: `${stats.internalCandidates} internal • ${stats.externalCandidates} external`,
       icon: Users,
       color: "text-muted-foreground",
     },
     {
-      label: "Top Quality Matches",
+      label: "Strong matches",
       val: `${stats.topMatches}`,
-      sub: `Score ≥ ${TOP_MATCH_SCORE}% fit`,
+      sub: `Scored ${TOP_MATCH_SCORE} or higher`,
       icon: Sparkles,
       color: "text-success",
     },
     {
-      label: "In Interview Stage",
+      label: "Interviewing now",
       val: `${stats.readyForInterview}`,
-      sub: "Interviewing or interviewed",
+      sub: "In or past an interview",
       icon: CheckCircle2,
       color: "text-warning",
     },
@@ -154,29 +191,26 @@ function DashboardPage() {
       <header className="flex flex-col justify-between gap-4 border-b border-border pb-6 md:flex-row md:items-center">
         <div>
           <div className="mb-1 flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-primary">
-            <Sparkles className="h-4 w-4" /> ResumeIQ Executive Control Center
+            <Sparkles className="h-4 w-4" /> Your hiring overview
           </div>
           <h1 className="text-2xl font-extrabold tracking-tight sm:text-3xl">
-            {greeting()}, {session.name.split(" ")[0]} 👋
+            {greeting()}, {session?.name?.split(" ")[0] ?? "there"} 👋
           </h1>
           <p className="mt-1 text-sm text-muted-foreground">
             {loading
-              ? "Loading your live hiring pipelines…"
+              ? "Loading your roles…"
               : error
-                ? `Could not load pipelines: ${error}`
-                : "Here's what is happening across your internal and external hiring pipelines right now."}
+                ? `Could not load your roles: ${error}`
+                : "Add a role, add résumés, then review who fits. Everything else is done for you."}
           </p>
         </div>
-
-        <Button onClick={() => setIsCreateModalOpen(true)} className="rounded-xl">
-          <PlusCircle className="mr-2 h-4 w-4" />
-          Create new job
-        </Button>
       </header>
 
-      <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
+      <GuidedFlow />
+
+      <div className="stagger grid grid-cols-2 gap-4 md:grid-cols-4">
         {metrics.map((m) => (
-          <Card key={m.label} className="card-surface">
+          <Card key={m.label} className="card-surface lift spotlight">
             <CardContent className="p-4">
               <div className="flex items-center justify-between">
                 <span className="text-xs font-medium text-muted-foreground">{m.label}</span>
@@ -185,7 +219,7 @@ function DashboardPage() {
               <div className="mt-2 text-xl font-extrabold">
                 {loading ? <Loader2 className="h-5 w-5 animate-spin" /> : m.val}
               </div>
-              <div className="mt-0.5 text-[11px] text-muted-foreground">{m.sub}</div>
+              <div className="mt-0.5 text-xs text-muted-foreground">{m.sub}</div>
             </CardContent>
           </Card>
         ))}
@@ -202,9 +236,9 @@ function DashboardPage() {
                     <Briefcase className="h-4 w-4" />
                   </div>
                   <div>
-                    <CardTitle className="text-base font-bold">INTERNAL HIRING</CardTitle>
+                    <CardTitle className="text-base font-semibold">Hiring from inside</CardTitle>
                     <CardDescription className="text-xs">
-                      Active internal roles, bench candidate auto-matching, and internal mobility.
+                      Roles you are filling with people already at the company.
                     </CardDescription>
                   </div>
                 </div>
@@ -212,7 +246,7 @@ function DashboardPage() {
                   to="/internal-hiring"
                   className="text-xs font-semibold text-primary hover:underline"
                 >
-                  View All →
+                  See all
                 </Link>
               </div>
             </CardHeader>
@@ -220,19 +254,19 @@ function DashboardPage() {
             <CardContent className="space-y-4 p-5">
               <div className="grid grid-cols-3 gap-2 rounded-lg border border-border bg-secondary/40 p-3 text-center text-xs">
                 <div>
-                  <span className="block text-[10px] font-semibold uppercase text-muted-foreground">
+                  <span className="block text-[11px] font-semibold uppercase text-muted-foreground">
                     Roles
                   </span>
                   <span className="text-sm font-bold">{internalJobs.length}</span>
                 </div>
                 <div>
-                  <span className="block text-[10px] font-semibold uppercase text-muted-foreground">
+                  <span className="block text-[11px] font-semibold uppercase text-muted-foreground">
                     Bench Pool
                   </span>
                   <span className="text-sm font-bold text-primary">{stats.benchPool}</span>
                 </div>
                 <div>
-                  <span className="block text-[10px] font-semibold uppercase text-muted-foreground">
+                  <span className="block text-[11px] font-semibold uppercase text-muted-foreground">
                     Internal Candidates
                   </span>
                   <span className="text-sm font-bold text-success">
@@ -252,7 +286,8 @@ function DashboardPage() {
                   </p>
                 ) : (
                   internalJobs.map((job) => (
-                    <Link key={job.job_id} to="/jobs/$jobId" params={{ jobId: job.job_id }}>
+                    <Link key={job.job_id} to="/jobs/$jobId" params={{ jobId: String(job.job_id) }}>
+
                       <div className="group flex items-center justify-between rounded-lg border border-border p-3 transition-all hover:border-primary hover:shadow-xs">
                         <div>
                           <div className="text-xs font-semibold group-hover:text-primary">
@@ -265,7 +300,7 @@ function DashboardPage() {
                             </span>
                           </div>
                         </div>
-                        <Badge variant="outline" className="text-[11px] font-medium">
+                        <Badge variant="outline" className="text-xs font-medium">
                           Open Job →
                         </Badge>
                       </div>
@@ -295,9 +330,9 @@ function DashboardPage() {
                     <Globe className="h-4 w-4" />
                   </div>
                   <div>
-                    <CardTitle className="text-base font-bold">EXTERNAL HIRING</CardTitle>
+                    <CardTitle className="text-base font-semibold">Hiring from outside</CardTitle>
                     <CardDescription className="text-xs">
-                      Public applicant funnel, candidate matching, and external sourcing.
+                      Roles you are filling with applicants from outside the company.
                     </CardDescription>
                   </div>
                 </div>
@@ -305,7 +340,7 @@ function DashboardPage() {
                   to="/external-hiring"
                   className="text-xs font-semibold text-primary hover:underline"
                 >
-                  View All →
+                  See all
                 </Link>
               </div>
             </CardHeader>
@@ -313,13 +348,13 @@ function DashboardPage() {
             <CardContent className="space-y-4 p-5">
               <div className="grid grid-cols-3 gap-2 rounded-lg border border-border bg-secondary/40 p-3 text-center text-xs">
                 <div>
-                  <span className="block text-[10px] font-semibold uppercase text-muted-foreground">
+                  <span className="block text-[11px] font-semibold uppercase text-muted-foreground">
                     Roles
                   </span>
                   <span className="text-sm font-bold">{externalJobs.length}</span>
                 </div>
                 <div>
-                  <span className="block text-[10px] font-semibold uppercase text-muted-foreground">
+                  <span className="block text-[11px] font-semibold uppercase text-muted-foreground">
                     Applicants
                   </span>
                   <span className="text-sm font-bold text-primary">
@@ -327,7 +362,7 @@ function DashboardPage() {
                   </span>
                 </div>
                 <div>
-                  <span className="block text-[10px] font-semibold uppercase text-muted-foreground">
+                  <span className="block text-[11px] font-semibold uppercase text-muted-foreground">
                     Top Matches
                   </span>
                   <span className="text-sm font-bold text-success">{stats.topMatches}</span>
@@ -345,7 +380,8 @@ function DashboardPage() {
                   </p>
                 ) : (
                   externalJobs.map((job) => (
-                    <Link key={job.job_id} to="/jobs/$jobId" params={{ jobId: job.job_id }}>
+                    <Link key={job.job_id} to="/jobs/$jobId" params={{ jobId: String(job.job_id) }}>
+
                       <div className="group flex items-center justify-between rounded-lg border border-border p-3 transition-all hover:border-primary hover:shadow-xs">
                         <div>
                           <div className="text-xs font-semibold group-hover:text-primary">
@@ -358,7 +394,7 @@ function DashboardPage() {
                             </span>
                           </div>
                         </div>
-                        <Badge variant="outline" className="text-[11px] font-medium">
+                        <Badge variant="outline" className="text-xs font-medium">
                           Open Job →
                         </Badge>
                       </div>
@@ -385,9 +421,9 @@ function DashboardPage() {
             <div className="flex items-center gap-2">
               <Zap className="h-4 w-4 text-warning" />
               <div>
-                <CardTitle className="text-base font-bold">Recruiter Copilot Action Feed</CardTitle>
+                <CardTitle className="text-base font-semibold">What needs your attention</CardTitle>
                 <CardDescription className="text-xs">
-                  Background intelligence and recommendations that need a recruiter decision.
+                  Suggestions waiting on a yes or no from you.
                 </CardDescription>
               </div>
             </div>
@@ -411,7 +447,6 @@ function DashboardPage() {
         </CardContent>
       </Card>
 
-      <CreateJobModal isOpen={isCreateModalOpen} onClose={() => setIsCreateModalOpen(false)} />
     </div>
   );
 }

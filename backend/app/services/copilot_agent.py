@@ -12,7 +12,7 @@ import json
 import re
 import time
 import uuid
-from typing import Any, Optional
+from typing import Any, Callable, Optional
 
 
 from app.services.azure_services import openai_service
@@ -20,6 +20,7 @@ from app.services.copilot_pool import build_pool, job_requirements, resolve_pool
 from app.services.candidate_matcher import candidate_matcher
 from app.services import calendar_service
 from app.services.jd_optimizer import jd_optimizer
+from app.utils.logger import get_logger
 from app.models.schemas import (
     AgentCandidateCard,
     AgentComparisonTable,
@@ -57,6 +58,8 @@ def _record_agent_turn(
         details={"engine": engine, "tool": tool},
     )
 
+logger = get_logger(__name__)
+
 COPILOT_TOOLS = (
     "search_candidates",
     "get_verdicts",
@@ -93,7 +96,7 @@ ANALYTICS_QUERY_PHRASES = (
 CITES_PER_ROW = 3
 MAX_ROWS = 10
 
-TOOL_SELECT_SYSTEM = """You are a recruiting copilot. A recruiter asked a question about a scored candidate pool. Pick the ONE tool that answers it, with arguments.
+TOOL_SELECT_SYSTEM = """You are an AI recruiting assistant. A recruiter asked a question about a scored candidate pool. Pick the ONE tool that answers it, with arguments.
 Return valid JSON: {"tool": "<tool>", "args": {...}}.
 Tools:
 - search_candidates: args {query?, skill?, minYears?, level?} - find/rank candidates by skill, tenure, level, or free-text query.
@@ -111,8 +114,10 @@ When the question is generic (pool health, wide shortlists), prefer gap_summary 
 
 
 
-SYNTHESIS_SYSTEM = """You are a recruiting copilot answering a recruiter's question about a scored candidate pool. Write a concise, recruiter-friendly answer using ONLY the tool output provided. Markdown bullet lists are fine.
+SYNTHESIS_SYSTEM = """You are an AI recruiting assistant answering a recruiter's question about a scored candidate pool. Write a concise, recruiter-friendly answer using ONLY the tool output provided. Markdown bullet lists are fine.
+Refer to the overall number as the ATS score (not an "AI fit score"). Category scores (skills, experience, education, certifications, projects) stay separate from that overall ATS score.
 Never invent candidates, scores, verdicts, or quotes — everything you assert must be in the tool output. Support claims by citing evidence ids in the "evidenceIds" array, using ONLY ids shown in the tool output. If nothing in the output supports a claim, don't make it. If a candidate is labelled "Candidate #N", keep using that label and never reveal a name, file name or contact detail.
+A "Company context (recruiter-provided)" section may also be supplied, summarising documents the recruiter uploaded about their own organisation. Use it for questions about how the company works or hires, and say which document it came from. It never describes candidates: never let it change a score, verdict or claim about a person.
 Return valid JSON: {"answer": "...", "evidenceIds": [...]}."""
 
 
@@ -797,6 +802,10 @@ def deterministic_answer(
     }
 
 
+def _noop_progress(stage: str, detail: str) -> None:
+    """Default when nobody is watching the agent work."""
+
+
 async def _agent_answer(
     question: str,
     pool: list[dict[str, Any]],
@@ -807,6 +816,8 @@ async def _agent_answer(
     focus_candidate_id: str | None = None,
     store=None,
     job=None,
+    company_context: str = "",
+    on_progress: Callable[[str, str], None] = _noop_progress,
 ) -> dict[str, Any]:
     tool_select_system = TOOL_SELECT_SYSTEM
     if focus_candidate_id:
@@ -818,6 +829,7 @@ async def _agent_answer(
                 f'"{focus_member["label"]}".\n\n' + TOOL_SELECT_SYSTEM
             )
 
+    on_progress("plan", "Deciding how to answer")
     selection = openai_service.chat_json(
         f"Pool ({len(pool)} scored candidates):\n{_pool_preview(pool)}\n\nQuestion: {question}",
         system=tool_select_system,
@@ -832,6 +844,7 @@ async def _agent_answer(
     if tool == "jd_calibration" and store is not None and job is not None:
         calibration = await jd_calibration_result(store, job.id)
         jd_optimization = calibration["optimization"]
+    on_progress("tool", f"Running {tool.replace('_', ' ')}")
     result = run_copilot_tool(
         tool,
         args,
@@ -840,8 +853,12 @@ async def _agent_answer(
         jd_optimization=jd_optimization,
     )
 
+    on_progress("answer", "Writing the answer with citations")
+    # Company context is a second permitted source alongside the tool output —
+    # labelled separately so the model cannot mistake it for candidate evidence.
+    context_block = f"\n\nCompany context (recruiter-provided):\n{company_context}" if company_context else ""
     answer_payload = openai_service.chat_json(
-        f"Question: {question}\n\nTool output:\n{result['text']}",
+        f"Question: {question}\n\nTool output:\n{result['text']}{context_block}",
         system=SYNTHESIS_SYSTEM,
         temperature=0,
         deployment=deployment,
@@ -871,8 +888,19 @@ async def copilot_answer(
     model_id: str = "gpt-4o",
     deployment: str = "gpt-4o",
     focus_candidate_id: str | None = None,
+    company_context: str = "",
+    on_progress: Callable[[str, str], None] = _noop_progress,
 ) -> dict[str, Any]:
+    """Answer one copilot question.
+
+    `on_progress(stage, detail)` is called as the agent works — reading the
+    pool, picking a tool, running it, writing the answer — so the UI can show
+    what is actually happening instead of a spinner. It is a plain callback:
+    the streaming route pushes each event onto a queue, and every other
+    caller passes nothing.
+    """
     weight_config = weights or WeightConfig()
+    on_progress("context", f"Reading scored candidates for {job.title}")
     ranked = await candidate_matcher.rank_candidates(
         db, job.id, weight_config=weight_config, persist=False, blind_mode=blind
     )
@@ -880,8 +908,10 @@ async def copilot_answer(
         item["years"] = item.get("years_of_experience")
     requirements = job_requirements(job)
     pool = build_pool(ranked, weights=weight_config, blind=blind, requirements=requirements)
+    on_progress("context", f"Read {len(pool)} scored candidates against {len(requirements)} requirements")
 
     if is_analytics_query(question):
+        on_progress("tool", "Calibrating the job description")
         calibration = await jd_calibration_result(db, job.id)
         return {
             "answer": format_jd_calibration_answer(calibration["optimization"]),
@@ -908,6 +938,7 @@ async def copilot_answer(
     start = time.monotonic()
 
     if openai_service.mock:
+        on_progress("answer", "Composing the answer from stored verdicts")
         result = deterministic_answer(question, pool, requirements, focus_candidate=focus_candidate)
         result["pool"] = pool
         result["model_id"] = model_id
@@ -926,13 +957,16 @@ async def copilot_answer(
             focus_candidate_id=focus_candidate_id,
             store=db,
             job=job,
+            company_context=company_context,
+            on_progress=on_progress,
         )
         result["pool"] = pool
         result["model_id"] = model_id
         _record_agent_turn("success", "agent", start, tool=(result.get("tools") or [None])[0])
         return result
     except Exception as exc:
-        logger.warning("Agent path failed, falling back to deterministic answer: %s", exc)
+        logger.warning("Copilot AI path failed; using deterministic fallback: %s", exc)
+        on_progress("fallback", "The model was unavailable — answering from stored verdicts")
         result = deterministic_answer(question, pool, requirements, focus_candidate=focus_candidate)
         result["pool"] = pool
         result["model_id"] = model_id

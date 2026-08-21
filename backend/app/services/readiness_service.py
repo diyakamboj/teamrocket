@@ -13,6 +13,7 @@ from typing import Any, List, Optional
 
 from app.models.readiness import AssessmentRecommendation, AssessmentStatus, AssessmentType, CandidateAssessmentRecord
 from app.services.candidate_matcher import candidate_matcher
+from app.config import settings
 from app.services.email_service import email_service
 from app.services import handoff_service
 
@@ -146,14 +147,21 @@ class ReadinessService:
             summary=f"Recruiter approved & sent {record.title} (Target: {target_competency})",
         )
 
-        # Trigger notification email
-        email_service.send_decision_notification(
+        # Send the invitation and record what actually happened, so the UI can
+        # say "sent" or "logged (SMTP not configured)" rather than assuming.
+        result = email_service.send_assessment_invitation(
             candidate_email=candidate.email,
             candidate_name=candidate.name,
-            job_title=job_title,
-            decision="invited",
-            notes=f"You have been invited to complete a {record.title}. Please review the instructions.",
+            job_title=job_title or "the role",
+            assessment_title=record.title,
+            target_competency=target_competency,
+            assessment_url=f"{settings.ASSESSMENT_BASE_URL}/{record.id}",
         )
+        record.notification_sent = result.sent
+        record.notification_source = result.source
+        record.notification_error = result.error
+        record.assessment_url = f"{settings.ASSESSMENT_BASE_URL}/{record.id}"
+        store.readiness_assessments.save(record)
 
         return record
 

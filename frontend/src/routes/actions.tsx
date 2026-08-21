@@ -1,10 +1,11 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
   AlertTriangle,
+  Bell,
   Bot,
   CheckCircle2,
   Loader2,
@@ -17,6 +18,8 @@ import {
   decideJdRecommendation,
   getInternalMatches,
   getJdOptimization,
+  getJobPipeline,
+  type PipelineCandidate,
   listJobPipelines,
   type AgentEvaluationSummary,
   type JDRecommendation,
@@ -48,6 +51,11 @@ type ActionItem = {
   jobId: string;
   jobTitle: string;
   candidateName?: string;
+  /** Who this action is actually about. A count alone made it impossible to
+   *  tell whether two cards meant the same person on two different jobs. */
+  people: { id: string | null; name: string }[];
+  /** The concrete next step, in the imperative. */
+  whatToDo: string;
   urgency: "high" | "medium" | "low";
   targetUrl: string;
   actionLabel: string;
@@ -55,11 +63,13 @@ type ActionItem = {
   recommendationId?: string;
 };
 
+//: Named for what the notification is about, not the mechanism behind it.
+//: "JD Skew Warnings" and "Readiness Prompts" are internal vocabulary.
 const FILTERS = [
-  { id: "all", label: "All Actions" },
-  { id: "bench_match", label: "Bench Matches" },
-  { id: "jd_optimization", label: "JD Skew Warnings" },
-  { id: "readiness_assessment", label: "Readiness Prompts" },
+  { id: "all", label: "Everything" },
+  { id: "bench_match", label: "Someone on the bench fits" },
+  { id: "jd_optimization", label: "A job ad needs a tweak" },
+  { id: "readiness_assessment", label: "Candidates waiting on you" },
 ] as const;
 
 type FilterId = (typeof FILTERS)[number]["id"];
@@ -90,9 +100,10 @@ async function buildActions(jobs: JobPipelineSummary[]): Promise<ActionItem[]> {
     jobs.map(async (job) => {
       const items: ActionItem[] = [];
 
-      const [optimization, matches] = await Promise.all([
+      const [optimization, matches, pipeline] = await Promise.all([
         getJdOptimization(job.job_id).catch(() => null),
         getInternalMatches(job.job_id, true).catch(() => [] as AgentEvaluationSummary[]),
+        getJobPipeline(job.job_id, "all").catch(() => [] as PipelineCandidate[]),
       ]);
 
       for (const rec of optimization?.recommendations ?? []) {
@@ -107,6 +118,10 @@ async function buildActions(jobs: JobPipelineSummary[]): Promise<ActionItem[]> {
           urgency: jdUrgency(rec),
           targetUrl: "/insights",
           actionLabel: "Accept recommendation",
+          people: [],
+          whatToDo: rec.is_must_have
+            ? `Drop “${rec.skill}” from the must-haves, or accept a smaller pool.`
+            : `Reword or remove “${rec.skill}” — few candidates match it.`,
           recommendationId: rec.id,
         });
       }
@@ -125,21 +140,39 @@ async function buildActions(jobs: JobPipelineSummary[]): Promise<ActionItem[]> {
           urgency: (candidate.score ?? 0) >= 75 ? "high" : "medium",
           targetUrl: "/talent-marketplace",
           actionLabel: "Review & place employee",
+          people: [{ id: candidate.candidate_id ?? null, name: candidate.label }],
+          whatToDo: `Decide whether to put ${candidate.label} forward for this role.`,
         });
       }
 
-      const screened = job.stage_counts?.screened ?? 0;
-      if (screened > 0) {
+      // Name the candidates rather than only counting them. The count came
+      // from stage_counts, so the same person sitting on two boards produced
+      // two cards that each just said "1 candidate" with no way to tell they
+      // were the same human.
+      const awaiting = pipeline.filter((c) => c.stage === "screened");
+      if (awaiting.length > 0) {
         items.push({
           id: `readiness-${job.job_id}`,
           type: "readiness_assessment",
-          title: `${screened} candidate${screened === 1 ? "" : "s"} ready for assessment`,
-          description: `${screened} screened candidate${screened === 1 ? " has" : "s have"} not yet moved to interview. Run a readiness assessment to validate competency gaps first.`,
+          title:
+            awaiting.length === 1
+              ? `${awaiting[0]!.candidate_name} is reviewed but not yet in interview`
+              : `${awaiting.length} reviewed candidates are not yet in interview`,
+          description:
+            "A readiness assessment checks the competency gaps before you commit interview time.",
           jobId: job.job_id,
           jobTitle: job.title,
-          urgency: screened >= 5 ? "medium" : "low",
-          targetUrl: "/candidates",
-          actionLabel: "Send readiness assessments",
+          urgency: awaiting.length >= 5 ? "medium" : "low",
+          targetUrl: `/jobs/${job.job_id}`,
+          // No send button here. Assessments are per candidate and the
+          // Hiring steps checklist knows each one's state — sending in bulk
+          // from a notification could not tell who had already been skipped.
+          actionLabel: "Open the hiring steps",
+          people: awaiting.map((c) => ({
+            id: c.candidate_id ?? null,
+            name: c.candidate_name ?? "Unknown candidate",
+          })),
+          whatToDo: "Send each of them a readiness assessment, or move them straight to interview.",
         });
       }
 
@@ -159,29 +192,51 @@ function ActionsPage() {
   const [resolved, setResolved] = useState<Record<string, "approved" | "dismissed">>({});
   const [pendingId, setPendingId] = useState<string | null>(null);
 
-  useEffect(() => {
-    let cancelled = false;
-    setLoading(true);
-    setError(null);
+  const [lastChecked, setLastChecked] = useState<Date | null>(null);
 
-    listJobPipelines()
-      .then(buildActions)
-      .then((items) => {
-        if (!cancelled) {
+  const load = useCallback(
+    (showSpinner: boolean) => {
+      let cancelled = false;
+      if (showSpinner) setLoading(true);
+      setError(null);
+
+      listJobPipelines()
+        .then(buildActions)
+        .then((items) => {
+          if (cancelled) return;
           setActions(items);
+          setLastChecked(new Date());
           setLoading(false);
-        }
-      })
-      .catch((err: unknown) => {
-        if (cancelled) return;
-        setError(err instanceof Error ? err.message : "Could not load recommendations");
-        setLoading(false);
-      });
+        })
+        .catch((err: unknown) => {
+          if (cancelled) return;
+          setError(err instanceof Error ? err.message : "Could not load notifications");
+          setLoading(false);
+        });
+
+      return () => {
+        cancelled = true;
+      };
+    },
+    [],
+  );
+
+  useEffect(() => {
+    const stop = load(true);
+
+    // A notification centre that only reads once is stale the moment you act
+    // anywhere else in the app. Re-read on an interval, and immediately when
+    // the tab regains focus — which is when someone actually looks at it.
+    const timer = window.setInterval(() => load(false), 60_000);
+    const onFocus = () => load(false);
+    window.addEventListener("focus", onFocus);
 
     return () => {
-      cancelled = true;
+      stop();
+      window.clearInterval(timer);
+      window.removeEventListener("focus", onFocus);
     };
-  }, []);
+  }, [load]);
 
   const filtered = useMemo(
     () =>
@@ -191,7 +246,22 @@ function ActionsPage() {
     [actions, filter, resolved],
   );
 
-  const pendingCount = actions.filter((a) => !resolved[a.id]).length;
+  const pending = useMemo(
+    () => actions.filter((a) => !resolved[a.id]),
+    [actions, resolved],
+  );
+  const pendingCount = pending.length;
+
+  // How many *people* are waiting on you, counted once each. Summing the
+  // per-card figures counted anyone sitting on two boards twice, which is
+  // why this number never matched the candidate list.
+  const peopleWaiting = useMemo(() => {
+    const seen = new Set<string>();
+    for (const action of pending) {
+      for (const person of action.people) seen.add(person.id ?? person.name);
+    }
+    return seen.size;
+  }, [pending]);
 
   async function handleExecute(item: ActionItem) {
     // Only JD recommendations have a backend decision endpoint; the others
@@ -230,18 +300,44 @@ function ActionsPage() {
       <header className="flex flex-wrap items-center justify-between gap-4 border-b border-border pb-6">
         <div>
           <div className="mb-1 flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-primary">
-            <Zap className="h-4 w-4" /> Recruiter Copilot Decision Queue
+            <Bell className="h-4 w-4" /> Notifications
           </div>
-          <h1 className="text-2xl font-extrabold tracking-tight sm:text-3xl">Actions Center</h1>
-          <p className="mt-1 text-sm text-muted-foreground">
-            AI recommendations generated from your live pipelines — JD calibration, bench matches,
-            and readiness prompts.
+          <h1 className="font-display text-2xl font-extrabold tracking-tight sm:text-3xl">
+            What needs you
+          </h1>
+          <p className="mt-1 max-w-2xl text-sm text-muted-foreground">
+            Things that came up across your roles while you were away. Read them, act on the ones
+            that matter, and clear the rest — nothing here happens on its own.
           </p>
         </div>
-        <Badge className="border-warning/40 bg-warning/15 text-xs font-semibold text-warning-foreground dark:text-warning">
-          ⚡ {pendingCount} pending action{pendingCount === 1 ? "" : "s"}
-        </Badge>
+        <span
+          className={cn(
+            "inline-flex items-center gap-2 rounded-xl px-3 py-1.5 text-xs font-semibold",
+            pendingCount === 0
+              ? "bg-success/15 text-success"
+              : "bg-primary-soft text-primary-soft-foreground",
+          )}
+        >
+          {pendingCount === 0 ? (
+            <>
+              <CheckCircle2 className="h-3.5 w-3.5" /> Nothing waiting
+            </>
+          ) : (
+            <>
+              <Bell className="h-3.5 w-3.5" />
+              {pendingCount} unread
+              {peopleWaiting > 0 && ` · about ${peopleWaiting} ${peopleWaiting === 1 ? "person" : "people"}`}
+            </>
+          )}
+        </span>
       </header>
+
+      {lastChecked && (
+        <p className="-mt-2 text-[11px] text-muted-foreground">
+          Checked {lastChecked.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })} ·
+          updates on its own every minute and whenever you come back to this tab.
+        </p>
+      )}
 
       <div className="flex flex-wrap items-center gap-2">
         {FILTERS.map((tab) => (
@@ -277,9 +373,10 @@ function ActionsPage() {
         ) : filtered.length === 0 ? (
           <Card className="card-surface p-12 text-center">
             <CheckCircle2 className="mx-auto mb-3 h-12 w-12 text-success" />
-            <h3 className="text-lg font-bold">Queue clear</h3>
-            <p className="mt-1 text-sm text-muted-foreground">
-              No outstanding Copilot recommendations for your open jobs.
+            <h3 className="font-display text-lg font-bold">You are all caught up</h3>
+            <p className="mx-auto mt-1 max-w-sm text-sm text-muted-foreground">
+              Nothing needs your attention across your roles right now. New notifications appear
+              here as candidates move and your job ads get more applicants.
             </p>
           </Card>
         ) : (
@@ -307,7 +404,7 @@ function ActionsPage() {
                         <div className="flex flex-wrap items-center gap-3">
                           <h3 className="text-base font-bold">{item.title}</h3>
                           {item.urgency === "high" && (
-                            <Badge className="border-destructive/30 bg-destructive/15 text-[10px] uppercase text-destructive">
+                            <Badge className="border-destructive/30 bg-destructive/15 text-[11px] uppercase text-destructive">
                               High priority
                             </Badge>
                           )}
@@ -315,6 +412,41 @@ function ActionsPage() {
                         <p className="max-w-3xl text-sm leading-relaxed text-muted-foreground">
                           {item.description}
                         </p>
+
+                        {/* The imperative, separated from the explanation --
+                            the old card left you to infer the next step from
+                            a paragraph of context. */}
+                        <p className="max-w-3xl pt-1 text-sm font-semibold text-foreground">
+                          → {item.whatToDo}
+                        </p>
+
+                        {item.people.length > 0 && (
+                          <div className="flex flex-wrap items-center gap-1.5 pt-2">
+                            <span className="text-xs text-muted-foreground">
+                              {item.people.length === 1 ? "Candidate:" : "Candidates:"}
+                            </span>
+                            {item.people.map((person) =>
+                              person.id ? (
+                                <Link
+                                  key={person.id}
+                                  to="/candidates"
+                                  search={{ focus: person.id }}
+                                  className="rounded-full border border-border px-2 py-0.5 text-xs font-medium transition-colors hover:border-primary hover:bg-primary/10 hover:text-primary"
+                                >
+                                  {person.name}
+                                </Link>
+                              ) : (
+                                <span
+                                  key={person.name}
+                                  className="rounded-full border border-border px-2 py-0.5 text-xs font-medium text-muted-foreground"
+                                >
+                                  {person.name}
+                                </span>
+                              ),
+                            )}
+                          </div>
+                        )}
+
                         <div className="flex items-center gap-2 pt-2">
                           <span className="text-xs text-muted-foreground">Target role:</span>
                           <Badge variant="outline" className="text-xs">
@@ -331,22 +463,37 @@ function ActionsPage() {
                         </Badge>
                       ) : (
                         <>
-                          <Button
-                            size="sm"
-                            className="rounded-xl text-xs"
-                            disabled={pendingId === item.id}
-                            onClick={() => void handleExecute(item)}
-                          >
-                            {pendingId === item.id && (
-                              <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
-                            )}
-                            {item.actionLabel}
-                          </Button>
-                          <Link to={item.targetUrl}>
-                            <Button size="sm" variant="outline" className="rounded-xl text-xs">
-                              Open
-                            </Button>
-                          </Link>
+                          {/* Only recommendations with a real backend
+                              decision get an act-here button. Everything
+                              else is a notification: it tells you something
+                              happened and takes you to where you deal with
+                              it, rather than pretending to resolve it. */}
+                          {item.recommendationId ? (
+                            <>
+                              <Button
+                                size="sm"
+                                className="press rounded-xl text-xs"
+                                disabled={pendingId === item.id}
+                                onClick={() => void handleExecute(item)}
+                              >
+                                {pendingId === item.id && (
+                                  <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
+                                )}
+                                {item.actionLabel}
+                              </Button>
+                              <Link to={item.targetUrl}>
+                                <Button size="sm" variant="outline" className="rounded-xl text-xs">
+                                  Open
+                                </Button>
+                              </Link>
+                            </>
+                          ) : (
+                            <Link to={item.targetUrl}>
+                              <Button size="sm" className="press rounded-xl text-xs">
+                                {item.actionLabel}
+                              </Button>
+                            </Link>
+                          )}
                           <Button
                             size="sm"
                             variant="ghost"

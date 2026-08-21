@@ -11,6 +11,11 @@ from __future__ import annotations
 
 from app.models.ats_benchmark import AtsBenchmarkScore
 from app.models.candidate import Candidate
+from app.models.user import User
+from app.models.company_document import CompanyDocument
+from app.models.collaboration import CandidateNote, CandidateShare, DirectMessage
+from app.models.placement import CandidatePlacement
+from app.models.connection import RecruiterConnection
 from app.models.evaluation import (
     AgentSession,
     AuditLog,
@@ -20,6 +25,7 @@ from app.models.evaluation import (
 )
 from app.models.handoff import CandidateHistoryEvent, InterviewHandoff
 from app.models.interview import ScheduledInterview
+from app.models.interview_questions import RoundQuestionSet
 from app.models.job_posting import JobPosting
 from app.models.jd_recommendation import JDRecommendationRecord
 from app.models.readiness import CandidateAssessmentRecord
@@ -28,6 +34,7 @@ from app.models.screening import ScreeningSession
 from app.services.azure_services import JsonBlobStore, document_store
 from app.storage.repository import (
     AppendOnlyRepository,
+    CandidateHistoryRepository,
     AtsBenchmarkRepository,
     EvaluationRepository,
     EvidenceRepository,
@@ -66,9 +73,7 @@ class Store:
         self.chat_attachments: Repository[ChatAttachment] = Repository(
             backing, ChatAttachment, "chat_attachments"
         )
-        self.candidate_history_events: AppendOnlyRepository[CandidateHistoryEvent] = (
-            AppendOnlyRepository(backing, CandidateHistoryEvent, "candidate_history_events")
-        )
+        self.candidate_history_events = CandidateHistoryRepository(backing)
         self.handoffs: Repository[InterviewHandoff] = Repository(
             backing, InterviewHandoff, "interview_handoffs"
         )
@@ -82,8 +87,30 @@ class Store:
         self.readiness_assessments: Repository[CandidateAssessmentRecord] = Repository(
             backing, CandidateAssessmentRecord, "readiness_assessments"
         )
+        self.round_questions: Repository[RoundQuestionSet] = Repository(
+            backing, RoundQuestionSet, "round_questions"
+        )
         self.jd_recommendations: Repository[JDRecommendationRecord] = Repository(
             backing, JDRecommendationRecord, "jd_recommendations"
+        )
+        self.company_documents: Repository[CompanyDocument] = Repository(
+            backing, CompanyDocument, "company_documents"
+        )
+        self.users: Repository[User] = Repository(backing, User, "users")
+        self.recruiter_connections: Repository[RecruiterConnection] = Repository(
+            backing, RecruiterConnection, "recruiter_connections"
+        )
+        self.candidate_shares: Repository[CandidateShare] = Repository(
+            backing, CandidateShare, "candidate_shares"
+        )
+        self.direct_messages: Repository[DirectMessage] = Repository(
+            backing, DirectMessage, "direct_messages"
+        )
+        self.candidate_notes: Repository[CandidateNote] = Repository(
+            backing, CandidateNote, "candidate_notes"
+        )
+        self.candidate_placements: Repository[CandidatePlacement] = Repository(
+            backing, CandidatePlacement, "candidate_placements"
         )
 
 

@@ -44,7 +44,7 @@ export function ToolIndicator({
         return (
           <span
             key={tool}
-            className="inline-flex items-center gap-1 rounded-full bg-secondary px-2 py-0.5 text-[10px] font-medium text-secondary-foreground"
+            className="inline-flex items-center gap-1 rounded-full bg-secondary px-2 py-0.5 text-[11px] font-medium text-secondary-foreground"
           >
             <Icon className="h-3 w-3" />
             {meta.label}

@@ -1,10 +1,11 @@
 import hashlib
-from typing import Any, Optional
+from typing import Callable, Any, Optional
 from uuid import UUID
 
 from app.models.evaluation import AgentSession
 from app.models.job_posting import JobPosting
 from app.models.schemas import WeightConfig
+from app.services import company_document_service
 from app.services.copilot_agent import copilot_answer, is_analytics_query
 from app.services.copilot_pool import extract_candidate_ids
 from app.services.chatbot_client import chatbot_client
@@ -67,6 +68,7 @@ class RecruiterCopilot:
         candidate_id: Optional[UUID] = None,
         model_id: Optional[str] = None,
         attachment_ids: Optional[list[UUID]] = None,
+        on_progress: Optional[Callable[[str, str], None]] = None,
     ) -> dict[str, Any]:
         if job_id:
             job = store.jobs.get(job_id)
@@ -113,10 +115,18 @@ class RecruiterCopilot:
             if attachment and attachment.status == "processed" and attachment.extracted_text:
                 question += f"\n\n[Attached: {attachment.filename}]\n{attachment.extracted_text[:4000]}"
 
+        # Company documents the recruiter uploaded in Settings — what makes
+        # extracting them worth doing, rather than just storing the files.
+        # Passed separately, not glued onto the question, so the stored chat
+        # history keeps what the recruiter actually typed.
+        company_context = company_document_service.context_for_recruiter(recruiter_email)
+
         result = await copilot_answer(
             db=store,
             job=job,
             question=question,
+            company_context=company_context,
+            **({"on_progress": on_progress} if on_progress else {}),
             blind=blind_mode,
             weights=weights,
             model_id=resolved_model_id,

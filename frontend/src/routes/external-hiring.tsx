@@ -1,25 +1,14 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useState } from "react";
 import { Globe } from "lucide-react";
-import { cn } from "@/lib/utils";
-import {
-  JobGrid,
-  StatTile,
-  WorkspaceHeader,
-  countInStage,
-  countTopMatches,
-  useJobWorkspace,
-  useWorkspaceTotals,
-} from "@/components/hiring-workspace";
+import { HiringWorkspaceFlow } from "@/components/hiring-workspace-flow";
 
 export const Route = createFileRoute("/external-hiring")({
   head: () => ({
     meta: [
-      { title: "External Hiring — ResumeIQ" },
+      { title: "Hiring from outside — ResumeIQ" },
       {
         name: "description",
-        content:
-          "Manage public job postings, external applicant funnels, and sourcing analytics.",
+        content: "Pick a role, then add outside applicants to it.",
       },
     ],
   }),
@@ -27,79 +16,31 @@ export const Route = createFileRoute("/external-hiring")({
 });
 
 function ExternalHiringPage() {
-  const [activeTab, setActiveTab] = useState<"active" | "insights">("active");
-  const { jobs, loading, error } = useJobWorkspace("external");
-  const totals = useWorkspaceTotals(jobs);
-
-  const tabs = [
-    { id: "active" as const, label: `Active external jobs (${jobs.length})` },
-    { id: "insights" as const, label: "External applicant analytics" },
-  ];
-
   return (
-    <div className="mx-auto max-w-7xl space-y-8">
-      <WorkspaceHeader
-        eyebrow="External Applicant Recruitment Workspace"
-        icon={<Globe className="h-4 w-4" />}
-        title="External Hiring"
-        subtitle="Manage public job postings, candidate applicant funnels, and external sourcing analytics."
-        createLabel="Create external job"
-      />
-
-      <div className="flex flex-wrap items-center gap-2 border-b border-border pb-3">
-        {tabs.map((tab) => (
-          <button
-            key={tab.id}
-            onClick={() => setActiveTab(tab.id)}
-            className={cn(
-              "rounded-lg px-3.5 py-1.5 text-xs font-semibold transition-colors",
-              activeTab === tab.id
-                ? "bg-primary text-primary-foreground"
-                : "text-muted-foreground hover:bg-accent hover:text-foreground",
-            )}
-          >
-            {tab.label}
-          </button>
-        ))}
-      </div>
-
-      {activeTab === "active" && (
-        <JobGrid
-          jobs={jobs}
-          loading={loading}
-          error={error}
-          emptyMessage="No jobs have external applicants yet. Upload resumes to start a funnel."
-          metrics={(job) => [
-            { label: "Applicants", value: job.pipeline.length },
-            { label: "Top matches", value: countTopMatches(job), tone: "text-primary" },
-            {
-              label: "In interview",
-              value: countInStage(job, ["interviewing", "interviewed"]),
-              tone: "text-success",
-            },
-          ]}
-        />
-      )}
-
-      {activeTab === "insights" && (
-        <div className="grid grid-cols-1 gap-6 md:grid-cols-3">
-          <StatTile
-            label="External applicants"
-            value={String(totals.candidates)}
-            hint={`Across ${jobs.length} job${jobs.length === 1 ? "" : "s"} with an external funnel.`}
-          />
-          <StatTile
-            label="Average match score"
-            value={`${totals.averageScore}%`}
-            hint="Mean overall fit across all scored external applicants."
-          />
-          <StatTile
-            label="Top-quality matches"
-            value={String(totals.topMatches)}
-            hint="Applicants scoring 85% or higher against their job's requirements."
-          />
+    <div className="mx-auto max-w-4xl space-y-6 pb-12">
+      <header className="border-b border-border pb-5">
+        <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-primary">
+          <Globe className="h-4 w-4" /> Hiring from outside
         </div>
-      )}
+        <h1 className="mt-1 text-2xl font-bold tracking-tight">Fill a role from outside</h1>
+        <p className="mt-1 max-w-2xl text-sm text-muted-foreground">
+          Choose the role you are filling, then add applicants to it.
+        </p>
+      </header>
+
+      <HiringWorkspaceFlow
+        source="external"
+        copy={{
+          population: "applicants",
+          rolesTitle: "Which role are you filling?",
+          rolesBlurb: "Pick one to see who you can put forward for it.",
+          peopleTitle: "Applicants you can add",
+          peopleBlurb: "People in your pool who are not yet on this role.",
+          emptyRoles: "Create a role open to outside applicants, then add people to it.",
+          emptyPeople:
+            "Everyone in your pool is already on this role. Add more by uploading their résumés.",
+        }}
+      />
     </div>
   );
 }

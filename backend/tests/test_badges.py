@@ -13,6 +13,7 @@ def test_normalize_skill_aliases():
 
 def test_build_badges_for_candidate():
     candidate = Candidate(
+        owner_email="recruiter@example.com",
         id=uuid4(),
         name="Alex River",
         email="alex@example.com",

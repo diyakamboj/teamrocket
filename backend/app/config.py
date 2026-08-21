@@ -16,8 +16,66 @@ class Settings(BaseSettings):
     )
 
     # Azure Blob Storage
+    # Either supply the full connection string, or the account name plus a key
+    # (AZURE_STORAGE_ACCOUNT_KEY, or the account key in
+    # AZURE_STORAGE_CONNECTION_STRING). The portal's "Access keys" blade shows
+    # both forms; people routinely paste the bare key, which is not usable on
+    # its own because it carries no account name.
     AZURE_STORAGE_CONNECTION_STRING: Optional[str] = None
+    AZURE_STORAGE_ACCOUNT_NAME: Optional[str] = None
+    AZURE_STORAGE_ACCOUNT_KEY: Optional[str] = None
     AZURE_BLOB_CONTAINER_NAME: str = "resumes"
+
+    # Blob-store performance. The document store is this app's database, so
+    # its round-trip count dominates request latency (see JsonBlobStore).
+    #   CONCURRENCY      threads used for batched get/put/delete
+    #   CONNECTION_POOL  HTTPS connections kept alive; must be >= concurrency
+    #                    or threads queue for sockets and pay TLS handshakes
+    #   CACHE_ENABLED    serve documents from memory while their ETag is
+    #                    unchanged; disable if another writer shares the
+    #                    container
+    #   LISTING_CACHE    seconds a prefix listing may be reused (our own
+    #                    writes invalidate it immediately)
+    BLOB_MAX_CONCURRENCY: int = 32
+    BLOB_CONNECTION_POOL_SIZE: int = 64
+    BLOB_CACHE_ENABLED: bool = True
+    BLOB_LISTING_CACHE_SECONDS: float = 5.0
+
+    # Accept `X-Recruiter-Email` as identity when no session token is sent.
+    #
+    # Every data endpoint used to trust that header unconditionally, with a
+    # default value, so anyone could read any recruiter's candidates by
+    # changing a string and no token was needed at all. It survives for the
+    # test suite and local scripts; turn it off in any deployment.
+    ALLOW_HEADER_IDENTITY: bool = True
+    #: Identity used in header mode when no header is sent at all.
+    DEFAULT_RECRUITER_EMAIL: str = "recruiter@example.com"
+
+    # Vector index backend for semantic candidate search.
+    #   "blob"   vectors persisted in the document store, exact cosine search
+    #   "search" Azure AI Search vector index (needs AZURE_SEARCH_* set)
+    #   "qdrant" Qdrant, a purpose-built vector database (HNSW + payload
+    #            filtering). Embedded by default -- no server to run -- which
+    #            also means the index lives on this machine's disk rather
+    #            than being shared, so prefer "search" for a deployment more
+    #            than one process talks to.
+    #   "dual"   Both: Qdrant answers the vector half, Azure AI Search the
+    #            keyword half, and the two rankings are fused. Each covers
+    #            the other's weakness -- embeddings are unreliable on names
+    #            and exact tool names, keyword search is blind to meaning.
+    VECTOR_BACKEND: str = "blob"
+
+    # Embedded storage path. Set QDRANT_URL instead to talk to a Qdrant
+    # server (e.g. http://localhost:6333) and this is ignored.
+    QDRANT_PATH: str = "./.qdrant"
+    QDRANT_URL: Optional[str] = None
+    QDRANT_API_KEY: Optional[str] = None
+    QDRANT_COLLECTION: str = "resumeiq-candidates"
+
+    # Where assessment invitations point. A placeholder host until a real
+    # assessment provider is integrated — the invitation, the record and the
+    # audit trail are real, the destination is not.
+    ASSESSMENT_BASE_URL: str = "https://assessments.resumeiq.example/take"
 
     # Azure AI Document Intelligence
     AZURE_DOCUMENT_INTELLIGENCE_KEY: Optional[str] = None
@@ -34,9 +92,20 @@ class Settings(BaseSettings):
     # Own-fallback retries: every LLM seam degrades deterministically, so the
     # SDK retrying 3x per call only multiplies outage latency.
     AZURE_OPENAI_MAX_RETRIES: int = 1
+
+    # GPT-5 spends tokens "thinking" before it answers, and defaults to
+    # medium effort. The copilot's calls are structured extraction and
+    # grounded synthesis, not open problem solving, so low effort answers in
+    # a fraction of the time: measured 8.5s -> 3.9s on a 11KB synthesis
+    # prompt. Set "minimal" to disable reasoning, or "medium"/"high" to trade
+    # latency back for depth. Ignored by non-reasoning deployments.
+    AZURE_OPENAI_REASONING_EFFORT: str = "low"
+    # A copilot answer used to exceed the old hardcoded 30s ceiling, retry,
+    # and then fall back to the deterministic answer after ~85s of waiting.
+    AZURE_OPENAI_TIMEOUT_SECONDS: float = 60.0
     # Consecutive failures before the breaker opens, and how long it stays open.
-    AZURE_OPENAI_FAILURE_THRESHOLD: int = 3
-    AZURE_OPENAI_BREAKER_COOLDOWN_SECONDS: float = 60.0
+    AZURE_OPENAI_FAILURE_THRESHOLD: int = 8
+    AZURE_OPENAI_BREAKER_COOLDOWN_SECONDS: float = 15.0
 
 
     # Azure AI Search

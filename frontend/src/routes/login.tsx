@@ -1,114 +1,131 @@
-import { createFileRoute, useNavigate } from "@tanstack/react-router";
-import { useState } from "react";
-import { setSession } from "@/lib/auth";
+import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
+import { useEffect, useState } from "react";
+import { ArrowRight, Loader2 } from "lucide-react";
+import { toast } from "sonner";
+import { isSignedIn, login } from "@/lib/auth";
+import { AuthLayout } from "@/components/auth-layout";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Sparkles, Shield, Bot, CheckCircle2 } from "lucide-react";
 
 export const Route = createFileRoute("/login")({
+  head: () => ({ meta: [{ title: "Sign in — ResumeIQ" }] }),
   component: LoginPage,
 });
 
 function LoginPage() {
   const navigate = useNavigate();
-  const [email, setEmail] = useState("alex.recruiter@example.com");
-  const [password, setPassword] = useState("••••••••••••");
-  const [isLoading, setIsLoading] = useState(false);
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  //: Plays the launch animation before navigating, so signing in reads as
+  //: moving into the app rather than the page blinking out.
+  const [leaving, setLeaving] = useState(false);
 
-  const handleLogin = (e: React.FormEvent) => {
-    e.preventDefault();
-    setIsLoading(true);
+  useEffect(() => {
+    if (isSignedIn()) void navigate({ to: "/", replace: true });
+  }, [navigate]);
 
-    setTimeout(() => {
-      setSession({
-        email,
-        name: (email.split("@")[0] ?? email).replace(".", " ").toUpperCase(),
-        role: "Senior Technical Recruiter",
-        department: "Talent Acquisition",
-        isAuthenticated: true,
-      });
-      setIsLoading(false);
-      navigate({ to: "/" });
-    }, 400);
-  };
+  async function handleSubmit(event: React.FormEvent) {
+    event.preventDefault();
+    if (busy) return;
+    setBusy(true);
+    setError(null);
+    // A local flag, not the state value: `leaving` in this closure is still
+    // false when `finally` runs, which would un-spin the button mid-launch.
+    let launched = false;
+    try {
+      const session = await login(email.trim(), password);
+      toast.success(`Welcome back, ${session.name.split(" ")[0]}`);
+      launched = true;
+      setLeaving(true);
+      // Matches the .auth-launch duration; anyone on reduced motion sees the
+      // card hidden immediately and waits the same brief moment.
+      window.setTimeout(() => void navigate({ to: "/", replace: true }), 420);
+      return;
+    } catch (err) {
+      // The server deliberately gives one message for both an unknown
+      // address and a wrong password; show exactly that.
+      setError(err instanceof Error ? err.message : "Could not sign in.");
+    } finally {
+      if (!launched) setBusy(false);
+    }
+  }
 
   return (
-    <div className="min-h-screen bg-slate-50 text-slate-900 flex items-center justify-center p-4 relative overflow-hidden font-sans">
-      <div className="w-full max-w-md relative z-10">
-        <div className="text-center mb-8">
-          <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-blue-50 border border-blue-200 text-blue-700 text-xs font-semibold mb-4">
-            <Bot className="w-4 h-4 text-blue-600" />
-            AI-Powered Recruiting Intelligence Platform
-          </div>
-          <h1 className="text-2xl font-bold tracking-tight text-slate-900 flex items-center justify-center gap-2">
-            <Sparkles className="w-6 h-6 text-blue-600" />
-            ResumeIQ
-          </h1>
-          <p className="text-xs text-slate-500 mt-1">
-            Seamless Recruiter Workflow & Contextual AI Governance
-          </p>
+    <AuthLayout
+      leaving={leaving}
+      title="Sign in"
+      subtitle="Pick up where you left off with your candidate pool."
+      footer={
+        <>
+          New here?{" "}
+          <Link to="/register" className="font-semibold text-primary hover:underline">
+            Create an account
+          </Link>
+        </>
+      }
+    >
+      <form onSubmit={handleSubmit} className="space-y-4" noValidate>
+        <div className="space-y-1.5">
+          <label htmlFor="email" className="text-xs font-medium">
+            Work email
+          </label>
+          <Input
+            id="email"
+            type="email"
+            autoComplete="email"
+            required
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            placeholder="you@company.com"
+            className="rounded-xl"
+          />
         </div>
 
-        <Card className="bg-white border-slate-200 shadow-sm rounded-xl">
-          <CardHeader className="space-y-1 pb-4">
-            <CardTitle className="text-lg text-slate-900 font-bold">Recruiter Sign In</CardTitle>
-            <CardDescription className="text-slate-500 text-xs">
-              Enter your credentials to access your hiring workspace
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <form onSubmit={handleLogin} className="space-y-4">
-              <div className="space-y-1.5">
-                <label className="text-xs font-semibold text-slate-700">Recruiter Email</label>
-                <Input
-                  type="email"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  className="bg-slate-50 border-slate-200 text-slate-900 placeholder:text-slate-400 focus:border-blue-500 text-xs"
-                  placeholder="recruiter@company.com"
-                  required
-                />
-              </div>
-              <div className="space-y-1.5">
-                <div className="flex items-center justify-between">
-                  <label className="text-xs font-semibold text-slate-700">Password</label>
-                  <span className="text-xs text-blue-600 hover:underline cursor-pointer">
-                    Forgot password?
-                  </span>
-                </div>
-                <Input
-                  type="password"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  className="bg-slate-50 border-slate-200 text-slate-900 placeholder:text-slate-400 focus:border-blue-500 text-xs"
-                  required
-                />
-              </div>
+        <div className="space-y-1.5">
+          <div className="flex items-baseline justify-between gap-3">
+            <label htmlFor="password" className="text-xs font-medium">
+              Password
+            </label>
+            <Link
+              to="/forgot-password"
+              className="text-[11px] font-medium text-primary hover:underline"
+            >
+              Forgot password?
+            </Link>
+          </div>
+          <Input
+            id="password"
+            type="password"
+            autoComplete="current-password"
+            required
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            placeholder="Your password"
+            className="rounded-xl"
+          />
+        </div>
 
-              <Button
-                type="submit"
-                disabled={isLoading}
-                className="w-full bg-blue-600 hover:bg-blue-700 text-white font-medium py-2 text-xs rounded-lg transition-all shadow-xs"
-              >
-                {isLoading ? "Authenticating..." : "Sign In to Recruiter Workspace"}
-              </Button>
-            </form>
+        {error && (
+          <p role="alert" className="animate-pop rounded-lg bg-destructive/10 px-3 py-2 text-xs text-destructive">
+            {error}
+          </p>
+        )}
 
-            <div className="mt-6 pt-4 border-t border-slate-100 text-xs text-slate-500 space-y-2">
-              <div className="flex items-center gap-2 text-slate-600">
-                <Shield className="w-4 h-4 text-emerald-600 shrink-0" />
-                <span>Enterprise RBAC & SSO Ready (Firebase / Okta Integration)</span>
-              </div>
-              <div className="flex items-center gap-2 text-slate-600">
-                <CheckCircle2 className="w-4 h-4 text-blue-600 shrink-0" />
-                <span>Default Demo Recruiter: Alex Smith (Senior Technical Recruiter)</span>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-      </div>
-    </div>
+        <Button type="submit" disabled={busy} className="group w-full rounded-xl">
+          {busy ? (
+            <>
+              <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Signing in…
+            </>
+          ) : (
+            <>
+              Sign in
+              <ArrowRight className="ml-2 h-4 w-4 transition-transform group-hover:translate-x-0.5" />
+            </>
+          )}
+        </Button>
+      </form>
+    </AuthLayout>
   );
 }
-

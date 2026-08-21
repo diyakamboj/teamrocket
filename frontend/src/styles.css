@@ -5,13 +5,19 @@
 @custom-variant dark (&:is(.dark *));
 
 @theme inline {
-  --font-sans: "Plus Jakarta Sans", ui-sans-serif, system-ui, sans-serif;
-  --radius-sm: calc(var(--radius) - 8px);
-  --radius-md: calc(var(--radius) - 5px);
-  --radius-lg: calc(var(--radius) - 2px);
+  --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
+  /* One family, two roles. The old pairing used an expressive display face
+     for headings; this system gets its hierarchy from weight, size and
+     tracking instead, which keeps dense screens calm. */
+  --font-display: "Inter", ui-sans-serif, system-ui, sans-serif;
+  /* Tabular figures for metrics, so columns of numbers align. */
+  --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+  --radius-sm: calc(var(--radius) - 3px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: calc(var(--radius) - 1px);
   --radius-xl: var(--radius);
-  --radius-2xl: calc(var(--radius) + 4px);
-  --radius-3xl: calc(var(--radius) + 12px);
+  --radius-2xl: calc(var(--radius) + 2px);
+  --radius-3xl: calc(var(--radius) + 6px);
   --color-background: var(--background);
   --color-foreground: var(--foreground);
   --color-card: var(--card);
@@ -57,86 +63,93 @@
 }
 
 :root {
-  --radius: 1.125rem;
-  --background: oklch(0.985 0.003 270);
-  --foreground: oklch(0.24 0.045 267);
+  /* Calm & precise: a near-monochrome neutral field, one restrained indigo
+     accent, and hairline borders doing the separating that drop shadows used
+     to do. Chroma stays under 0.02 on every surface token so the accent and
+     the status colours are the only things that read as colour. */
+  --radius: 1rem;
+  --background: oklch(0.994 0.001 265);
+  --foreground: oklch(0.21 0.012 265);
   --card: oklch(1 0 0);
-  --card-foreground: oklch(0.24 0.045 267);
+  --card-foreground: oklch(0.21 0.012 265);
   --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.24 0.045 267);
-  --primary: oklch(0.55 0.208 285);
-  --primary-foreground: oklch(0.99 0.005 285);
-  --primary-soft: oklch(0.945 0.035 285);
-  --primary-soft-foreground: oklch(0.44 0.17 285);
-  --secondary: oklch(0.965 0.006 270);
-  --secondary-foreground: oklch(0.3 0.05 267);
-  --muted: oklch(0.965 0.006 270);
-  --muted-foreground: oklch(0.56 0.03 268);
-  --accent: oklch(0.955 0.02 285);
-  --accent-foreground: oklch(0.44 0.17 285);
-  --destructive: oklch(0.58 0.215 20);
-  --destructive-foreground: oklch(0.99 0.005 20);
-  --success: oklch(0.63 0.15 158);
-  --success-foreground: oklch(0.99 0.005 158);
-  --warning: oklch(0.75 0.15 75);
-  --warning-foreground: oklch(0.25 0.06 75);
-  --border: oklch(0.925 0.008 270);
-  --input: oklch(0.925 0.008 270);
-  --ring: oklch(0.55 0.208 285);
-  --chart-1: oklch(0.55 0.208 285);
-  --chart-2: oklch(0.68 0.15 285);
-  --chart-3: oklch(0.63 0.15 200);
-  --chart-4: oklch(0.63 0.15 158);
-  --chart-5: oklch(0.75 0.15 75);
-  --sidebar: oklch(1 0 0);
-  --sidebar-foreground: oklch(0.3 0.045 267);
-  --sidebar-primary: oklch(0.55 0.208 285);
-  --sidebar-primary-foreground: oklch(0.99 0.005 285);
-  --sidebar-accent: oklch(0.955 0.02 285);
-  --sidebar-accent-foreground: oklch(0.44 0.17 285);
-  --sidebar-border: oklch(0.93 0.008 270);
-  --sidebar-ring: oklch(0.55 0.208 285);
+  --popover-foreground: oklch(0.21 0.012 265);
+  --primary: oklch(0.55 0.24 288);
+  --primary-foreground: oklch(0.99 0.002 265);
+  --primary-soft: oklch(0.95 0.05 288);
+  --primary-soft-foreground: oklch(0.44 0.23 288);
+  --secondary: oklch(0.965 0.003 265);
+  --secondary-foreground: oklch(0.31 0.012 265);
+  --muted: oklch(0.968 0.003 265);
+  --muted-foreground: oklch(0.53 0.011 265);
+  --accent: oklch(0.958 0.004 265);
+  --accent-foreground: oklch(0.28 0.013 265);
+  --destructive: oklch(0.58 0.23 25);
+  --destructive-foreground: oklch(0.99 0.002 25);
+  --success: oklch(0.6 0.17 158);
+  --success-foreground: oklch(0.99 0.002 156);
+  --warning: oklch(0.75 0.17 70);
+  --warning-foreground: oklch(0.26 0.05 70);
+  --border: oklch(0.912 0.004 265);
+  --input: oklch(0.912 0.004 265);
+  --ring: oklch(0.55 0.24 288);
+  /* Chart ramp: distinguishable at a glance without shouting. */
+  --chart-1: oklch(0.55 0.24 288);
+  --chart-2: oklch(0.66 0.19 300);
+  --chart-3: oklch(0.62 0.18 158);
+  --chart-4: oklch(0.75 0.18 62);
+  --chart-5: oklch(0.63 0.22 20);
+  --sidebar: oklch(0.978 0.002 265);
+  --sidebar-foreground: oklch(0.32 0.012 265);
+  --sidebar-primary: oklch(0.55 0.24 288);
+  --sidebar-primary-foreground: oklch(0.99 0.002 265);
+  --sidebar-accent: oklch(0.945 0.005 265);
+  --sidebar-accent-foreground: oklch(0.26 0.013 265);
+  --sidebar-border: oklch(0.912 0.004 265);
+  --sidebar-ring: oklch(0.55 0.24 288);
 }
 
 .dark {
-  --background: oklch(0.17 0.026 273);
-  --foreground: oklch(0.96 0.008 270);
-  --card: oklch(0.215 0.03 273);
-  --card-foreground: oklch(0.96 0.008 270);
-  --popover: oklch(0.215 0.03 273);
-  --popover-foreground: oklch(0.96 0.008 270);
-  --primary: oklch(0.68 0.175 285);
-  --primary-foreground: oklch(0.16 0.04 285);
-  --primary-soft: oklch(0.3 0.06 285);
-  --primary-soft-foreground: oklch(0.85 0.09 285);
-  --secondary: oklch(0.27 0.03 273);
-  --secondary-foreground: oklch(0.95 0.008 270);
-  --muted: oklch(0.27 0.03 273);
-  --muted-foreground: oklch(0.7 0.025 270);
-  --accent: oklch(0.3 0.055 285);
-  --accent-foreground: oklch(0.88 0.08 285);
-  --destructive: oklch(0.67 0.19 20);
-  --destructive-foreground: oklch(0.16 0.04 20);
-  --success: oklch(0.7 0.14 158);
-  --success-foreground: oklch(0.16 0.04 158);
-  --warning: oklch(0.8 0.14 75);
-  --warning-foreground: oklch(0.2 0.05 75);
-  --border: oklch(1 0 0 / 10%);
-  --input: oklch(1 0 0 / 14%);
-  --ring: oklch(0.68 0.175 285);
-  --chart-1: oklch(0.68 0.175 285);
-  --chart-2: oklch(0.78 0.12 285);
-  --chart-3: oklch(0.7 0.13 200);
-  --chart-4: oklch(0.72 0.14 158);
-  --chart-5: oklch(0.8 0.14 75);
-  --sidebar: oklch(0.195 0.028 273);
-  --sidebar-foreground: oklch(0.93 0.01 270);
-  --sidebar-primary: oklch(0.68 0.175 285);
-  --sidebar-primary-foreground: oklch(0.16 0.04 285);
-  --sidebar-accent: oklch(0.3 0.055 285);
-  --sidebar-accent-foreground: oklch(0.88 0.08 285);
-  --sidebar-border: oklch(1 0 0 / 10%);
-  --sidebar-ring: oklch(0.68 0.175 285);
+  /* Neutral charcoal rather than a tinted dark. Same rule as light: surfaces
+     carry almost no chroma, so the accent and status colours stay legible. */
+  --background: oklch(0.175 0.018 285);
+  --foreground: oklch(0.96 0.003 265);
+  --card: oklch(0.215 0.021 285);
+  --card-foreground: oklch(0.96 0.003 265);
+  --popover: oklch(0.215 0.021 285);
+  --popover-foreground: oklch(0.96 0.003 265);
+  --primary: oklch(0.7 0.2 288);
+  --primary-foreground: oklch(0.17 0.02 264);
+  --primary-soft: oklch(0.33 0.12 288);
+  --primary-soft-foreground: oklch(0.89 0.11 288);
+  --secondary: oklch(0.265 0.024 285);
+  --secondary-foreground: oklch(0.93 0.003 265);
+  --muted: oklch(0.265 0.024 285);
+  --muted-foreground: oklch(0.7 0.008 265);
+  --accent: oklch(0.285 0.028 285);
+  --accent-foreground: oklch(0.94 0.003 265);
+  --destructive: oklch(0.68 0.2 25);
+  --destructive-foreground: oklch(0.16 0.03 25);
+  --success: oklch(0.72 0.16 158);
+  --success-foreground: oklch(0.16 0.03 156);
+  --warning: oklch(0.8 0.16 70);
+  --warning-foreground: oklch(0.2 0.04 70);
+  --border: oklch(0.295 0.026 285);
+  --input: oklch(0.315 0.028 285);
+  --ring: oklch(0.7 0.2 288);
+  --chart-1: oklch(0.7 0.2 288);
+  --chart-2: oklch(0.75 0.16 300);
+  --chart-3: oklch(0.72 0.16 158);
+  --chart-4: oklch(0.8 0.16 62);
+  --chart-5: oklch(0.72 0.19 20);
+  --sidebar: oklch(0.195 0.02 285);
+  --sidebar-foreground: oklch(0.9 0.004 265);
+  --sidebar-primary: oklch(0.7 0.2 288);
+  --sidebar-primary-foreground: oklch(0.17 0.02 264);
+  --sidebar-accent: oklch(0.265 0.024 285);
+  --sidebar-accent-foreground: oklch(0.95 0.003 265);
+  --sidebar-border: oklch(0.295 0.026 285);
+  --sidebar-ring: oklch(0.7 0.2 288);
 }
 
 @layer base {
@@ -165,8 +178,8 @@
 @utility card-surface {
   background-color: var(--color-card);
   border: 1px solid var(--color-border);
-  border-radius: var(--radius-2xl);
-  box-shadow: var(--shadow-soft);
+  border-radius: var(--radius-lg);
+  box-shadow: none;
 }
 
 /* Tofu-style fraud orbit hero */
@@ -236,5 +249,994 @@
   .fraud-orbit-ring,
   .fraud-orbit-counter {
     animation: none;
+  }
+}
+
+/* ---------------------------------------------------------------------------
+   Motion system
+   ---------------------------------------------------------------------------
+   A small set of entrance and emphasis animations shared by the landing,
+   auth and app pages, so movement feels like one language rather than
+   per-page improvisation.
+
+   Every animation here is decorative: content is fully readable and usable
+   with all of it disabled, which is what the reduced-motion block at the
+   bottom does. Animations are short (200-600ms) and use transform/opacity
+   only, so they stay on the compositor and never cause layout work.
+--------------------------------------------------------------------------- */
+
+@keyframes rise-in {
+  from {
+    opacity: 0;
+    transform: translate3d(0, 14px, 0);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes scale-in {
+  from {
+    opacity: 0;
+    transform: scale(0.96);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes drift {
+  0%,
+  100% {
+    transform: translate3d(0, 0, 0);
+  }
+  50% {
+    transform: translate3d(0, -12px, 0);
+  }
+}
+
+@keyframes aurora {
+  0%,
+  100% {
+    transform: translate3d(0, 0, 0) scale(1);
+    opacity: 0.55;
+  }
+  50% {
+    transform: translate3d(3%, -4%, 0) scale(1.12);
+    opacity: 0.8;
+  }
+}
+
+@keyframes shimmer {
+  from {
+    background-position: -160% 0;
+  }
+  to {
+    background-position: 160% 0;
+  }
+}
+
+.animate-rise {
+  animation: rise-in 0.55s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+.animate-fade {
+  animation: fade-in 0.5s ease-out both;
+}
+
+.animate-pop {
+  animation: scale-in 0.4s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+.animate-drift {
+  animation: drift 7s ease-in-out infinite;
+}
+
+.animate-aurora {
+  animation: aurora 16s ease-in-out infinite;
+}
+
+/* Staggering: children appear in sequence rather than all at once, which
+   reads as one deliberate motion instead of a flash. */
+.stagger > * {
+  animation: rise-in 0.55s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+.stagger > *:nth-child(1) { animation-delay: 0.04s; }
+.stagger > *:nth-child(2) { animation-delay: 0.10s; }
+.stagger > *:nth-child(3) { animation-delay: 0.16s; }
+.stagger > *:nth-child(4) { animation-delay: 0.22s; }
+.stagger > *:nth-child(5) { animation-delay: 0.28s; }
+.stagger > *:nth-child(6) { animation-delay: 0.34s; }
+.stagger > *:nth-child(7) { animation-delay: 0.40s; }
+.stagger > *:nth-child(8) { animation-delay: 0.46s; }
+
+/* Reveal on scroll: set by an IntersectionObserver (see use-reveal.ts). */
+.reveal {
+  opacity: 0;
+  transform: translate3d(0, 20px, 0);
+  transition:
+    opacity 0.6s cubic-bezier(0.22, 1, 0.36, 1),
+    transform 0.6s cubic-bezier(0.22, 1, 0.36, 1);
+}
+.reveal[data-visible="true"] {
+  opacity: 1;
+  transform: none;
+}
+
+/* Cards that lift slightly under the cursor — enough to feel responsive,
+   not enough to shift the layout around them. */
+.lift {
+  transition:
+    transform 0.25s cubic-bezier(0.22, 1, 0.36, 1),
+    box-shadow 0.25s cubic-bezier(0.22, 1, 0.36, 1),
+    border-color 0.25s ease;
+  will-change: transform;
+}
+.lift:hover {
+  transform: translate3d(0, -2px, 0);
+  border-color: color-mix(in oklch, var(--color-primary) 40%, transparent);
+  box-shadow:
+    0 0 0 1px color-mix(in oklch, var(--color-primary) 14%, transparent),
+    0 14px 34px -16px color-mix(in oklch, var(--color-primary) 55%, transparent);
+}
+
+.gradient-text {
+  background: linear-gradient(
+    100deg,
+    var(--color-primary, oklch(0.55 0.2 275)),
+    oklch(0.65 0.19 200),
+    var(--color-primary, oklch(0.55 0.2 275))
+  );
+  background-size: 200% auto;
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  animation: shimmer 6s linear infinite;
+
+  /* `background-clip: text` paints only inside the element's box. On an
+     inline element that box stops at the baseline metrics, so descenders
+     (g, y, comma) fall outside it and — being `color: transparent` — render
+     as nothing at all. It reads as the font being cut off. inline-block
+     plus a little vertical room gives the gradient something to paint on;
+     the negative margins keep the surrounding layout where it was. */
+  /* Vertical padding on an *inline* box grows the painted background
+     without touching line layout, so the gradient reaches the descenders
+     while the comma after it stays on the same line. inline-block would
+     also paint them, but makes the word atomic and orphans punctuation. */
+  padding-block: 0.08em 0.18em;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .animate-rise,
+  .animate-fade,
+  .animate-pop,
+  .animate-drift,
+  .animate-aurora,
+  .stagger > *,
+  .gradient-text {
+    animation: none !important;
+  }
+  .reveal {
+    opacity: 1;
+    transform: none;
+    transition: none;
+  }
+  .lift:hover {
+    transform: none;
+  }
+}
+
+/* ---------------------------------------------------------------------------
+   Futuristic surfaces
+   ---------------------------------------------------------------------------
+   A thin luminous edge and a soft inner glow on raised surfaces, so cards read
+   as panels of a system rather than flat boxes. Kept to borders and shadows —
+   no change to text colour or spacing, so contrast and legibility are the
+   same as before.
+--------------------------------------------------------------------------- */
+
+.panel-glow {
+  position: relative;
+  isolation: isolate;
+}
+
+.panel-glow::before {
+  content: "";
+  position: absolute;
+  inset: -1px;
+  z-index: -1;
+  border-radius: inherit;
+  background: linear-gradient(
+    135deg,
+    color-mix(in oklch, var(--color-primary) 45%, transparent),
+    transparent 45%,
+    color-mix(in oklch, var(--color-chart-2) 35%, transparent)
+  );
+  opacity: 0;
+  transition: opacity 0.3s ease;
+}
+
+.panel-glow:hover::before {
+  opacity: 1;
+}
+
+/* A single sweep of light across a surface, for things that just arrived. */
+@keyframes sheen {
+  from {
+    transform: translateX(-120%);
+  }
+  to {
+    transform: translateX(220%);
+  }
+}
+
+.sheen {
+  position: relative;
+  overflow: hidden;
+}
+
+.sheen::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    100deg,
+    transparent 35%,
+    color-mix(in oklch, var(--color-primary) 12%, transparent) 50%,
+    transparent 65%
+  );
+  transform: translateX(-120%);
+  animation: sheen 2.4s ease-in-out 0.3s;
+  pointer-events: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .sheen::after {
+    animation: none;
+    display: none;
+  }
+  .panel-glow::before {
+    transition: none;
+  }
+}
+
+/* ---------------------------------------------------------------------------
+   Flow layout + colour accents
+   ---------------------------------------------------------------------------
+   Content flows in bands with breathing room that scales with the viewport,
+   rather than sitting in fixed boxes. The colour work is deliberately
+   restrained: saturated hues carry meaning (a stage, a score, a status) and
+   surfaces stay near-neutral, which is what keeps a bright palette reading as
+   professional rather than noisy.
+--------------------------------------------------------------------------- */
+
+.flow {
+  display: flex;
+  flex-direction: column;
+  /* Space scales with the viewport instead of a fixed gap. */
+  gap: clamp(1.25rem, 2.5vw, 2.25rem);
+}
+
+.flow-tight {
+  display: flex;
+  flex-direction: column;
+  gap: clamp(0.75rem, 1.2vw, 1.25rem);
+}
+
+/* A hairline of colour along the top of a surface — enough to tint a section
+   without tinting the text it contains. */
+.edge-accent {
+  position: relative;
+}
+
+.edge-accent::before {
+  content: "";
+  position: absolute;
+  inset-inline: 0;
+  top: 0;
+  height: 2px;
+  border-radius: inherit;
+  background: linear-gradient(
+    90deg,
+    var(--color-chart-1),
+    var(--color-chart-2) 40%,
+    var(--color-chart-3) 70%,
+    var(--color-chart-1)
+  );
+  background-size: 250% 100%;
+  animation: gradient-pan 8s ease infinite;
+  opacity: 0.95;
+}
+
+/* Stage colours, used by the pipeline and candidate rows so a stage means the
+   same colour everywhere in the app. */
+.stage-screened {
+  color: var(--color-chart-2);
+}
+.stage-interviewing,
+.stage-interviewed {
+  color: var(--color-chart-4);
+}
+.stage-selected {
+  color: var(--color-chart-3);
+}
+.stage-hired {
+  color: var(--color-chart-1);
+}
+.stage-rejected {
+  color: var(--color-destructive);
+}
+
+/* Numbers that matter: tabular so columns line up, and tinted by the scale
+   they sit on. */
+.metric {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.03em;
+}
+
+/* Buttons and interactive surfaces settle rather than snap. */
+button,
+[role="button"],
+a {
+  transition:
+    background-color 0.2s cubic-bezier(0.22, 1, 0.36, 1),
+    border-color 0.2s cubic-bezier(0.22, 1, 0.36, 1),
+    color 0.2s cubic-bezier(0.22, 1, 0.36, 1),
+    transform 0.2s cubic-bezier(0.22, 1, 0.36, 1),
+    box-shadow 0.2s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+button:active:not(:disabled),
+[role="button"]:active {
+  transform: translate3d(0, 1px, 0);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  button,
+  [role="button"],
+  a {
+    transition: none;
+  }
+  button:active:not(:disabled),
+  [role="button"]:active {
+    transform: none;
+  }
+}
+
+/* ============================================================
+   Design system v2 — futuristic / flow / vibrant / smooth
+   ============================================================
+
+   Layered on top of the tokens above so every existing route picks
+   the new look up without being rewritten: components read `--primary`,
+   `--card` and friends, and those values changed underneath them.
+
+   Every motion rule here is disabled under prefers-reduced-motion at the
+   bottom of this file.
+   ============================================================ */
+
+@layer base {
+  /* Display face on headings only. */
+  h1, h2, h3, .font-display {
+    font-family: var(--font-display);
+    letter-spacing: -0.02em;
+    /* Inter has shallower descenders than the old display face, so headings
+       can sit tighter without cropping g, y and p. */
+    line-height: max(1.12, 1em);
+  }
+
+  h1 {
+    letter-spacing: -0.035em;
+    line-height: 1.14;
+  }
+
+  /* Utility line-heights still win where a designer set one deliberately,
+     but never tighter than the face can take. */
+  h1[class*="leading-"],
+  h2[class*="leading-"],
+  h3[class*="leading-"] {
+    line-height: 1.16;
+  }
+
+  /* Tabular figures everywhere a number is compared against another
+     number — scores, counts, currency. Proportional digits make columns
+     of figures visibly ragged. */
+  .metric, [class*="tabular"] {
+    font-variant-numeric: tabular-nums;
+    font-feature-settings: "tnum" 1;
+  }
+}
+
+@layer utilities {
+  /* ---------- Futuristic surfaces ---------- */
+
+  /* A card that sits *on* the background rather than in it: a hairline
+     top highlight and a soft coloured shadow, the way a lit panel reads. */
+  .surface-lift {
+    position: relative;
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    box-shadow:
+      0 1px 2px -1px oklch(0 0 0 / 0.06),
+      0 8px 24px -12px oklch(0.58 0.28 288 / 0.18);
+    transition:
+      transform 420ms cubic-bezier(0.22, 1, 0.36, 1),
+      box-shadow 420ms cubic-bezier(0.22, 1, 0.36, 1),
+      border-color 260ms ease;
+  }
+
+  .surface-lift::before {
+    content: "";
+    position: absolute;
+    inset: 0 0 auto 0;
+    height: 1px;
+    border-radius: var(--radius) var(--radius) 0 0;
+    background: linear-gradient(
+      90deg,
+      transparent,
+      oklch(1 0 0 / 0.55) 22%,
+      oklch(1 0 0 / 0.55) 78%,
+      transparent
+    );
+    pointer-events: none;
+  }
+
+  .dark .surface-lift::before {
+    background: linear-gradient(
+      90deg,
+      transparent,
+      oklch(0.74 0.24 295 / 0.4) 22%,
+      oklch(0.68 0.19 195 / 0.4) 78%,
+      transparent
+    );
+  }
+
+  .surface-lift:hover {
+    transform: translateY(-3px);
+    border-color: oklch(0.58 0.28 288 / 0.35);
+    box-shadow:
+      0 2px 4px -2px oklch(0 0 0 / 0.08),
+      0 20px 44px -16px oklch(0.58 0.28 288 / 0.3);
+  }
+
+  /* Vivid edge marking a section's kind, without a heavy border. */
+  .edge-glow {
+    position: relative;
+    overflow: hidden;
+  }
+
+  .edge-glow::after {
+    content: "";
+    position: absolute;
+    inset: 0 auto 0 0;
+    width: 3px;
+    background: linear-gradient(
+      180deg,
+      oklch(0.58 0.28 288),
+      oklch(0.68 0.19 195)
+    );
+  }
+
+  /* ---------- Vibrant type accents ---------- */
+
+  .text-gradient {
+    background: linear-gradient(
+      100deg,
+      oklch(0.58 0.28 288),
+      oklch(0.62 0.24 330) 42%,
+      oklch(0.66 0.2 200)
+    );
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+  }
+
+  .dark .text-gradient {
+    background: linear-gradient(
+      100deg,
+      oklch(0.8 0.2 295),
+      oklch(0.78 0.19 330) 42%,
+      oklch(0.8 0.16 195)
+    );
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+  }
+
+  /* ---------- Flow layout ----------
+     Spacing that responds to the viewport rather than stepping between
+     fixed breakpoints, so the rhythm holds at any width. */
+
+  .flow-stack > * + * {
+    margin-block-start: clamp(0.75rem, 0.4rem + 1.1vw, 1.75rem);
+  }
+
+  .flow-section {
+    padding-block: clamp(1.25rem, 0.8rem + 1.6vw, 2.75rem);
+  }
+
+  /* Cards that size to their content instead of a fixed column count. */
+  .flow-grid {
+    display: grid;
+    gap: clamp(0.75rem, 0.45rem + 1vw, 1.5rem);
+    grid-template-columns: repeat(auto-fit, minmax(min(17rem, 100%), 1fr));
+  }
+
+  .flow-grid-wide {
+    display: grid;
+    gap: clamp(0.75rem, 0.45rem + 1vw, 1.5rem);
+    grid-template-columns: repeat(auto-fit, minmax(min(23rem, 100%), 1fr));
+  }
+
+  /* ---------- Smooth interaction ---------- */
+
+  .press {
+    transition: transform 180ms cubic-bezier(0.22, 1, 0.36, 1);
+  }
+
+  .press:active {
+    transform: scale(0.975);
+  }
+
+  /* Content arriving: a short rise, never a bounce. */
+  @keyframes flow-in {
+    from {
+      opacity: 0;
+      transform: translateY(10px);
+    }
+    to {
+      opacity: 1;
+      transform: none;
+    }
+  }
+
+  .flow-in {
+    animation: flow-in 520ms cubic-bezier(0.22, 1, 0.36, 1) both;
+  }
+
+  /* Children arrive in sequence rather than all at once. Capped at 8 so a
+     long list never leaves the reader waiting on the tail. */
+  .flow-sequence > * {
+    animation: flow-in 520ms cubic-bezier(0.22, 1, 0.36, 1) both;
+  }
+  .flow-sequence > *:nth-child(1) { animation-delay: 40ms; }
+  .flow-sequence > *:nth-child(2) { animation-delay: 80ms; }
+  .flow-sequence > *:nth-child(3) { animation-delay: 120ms; }
+  .flow-sequence > *:nth-child(4) { animation-delay: 160ms; }
+  .flow-sequence > *:nth-child(5) { animation-delay: 200ms; }
+  .flow-sequence > *:nth-child(6) { animation-delay: 240ms; }
+  .flow-sequence > *:nth-child(7) { animation-delay: 280ms; }
+  .flow-sequence > *:nth-child(n + 8) { animation-delay: 320ms; }
+
+  /* Ambient depth behind hero areas. Fixed so it does not scroll with
+     content, and non-interactive. */
+  .aurora-field {
+    position: relative;
+    isolation: isolate;
+  }
+
+  .aurora-field::before {
+    content: "";
+    position: absolute;
+    z-index: -1;
+    inset: -30% -10% auto -10%;
+    height: 60vh;
+    background:
+      radial-gradient(42% 55% at 18% 22%, oklch(0.58 0.28 288 / 0.18), transparent 68%),
+      radial-gradient(38% 48% at 82% 12%, oklch(0.68 0.19 195 / 0.16), transparent 66%),
+      radial-gradient(34% 42% at 55% 48%, oklch(0.62 0.24 330 / 0.12), transparent 64%);
+    filter: blur(28px);
+    pointer-events: none;
+  }
+}
+
+/* Motion is decoration here; none of it carries meaning, so all of it
+   goes when the reader has asked for less. */
+@media (prefers-reduced-motion: reduce) {
+  .flow-in,
+  .flow-sequence > * {
+    animation: none !important;
+  }
+
+  .surface-lift,
+  .press {
+    transition: none !important;
+  }
+
+  .surface-lift:hover {
+    transform: none;
+  }
+
+  .press:active {
+    transform: none;
+  }
+}
+
+/* ---------------------------------------------------------------------------
+   Motion & vibrancy
+   Effects meant to be composed onto existing surfaces. Everything here is
+   decorative, so it all yields to prefers-reduced-motion at the bottom of
+   this file and never carries meaning on its own.
+--------------------------------------------------------------------------- */
+
+/* A coloured halo on hover — the accent bleeding past the border. */
+.glow-hover {
+  transition:
+    transform 0.25s cubic-bezier(0.22, 1, 0.36, 1),
+    box-shadow 0.25s cubic-bezier(0.22, 1, 0.36, 1),
+    border-color 0.25s ease;
+}
+.glow-hover:hover {
+  transform: translate3d(0, -2px, 0);
+  border-color: color-mix(in oklch, var(--color-primary) 45%, transparent);
+  box-shadow:
+    0 0 0 1px color-mix(in oklch, var(--color-primary) 18%, transparent),
+    0 12px 32px -14px color-mix(in oklch, var(--color-primary) 60%, transparent);
+}
+
+/* Animated gradient hairline that runs around a surface on hover. */
+.gradient-border {
+  position: relative;
+  isolation: isolate;
+}
+.gradient-border::after {
+  content: "";
+  position: absolute;
+  inset: -1px;
+  z-index: -1;
+  border-radius: inherit;
+  opacity: 0;
+  background: linear-gradient(
+    115deg,
+    var(--color-chart-1),
+    var(--color-chart-2) 35%,
+    var(--color-chart-3) 65%,
+    var(--color-chart-1)
+  );
+  background-size: 300% 300%;
+  transition: opacity 0.3s ease;
+  animation: gradient-pan 6s ease infinite;
+}
+.gradient-border:hover::after {
+  opacity: 1;
+}
+
+@keyframes gradient-pan {
+  0% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
+  100% { background-position: 0% 50%; }
+}
+
+/* Entrance for things that appear in place: menus, cards, popovers. */
+@keyframes pop-in {
+  from {
+    opacity: 0;
+    transform: translate3d(0, 6px, 0) scale(0.97);
+  }
+  to {
+    opacity: 1;
+    transform: translate3d(0, 0, 0) scale(1);
+  }
+}
+.pop-in {
+  animation: pop-in 0.28s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+/* A pulsing ring for live/active indicators. */
+@keyframes pulse-ring {
+  0% { box-shadow: 0 0 0 0 color-mix(in oklch, var(--color-primary) 55%, transparent); }
+  70% { box-shadow: 0 0 0 8px transparent; }
+  100% { box-shadow: 0 0 0 0 transparent; }
+}
+.pulse-ring {
+  animation: pulse-ring 2.2s cubic-bezier(0.22, 1, 0.36, 1) infinite;
+}
+
+/* Underline that grows from the left — for nav and tab hovers. */
+.underline-grow {
+  position: relative;
+}
+.underline-grow::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  bottom: -2px;
+  height: 2px;
+  width: 100%;
+  border-radius: 2px;
+  background: var(--color-primary);
+  transform: scaleX(0);
+  transform-origin: left;
+  transition: transform 0.28s cubic-bezier(0.22, 1, 0.36, 1);
+}
+.underline-grow:hover::after,
+.underline-grow[data-active="true"]::after {
+  transform: scaleX(1);
+}
+
+/* Icons that lean in when their row is hovered. */
+.icon-nudge {
+  transition: transform 0.25s cubic-bezier(0.22, 1, 0.36, 1);
+}
+.group:hover .icon-nudge {
+  transform: translate3d(2px, 0, 0);
+}
+
+/* A slow aurora wash for hero surfaces. */
+.aurora-surface {
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+}
+.aurora-surface::before {
+  content: "";
+  position: absolute;
+  inset: -40%;
+  z-index: -1;
+  background:
+    radial-gradient(35% 45% at 20% 30%, color-mix(in oklch, var(--color-chart-1) 30%, transparent), transparent 70%),
+    radial-gradient(35% 45% at 80% 20%, color-mix(in oklch, var(--color-chart-2) 26%, transparent), transparent 70%),
+    radial-gradient(40% 50% at 60% 80%, color-mix(in oklch, var(--color-chart-3) 22%, transparent), transparent 70%);
+  filter: blur(24px);
+  animation: aurora-drift 18s ease-in-out infinite alternate;
+}
+
+@keyframes aurora-drift {
+  0% { transform: translate3d(-4%, -2%, 0) scale(1); }
+  50% { transform: translate3d(3%, 2%, 0) scale(1.06); }
+  100% { transform: translate3d(-2%, 3%, 0) scale(1.02); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .glow-hover,
+  .gradient-border::after,
+  .pop-in,
+  .pulse-ring,
+  .underline-grow::after,
+  .icon-nudge,
+  .aurora-surface::before {
+    animation: none !important;
+    transition: none !important;
+  }
+  .glow-hover:hover {
+    transform: none;
+  }
+}
+
+/* ---------------------------------------------------------------------------
+   Pointer-reactive surfaces
+   Driven by the custom properties PointerFX publishes. Purely decorative:
+   with no pointer (touch, reduced motion) the vars are never set and the
+   fallbacks below render a plain surface.
+--------------------------------------------------------------------------- */
+
+/* A highlight that follows the cursor across a card. */
+.spotlight {
+  position: relative;
+  isolation: isolate;
+}
+.spotlight::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  border-radius: inherit;
+  opacity: 0;
+  transition: opacity 0.3s ease;
+  background: radial-gradient(
+    22rem circle at var(--mx, 50%) var(--my, 50%),
+    color-mix(in oklch, var(--color-primary) 14%, transparent),
+    transparent 60%
+  );
+}
+.spotlight:hover::before {
+  opacity: 1;
+}
+
+/* Press feedback. Buttons already nudge down a pixel; this adds a quick
+   settle so a click feels answered even when the action is async. */
+button:active:not(:disabled),
+[role="button"]:active,
+.press-fx:active {
+  transform: translate3d(0, 1px, 0) scale(0.985);
+}
+
+.press-fx {
+  transition:
+    transform 0.16s cubic-bezier(0.22, 1, 0.36, 1),
+    box-shadow 0.2s cubic-bezier(0.22, 1, 0.36, 1),
+    background-color 0.2s ease;
+}
+.press-fx:hover {
+  transform: translate3d(0, -1px, 0);
+}
+
+/* Ripple that expands from the centre of a pressed control. */
+.ripple {
+  position: relative;
+  overflow: hidden;
+}
+.ripple::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  height: 6rem;
+  width: 6rem;
+  margin: -3rem 0 0 -3rem;
+  border-radius: 9999px;
+  background: currentColor;
+  opacity: 0;
+  transform: scale(0.2);
+  pointer-events: none;
+}
+.ripple:active::after {
+  animation: ripple-out 0.5s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+@keyframes ripple-out {
+  0% { opacity: 0.18; transform: scale(0.2); }
+  100% { opacity: 0; transform: scale(1.6); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .spotlight::before,
+  .ripple::after {
+    display: none;
+  }
+  button:active:not(:disabled),
+  [role="button"]:active,
+  .press-fx:active,
+  .press-fx:hover {
+    transform: none;
+  }
+}
+
+/* ---------------------------------------------------------------------------
+   Page & event transitions
+--------------------------------------------------------------------------- */
+
+/* Every route entrance: content arrives from slightly below and behind. */
+@keyframes page-swoosh {
+  from {
+    opacity: 0;
+    transform: translate3d(0, 12px, 0) scale(0.994);
+  }
+  to {
+    opacity: 1;
+    transform: translate3d(0, 0, 0) scale(1);
+  }
+}
+.page-swoosh {
+  animation: page-swoosh 0.42s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+/* Signing in: the card leaves toward the app rather than blinking out. */
+@keyframes auth-launch {
+  0% { opacity: 1; transform: translate3d(0, 0, 0) scale(1); }
+  35% { opacity: 1; transform: translate3d(0, 6px, 0) scale(0.985); }
+  100% { opacity: 0; transform: translate3d(0, -48px, 0) scale(1.04); }
+}
+.auth-launch {
+  animation: auth-launch 0.5s cubic-bezier(0.5, 0, 0.75, 0) both;
+}
+
+/* A light sweep that crosses a surface once — for a completed key action. */
+@keyframes swoosh-sweep {
+  from { transform: translate3d(-120%, 0, 0) skewX(-18deg); }
+  to { transform: translate3d(220%, 0, 0) skewX(-18deg); }
+}
+.swoosh-once {
+  position: relative;
+  overflow: hidden;
+}
+.swoosh-once::after {
+  content: "";
+  position: absolute;
+  inset-block: 0;
+  width: 45%;
+  background: linear-gradient(
+    90deg,
+    transparent,
+    color-mix(in oklch, var(--color-primary) 22%, transparent),
+    transparent
+  );
+  animation: swoosh-sweep 0.9s cubic-bezier(0.22, 1, 0.36, 1) both;
+  pointer-events: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .page-swoosh,
+  .auth-launch,
+  .swoosh-once::after {
+    animation: none !important;
+  }
+  .auth-launch {
+    opacity: 0;
+  }
+}
+
+/* ---------------------------------------------------------------------------
+   Gradient surfaces
+   The violet-forward treatment: solid fills give way to a gradient on the
+   things that carry emphasis — primary actions, progress, and data.
+--------------------------------------------------------------------------- */
+
+/* The house gradient. One definition, so every emphatic surface agrees. */
+.grad-primary {
+  background-image: linear-gradient(
+    135deg,
+    color-mix(in oklch, var(--color-primary) 92%, white 8%),
+    var(--color-chart-2)
+  );
+}
+
+/* Primary actions: gradient fill with a coloured glow that lifts on hover. */
+.grad-action {
+  background-image: linear-gradient(
+    135deg,
+    color-mix(in oklch, var(--color-primary) 92%, white 8%),
+    var(--color-chart-2)
+  );
+  color: var(--color-primary-foreground);
+  box-shadow: 0 6px 20px -10px color-mix(in oklch, var(--color-primary) 85%, transparent);
+  transition:
+    box-shadow 0.25s cubic-bezier(0.22, 1, 0.36, 1),
+    transform 0.2s cubic-bezier(0.22, 1, 0.36, 1),
+    filter 0.25s ease;
+}
+.grad-action:hover:not(:disabled) {
+  filter: saturate(1.08) brightness(1.04);
+  box-shadow: 0 12px 30px -10px color-mix(in oklch, var(--color-primary) 95%, transparent);
+  transform: translate3d(0, -1px, 0);
+}
+
+/* Progress: a gradient track fill rather than a flat bar. */
+.grad-track {
+  background-image: linear-gradient(
+    90deg,
+    var(--color-primary),
+    var(--color-chart-2) 55%,
+    color-mix(in oklch, var(--color-chart-2) 70%, white 30%)
+  );
+}
+
+/* A soft violet wash behind a hero panel, as in the reference's chart card. */
+.grad-panel {
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+}
+.grad-panel::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  background:
+    radial-gradient(
+      120% 90% at 50% 120%,
+      color-mix(in oklch, var(--color-primary) 26%, transparent),
+      transparent 70%
+    );
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .grad-action,
+  .grad-action:hover:not(:disabled) {
+    transition: none;
+    transform: none;
   }
 }

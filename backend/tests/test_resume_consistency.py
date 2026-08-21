@@ -9,6 +9,7 @@ from app.storage.store import Store
 
 def _make_candidate(store: Store, resume_text: str, **overrides) -> Candidate:
     candidate = Candidate(
+        owner_email="recruiter@example.com",
         id=uuid.uuid4(),
         name=overrides.pop("name", "Test Candidate"),
         email=overrides.pop("email", "test.candidate@example.com"),

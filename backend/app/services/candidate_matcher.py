@@ -9,9 +9,8 @@ from app.models.evaluation import Evaluation
 from app.models.job_posting import JobPosting
 from app.models.schemas import WeightConfig
 from app.services import handoff_service
-from app.services.azure_services import openai_service, search_service
 from app.services.evidence_tracker import evidence_tracker
-from app.services.matching_signals import blend_signals, keyword_signal, semantic_signal
+from app.services.matching_signals import keyword_signal
 from app.storage.store import Store
 from app.utils.error_handlers import NotFoundError
 from app.utils.validators import normalize_skill, redact_name, redact_pii
@@ -20,6 +19,25 @@ from app.utils.validators import normalize_skill, redact_name, redact_pii
 DEFAULT_WEIGHTS = WeightConfig()
 
 BENCH_PRIORITY_BOOST = 8.0
+
+
+def ats_tier(score: float) -> str:
+    if score >= 80:
+        return "excellent"
+    if score >= 65:
+        return "good"
+    if score >= 50:
+        return "average"
+    return "poor"
+
+
+def ats_verdict(score: float) -> str:
+    tier = ats_tier(score)
+    if tier in ("excellent", "good"):
+        return "pass"
+    if tier == "average":
+        return "review"
+    return "fail"
 
 
 def bench_sort_key(overall_score: float, employment_status: Optional[str], tie_breaker: str) -> tuple:
@@ -115,49 +133,7 @@ class CandidateMatcher:
 
     async def _match_communication(self, candidate: Candidate, job: JobPosting) -> dict[str, Any]:
         text = self._communication_text(candidate)
-        if not text:
-            return self._heuristic_communication("")
-
-        # Same convention as JobAnalyzer.analyze: skip the round-trip in mock
-        # mode rather than calling a stub that cannot answer this prompt and
-        # then discarding the unparseable result.
-        if openai_service.mock:
-            return self._heuristic_communication(text)
-
-        prompt = f"""
-Score the candidate's communication quality from 0 to 100 based on resume/profile text only.
-
-Role: {job.title}
-
-Candidate text:
-{text[:12000]}
-
-Return valid JSON with keys:
-score (number), explanation (short string), evidence (list of snippets with skill_name, resume_text_snippet, source_section, confidence_score).
-Focus on structure, clarity, quantified impact, and concise presentation.
-"""
-        try:
-            result = openai_service.chat_json(prompt, temperature=0.2)
-        except Exception:
-            return self._heuristic_communication(text)
-
-        try:
-            score = float(result.get("score"))
-        except (TypeError, ValueError):
-            return self._heuristic_communication(text)
-
-        evidence = result.get("evidence") or []
-        if not isinstance(evidence, list) or not evidence:
-            evidence = self._heuristic_communication(text)["evidence"]
-        else:
-            for item in evidence:
-                if isinstance(item, dict):
-                    item["dimension"] = "communication"
-        return {
-            "score": round(min(100.0, max(0.0, score)), 2),
-            "explanation": str(result.get("explanation") or "Communication quality inferred from resume/profile text."),
-            "evidence": evidence,
-        }
+        return self._heuristic_communication(text)
 
     def _role_alignment_evidence(self, candidate: Candidate, job: JobPosting) -> list[dict[str, Any]]:
         evidence: list[dict[str, Any]] = []
@@ -224,18 +200,63 @@ Focus on structure, clarity, quantified impact, and concise presentation.
         if not job:
             raise NotFoundError("Job posting not found", {"job_id": str(job_id)})
 
-        candidates = store.candidates.query(lambda c: c.source == source) if source else store.candidates.list_all()
+        # Rank this job's own candidates, not the whole pool.
+        #
+        # Scoring everyone wrote an Evaluation for every (job, candidate)
+        # pair, and pipelines were built from evaluations — so one ranking
+        # run put the entire pool on every board. Membership is now the
+        # job's own candidates: those uploaded against it, placed on it, or
+        # not yet assigned to any role.
+        from app.services.job_pipeline_service import rankable_candidate_ids_for_job
+
+        member_ids = rankable_candidate_ids_for_job(store, job)
+        candidates = [
+            candidate
+            for candidate in (store.candidates.get(cid) for cid in member_ids)
+            if candidate is not None
+            and (source is None or candidate.source == source)
+        ]
         weights = weight_config or DEFAULT_WEIGHTS
         scores: list[dict[str, Any]] = []
+
+        # One listing of this job's evaluations instead of a point read per
+        # candidate — each of those was its own round-trip.
+        existing_by_candidate: dict[str, Evaluation] = {}
+        if persist:
+            existing_by_candidate = {
+                str(evaluation.candidate_id): evaluation
+                for evaluation in store.evaluations.list_for_job(job.id)
+            }
+
+        pending_evaluations: list[Evaluation] = []
+        pending_evidence: dict[str, list] = {}
+        pending_events: list = []
 
         for candidate in candidates:
             score = await self.score_candidate(candidate, job, weights)
             if persist:
-                evaluation = self._upsert_evaluation(store, candidate, job, score, blind_mode)
+                evaluation, evidence_rows, event = self._prepare_evaluation(
+                    candidate,
+                    job,
+                    score,
+                    blind_mode,
+                    existing_by_candidate.get(str(candidate.id)),
+                )
+                pending_evaluations.append(evaluation)
+                pending_evidence[str(evaluation.id)] = evidence_rows
+                pending_events.append(event)
                 score["evaluation_id"] = evaluation.id
             if blind_mode:
                 self._redact_identity(score, candidate)
             scores.append(score)
+
+        if persist and pending_evaluations:
+            # Every candidate's writes go out as three concurrent batches.
+            # One candidate at a time, this was thousands of sequential
+            # round-trips.
+            store.evaluations.save_many(pending_evaluations)
+            store.evidence.replace_for_evaluations(pending_evidence)
+            handoff_service.log_history_events(store, pending_events)
 
         if bench_priority:
             ranked = sorted(scores, key=lambda x: bench_sort_key(x["overall_score"], x.get("employment_status"), x["name"]))
@@ -333,7 +354,7 @@ Focus on structure, clarity, quantified impact, and concise presentation.
             "overall_fit": self._dimension_detail(
                 score=round(float(overall), 2),
                 explanation=explanation.get("overall_fit_explanation")
-                or f"Overall fit combines technical skills ({technical_score}), role alignment ({role_alignment_score}), and communication ({communication['score']}).",
+                or f"ATS score {round(float(overall), 2)} ({ats_tier(overall)}) from skills, experience, and related categories.",
                 evidence=overall_evidence,
             ),
             "technical_skills": self._dimension_detail(
@@ -362,6 +383,9 @@ Focus on structure, clarity, quantified impact, and concise presentation.
             "years_of_experience": candidate.years_of_experience(),
             "skills": [str(s) for s in (candidate.skills or [])],
             "overall_score": round(float(overall), 2),
+            "ats_score": round(float(overall), 2),
+            "ats_tier": ats_tier(overall),
+            "ats_verdict": ats_verdict(overall),
             "skill_score": skill_score,
             "experience_score": exp_score,
             "education_score": edu_score,
@@ -435,23 +459,12 @@ Focus on structure, clarity, quantified impact, and concise presentation.
             for s in required
         ]
         keyword = sum(keyword_scores) / len(keyword_scores) if keyword_scores else self._jaccard(candidate_skills, required)
-        semantic_scores = []
-        for skill in required:
-            sem = semantic_signal(skill, skills_text)
-            if sem is not None:
-                semantic_scores.append(sem)
-        semantic = (
-            sum(semantic_scores) / len(semantic_scores)
-            if semantic_scores
-            else search_service.semantic_skill_overlap(candidate_skills, required)
-        )
         nice = [str(s) for s in (job.nice_to_have_skills or [])]
         nice_bonus = 0.0
         if nice:
             nice_overlap = self._jaccard(candidate_skills, nice)
             nice_bonus = nice_overlap * 0.1
-        blended = blend_signals(float(keyword), float(semantic), None)
-        return round(min(100.0, blended + nice_bonus), 2)
+        return round(min(100.0, float(keyword) + nice_bonus), 2)
 
     async def _match_experience(self, candidate: Candidate, job: JobPosting) -> float:
         years = candidate.years_of_experience()
@@ -510,77 +523,44 @@ Focus on structure, clarity, quantified impact, and concise presentation.
         job: JobPosting,
         scores: dict[str, float],
     ) -> dict[str, Any]:
-        prompt = f"""
-A recruiter evaluated candidate {candidate.name} for the role of {job.title}.
-
-Candidate Profile:
-- Skills: {candidate.skills}
-- Experience: {candidate.experience}
-- Education: {candidate.education}
-- Certifications: {candidate.certifications}
-- Projects: {candidate.projects}
-
-Job Requirements:
-- Required Skills: {job.required_skills}
-- Nice to have: {job.nice_to_have_skills}
-- Years Required: {job.required_experience_years}
-- Education: {job.education_requirements}
-
-Scores:
-- Skill Match: {scores['skill_score']}/100
-- Experience Match: {scores['experience_score']}/100
-- Education Match: {scores['education_score']}/100
-- Certification Match: {scores['certification_score']}/100
-- Project Match: {scores['project_score']}/100
-- Technical Skills: {scores['technical_skills_score']}/100
-- Communication: {scores['communication_score']}/100
-- Role Alignment: {scores['role_alignment_score']}/100
-- Overall Fit: {scores['overall_fit_score']}/100
-
-Generate JSON with keys:
-matched_skills (list of {{skill, source}}),
-missing_skills (list),
-strengths (string),
-weaknesses (string),
-transferable_skills (string),
-technical_skills_explanation (string),
-communication_explanation (string),
-role_alignment_explanation (string),
-overall_fit_explanation (string),
-dimensions (object with the four keys above containing short explanations).
-"""
-        # Falls back to the deterministic matched/missing-skill computation
-        # below when Azure is unreachable.
-        result = openai_service.chat_json_or_empty(prompt, temperature=0.3)
-
-        # Deterministic fallbacks when model output is incomplete
         cand_skills = {normalize_skill(str(s)): str(s) for s in (candidate.skills or [])}
         req_skills = [str(s) for s in (job.required_skills or [])]
-        matched = result.get("matched_skills")
-        missing = result.get("missing_skills")
-        if not matched:
-            matched = [
-                {"skill": skill, "source": "Skills"}
-                for skill in req_skills
-                if normalize_skill(skill) in cand_skills
-            ]
-        if not missing:
-            missing = [
-                skill for skill in req_skills if normalize_skill(skill) not in cand_skills
-            ]
-        result["matched_skills"] = matched
-        result["missing_skills"] = missing
-        return result
+        matched = [
+            {"skill": skill, "source": "Skills"}
+            for skill in req_skills
+            if normalize_skill(skill) in cand_skills
+        ]
+        missing = [skill for skill in req_skills if normalize_skill(skill) not in cand_skills]
+        strengths = ", ".join(item["skill"] for item in matched[:5]) or "No required skills matched."
+        weaknesses = ", ".join(missing[:5]) or "No required-skill gaps identified."
+        return {
+            "matched_skills": matched,
+            "missing_skills": missing,
+            "strengths": strengths,
+            "weaknesses": weaknesses,
+            "transferable_skills": ", ".join(str(s) for s in (candidate.skills or [])[:5]),
+            "technical_skills_explanation": f"Technical score is {scores['technical_skills_score']} based on skills, certifications, and projects.",
+            "communication_explanation": f"Communication score is {scores['communication_score']} based on resume structure and quantified evidence.",
+            "role_alignment_explanation": f"Role alignment score is {scores['role_alignment_score']} based on experience, education, and title/domain signals.",
+            "overall_fit_explanation": (
+                f"ATS score is {scores['overall_fit_score']} ({ats_tier(scores['overall_fit_score'])}) "
+                "from weighted skills, experience, education, certifications, and projects."
+            ),
+        }
 
-    def _upsert_evaluation(
+    def _prepare_evaluation(
         self,
-        store: Store,
         candidate: Candidate,
         job: JobPosting,
         score: dict[str, Any],
         blind_mode: bool,
-    ) -> Evaluation:
-        evaluation = store.evaluations.get_for(job.id, candidate.id)
+        existing: Optional[Evaluation],
+    ) -> tuple[Evaluation, list, Any]:
+        """Build the writes an evaluation implies, without performing them.
+
+        Split out so bulk re-scoring can collect every candidate's writes and
+        issue them as a few batches instead of several round-trips each.
+        """
         strengths = score.get("strengths")
         weaknesses = score.get("weaknesses")
         transferable = score.get("transferable_skills")
@@ -616,22 +596,16 @@ dimensions (object with the four keys above containing short explanations).
             blind_review_mode=blind_mode,
         )
 
-        is_rescore = evaluation is not None
-        if evaluation:
+        is_rescore = existing is not None
+        if existing is not None:
+            evaluation = existing
             for key, value in payload.items():
                 setattr(evaluation, key, value)
-            store.evidence.delete_for_evaluation(evaluation.id)
         else:
             evaluation = Evaluation(candidate_id=candidate.id, job_id=job.id, **payload)
 
-        # Primary domain write — must succeed; propagates on failure.
-        store.evaluations.save(evaluation)
-
-        evidence_tracker.persist(store, evaluation.id, evidence)
-
-        # Secondary write — best-effort (log_history_event swallows its own failures).
-        handoff_service.log_history_event(
-            store,
+        evidence_rows = evidence_tracker.build_rows(evaluation.id, evidence)
+        event = handoff_service.build_history_event(
             candidate_id=str(candidate.id),
             candidate_name=candidate.name,
             job_id=str(job.id),
@@ -652,6 +626,28 @@ dimensions (object with the four keys above containing short explanations).
                 "blind_review_mode": blind_mode,
             },
         )
+        return evaluation, evidence_rows, event
+
+    def _upsert_evaluation(
+        self,
+        store: Store,
+        candidate: Candidate,
+        job: JobPosting,
+        score: dict[str, Any],
+        blind_mode: bool,
+    ) -> Evaluation:
+        """Single-candidate write path (scoring one candidate on demand)."""
+        evaluation, evidence_rows, event = self._prepare_evaluation(
+            candidate, job, score, blind_mode, store.evaluations.get_for(job.id, candidate.id)
+        )
+
+        # Primary domain write — must succeed; propagates on failure.
+        store.evaluations.save(evaluation)
+
+        store.evidence.replace_for_evaluations({str(evaluation.id): evidence_rows})
+
+        # Secondary write — best-effort (log_history_events swallows failures).
+        handoff_service.log_history_events(store, [event])
         return evaluation
 
     @staticmethod

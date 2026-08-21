@@ -5,9 +5,40 @@ from typing import Any, Iterable
 ALLOWED_RESUME_EXTENSIONS = {".pdf", ".docx", ".doc", ".txt", ".png", ".jpg", ".jpeg"}
 MAX_RESUME_SIZE_BYTES = 15 * 1024 * 1024  # 15 MB
 
+#: Company context documents are prose, never scans — no image types, so a
+#: culture deck cannot smuggle in something that only OCR would read.
+ALLOWED_COMPANY_DOC_EXTENSIONS = {".pdf", ".docx", ".doc", ".txt", ".md"}
+MAX_COMPANY_DOC_SIZE_BYTES = 10 * 1024 * 1024  # 10 MB
+
 
 def is_allowed_resume_filename(filename: str) -> bool:
     return Path(filename).suffix.lower() in ALLOWED_RESUME_EXTENSIONS
+
+
+def is_allowed_company_doc_filename(filename: str) -> bool:
+    return Path(filename).suffix.lower() in ALLOWED_COMPANY_DOC_EXTENSIONS
+
+
+def safe_upload_filename(filename: str) -> str:
+    """Reduce a client-supplied filename to a single safe path segment.
+
+    The name goes into a blob key, so directory separators and `..` must not
+    survive — an upload called `../../config.json` would otherwise write
+    outside its intended prefix. Keeps the extension (validated separately)
+    and a conservative character set, and never returns an empty string.
+    """
+    # Windows separators survive PurePosixPath, so normalise them first.
+    base = Path((filename or "").replace("\\", "/")).name
+    cleaned = re.sub(r"[^A-Za-z0-9._-]", "_", base)
+    cleaned = re.sub(r"_{2,}", "_", cleaned).strip("_")
+    cleaned = cleaned.lstrip(".")  # no leading dots: no `..`, no dotfiles
+    if not cleaned:
+        return "upload"
+    # Blob names are capped; keep the extension rather than the middle.
+    if len(cleaned) > 120:
+        suffix = Path(cleaned).suffix[:10]
+        cleaned = cleaned[: 120 - len(suffix)] + suffix
+    return cleaned
 
 
 def normalize_email(email: str) -> str:

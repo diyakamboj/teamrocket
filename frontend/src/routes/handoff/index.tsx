@@ -74,14 +74,14 @@ function timeAgo(iso: string): string {
 function statusBadge(status: InterviewHandoffRecord["status"]) {
   if (status === "acknowledged") {
     return (
-      <Badge className="gap-1 border-transparent bg-emerald-100 text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-300">
+      <Badge className="gap-1 border-transparent bg-success/10 text-success dark:bg-success/15 dark:text-success">
         <CheckCircle2 className="h-3 w-3" /> Acknowledged
       </Badge>
     );
   }
   if (status === "viewed") {
     return (
-      <Badge className="gap-1 border-transparent bg-sky-100 text-sky-700 dark:bg-sky-500/15 dark:text-sky-300">
+      <Badge className="gap-1 border-transparent bg-primary/10 text-primary dark:bg-primary/15 dark:text-primary">
         <UserCheck className="h-3 w-3" /> Viewed
       </Badge>
     );
@@ -255,7 +255,7 @@ function InterviewHandoffPage() {
                     : "hover:bg-secondary",
                 )}
               >
-                <span className="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-secondary text-[11px] font-bold">
+                <span className="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-secondary text-xs font-bold">
                   {c.initials}
                 </span>
                 <span className="min-w-0">
@@ -321,7 +321,7 @@ function InterviewHandoffPage() {
                         {event.summary && (
                           <p className="text-xs text-muted-foreground">{event.summary}</p>
                         )}
-                        <p className="text-[11px] text-muted-foreground">
+                        <p className="text-xs text-muted-foreground">
                           {timeAgo(event.created_at)}
                           {event.actor_email ? ` · ${event.actor_email}` : ""}
                         </p>

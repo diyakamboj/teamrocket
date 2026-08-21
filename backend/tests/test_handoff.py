@@ -62,7 +62,10 @@ def test_create_view_and_acknowledge_handoff(client):
     assert create.status_code == 200
     handoff = create.json()
     assert handoff["status"] == "pending"
-    assert handoff["email_sent"] is True
+    # Nothing is actually delivered without SMTP credentials, and the record
+    # must say so rather than reporting a send that never happened.
+    assert handoff["email_sent"] is False
+    assert handoff["email_source"] == "mock"
     assert handoff["briefing"]["interview_focus_areas"]
     handoff_id = handoff["id"]
 

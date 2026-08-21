@@ -12,13 +12,21 @@ import {
 } from "lucide-react";
 import { useAppState, type UploadStage } from "@/lib/app-state";
 import { Button } from "@/components/ui/button";
+import { toast } from "sonner";
 import { cn } from "@/lib/utils";
+import { CreateJobModal } from "@/components/create-job-modal";
 import { listJobs, type JobResponse } from "@/lib/api";
 
 
 export const Route = createFileRoute("/upload")({
-  validateSearch: (search: Record<string, unknown>): { job?: string } =>
-    typeof search["job"] === "string" ? { job: search["job"] } : {},
+  validateSearch: (
+    search: Record<string, unknown>,
+  ): { job?: string; source?: "internal" | "external" } => ({
+    ...(typeof search["job"] === "string" ? { job: search["job"] } : {}),
+    ...(search["source"] === "internal" || search["source"] === "external"
+      ? { source: search["source"] }
+      : {}),
+  }),
   head: () => ({
     meta: [
       { title: "Resume Upload — ResumeIQ" },
@@ -62,7 +70,7 @@ const STAGE_CLASS: Record<UploadStage, string> = {
 const FILTERS = ["all", "queued", "processing", "complete", "failed", "duplicate"] as const;
 const PAGE_SIZE = 25;
 
-export function UploadPage() {
+function UploadPage() {
 
   const {
     files,
@@ -76,9 +84,55 @@ export function UploadPage() {
     overallProgress,
     setActiveJobId,
   } = useAppState();
-  const { job: jobParam } = Route.useSearch();
+  const { job: jobParam, source: sourceParam } = Route.useSearch();
   const navigate = Route.useNavigate();
   const [job, setJob] = useState<JobResponse | null>(null);
+  const [allJobs, setAllJobs] = useState<JobResponse[]>([]);
+  //: Role chosen on this page when none came in via ?job=. Empty means the
+  //: general pool: those candidates can then be ranked for any role.
+  const [chosenJobId, setChosenJobId] = useState<string>("");
+  const [intakeSource, setIntakeSource] = useState<"internal" | "external">(
+    sourceParam ?? "external",
+  );
+  const [currentPosition, setCurrentPosition] = useState("");
+  const [currentDuties, setCurrentDuties] = useState("");
+  const [isCreateJobOpen, setIsCreateJobOpen] = useState(false);
+  const targetJobId = jobParam || chosenJobId || null;
+
+  /**
+   * Roles that accept this intake.
+   *
+   * The picker used to list every role, so an employee could be filed
+   * against an outside-only opening and an applicant against an internal
+   * one — landing them on a board they can never be hired from. A role set
+   * to "both" is open to either population and stays in both lists.
+   */
+  const selectableJobs = useMemo(
+    () =>
+      allJobs.filter((j) => {
+        const mode = (j.sourcing_mode ?? "both").toLowerCase();
+        return mode === "both" || mode === intakeSource;
+      }),
+    [allJobs, intakeSource],
+  );
+
+  // Switching intake can strip the chosen role out of the list; leaving the
+  // id set would upload against a role no longer shown.
+  useEffect(() => {
+    if (chosenJobId && !selectableJobs.some((j) => j.id === chosenJobId)) {
+      setChosenJobId("");
+    }
+  }, [selectableJobs, chosenJobId]);
+
+  useEffect(() => {
+    let cancelled = false;
+    listJobs()
+      .then((jobs) => !cancelled && setAllJobs(jobs))
+      .catch(() => !cancelled && setAllJobs([]));
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   useEffect(() => {
     if (!jobParam) {
@@ -111,7 +165,24 @@ export function UploadPage() {
   // the OCR + AI parsing pipeline advances it.
   function ingest(list: FileList | null) {
     if (!list || list.length === 0) return;
-    void addFiles(Array.from(list));
+    // The page already knew which role it was uploading for and said so in
+    // the banner; it just never told the backend, so every résumé landed in
+    // the general pool regardless.
+    if (!targetJobId) {
+      toast.error("Choose which role these résumés are for first");
+      return;
+    }
+    void addFiles(Array.from(list), targetJobId, intakeSource, {
+      position: currentPosition.trim() || null,
+      duties: currentDuties.trim() || null,
+    });
+  }
+
+  /** The role must be picked before files can be dropped — a résumé with no
+   *  role has nowhere to appear, which is how candidates used to end up
+   *  invisible or on every board at once. */
+  function readyToUpload() {
+    return Boolean(targetJobId);
   }
 
 
@@ -137,6 +208,158 @@ export function UploadPage() {
           Drop entire folders of PDFs — scanned documents are routed through OCR automatically.
         </p>
       </header>
+
+      <CreateJobModal
+        isOpen={isCreateJobOpen}
+        onClose={() => {
+          setIsCreateJobOpen(false);
+          listJobs()
+            .then(setAllJobs)
+            .catch(() => undefined);
+        }}
+      />
+
+      <div className="rounded-2xl border bg-card p-5 shadow-sm">
+        <h2 className="text-sm font-bold">Before you upload</h2>
+        <p className="mt-1 text-xs text-muted-foreground">
+          Two things decide where these people end up. Both are set here so nobody lands in the
+          wrong pool or on the wrong board.
+        </p>
+
+        <div className="mt-4 grid gap-4 sm:grid-cols-2">
+          <div>
+            <span className="text-xs font-semibold">1 · Who are they?</span>
+            <div className="mt-1.5 grid grid-cols-2 gap-2">
+              {(
+                [
+                  {
+                    value: "external" as const,
+                    label: "External applicant",
+                    hint: "Applying from outside",
+                  },
+                  {
+                    value: "internal" as const,
+                    label: "Internal employee",
+                    hint: "Already works here",
+                  },
+                ]
+              ).map((option) => (
+                <button
+                  key={option.value}
+                  type="button"
+                  onClick={() => setIntakeSource(option.value)}
+                  className={cn(
+                    "rounded-xl border px-3 py-2.5 text-left transition-colors",
+                    intakeSource === option.value
+                      ? "border-primary bg-primary/5 ring-1 ring-primary"
+                      : "hover:border-muted-foreground/40",
+                  )}
+                >
+                  <span className="block text-xs font-semibold">{option.label}</span>
+                  <span className="block text-[11px] text-muted-foreground">{option.hint}</span>
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div>
+            <label htmlFor="upload-job" className="text-xs font-semibold">
+              2 · Which role are they for?
+            </label>
+            {selectableJobs.length === 0 ? (
+              // Requiring a role makes this page a dead end on an account
+              // with no roles yet: an empty dropdown and disabled buttons,
+              // with nothing saying why. Send them where they can fix it.
+              <div className="mt-1.5 rounded-xl border border-dashed px-3 py-3">
+                <p className="text-xs font-semibold">
+                  {allJobs.length === 0
+                    ? "You have no roles yet"
+                    : `No ${intakeSource} roles yet`}
+                </p>
+                <p className="mt-1 text-[11px] text-muted-foreground">
+                  {allJobs.length === 0
+                    ? "Résumés attach to a role, so create one first — it takes a moment and you can come straight back."
+                    : intakeSource === "internal"
+                      ? "You have roles, but none open to people already at the company. Create an internal one, or switch this upload to external."
+                      : "You have roles, but none open to outside applicants. Create an external one, or switch this upload to internal."}
+                </p>
+                <Button
+                  size="sm"
+                  className="press mt-2.5 rounded-xl text-xs"
+                  onClick={() => setIsCreateJobOpen(true)}
+                >
+                  {allJobs.length === 0 ? "Create your first role" : `Create an ${intakeSource} role`}
+                </Button>
+              </div>
+            ) : (
+              <>
+                <select
+                  id="upload-job"
+                  value={jobParam || chosenJobId}
+                  disabled={Boolean(jobParam)}
+                  onChange={(e) => setChosenJobId(e.target.value)}
+                  className="mt-1.5 w-full rounded-xl border border-input bg-background px-3 py-2.5 text-xs disabled:opacity-60"
+                >
+                  <option value="">Choose a role…</option>
+                  {selectableJobs.map((j) => (
+                    <option key={j.id} value={j.id}>
+                      {j.title}
+                    </option>
+                  ))}
+                </select>
+                <p className="mt-1.5 text-[11px] text-muted-foreground">
+                  {targetJobId
+                    ? "They will appear on this role's board and no other."
+                    : "Required — a résumé with no role has nowhere to appear."}
+                </p>
+              </>
+            )}
+          </div>
+        </div>
+
+        {intakeSource === "internal" && (
+          <div className="mt-5 border-t pt-5">
+            <span className="text-xs font-semibold">
+              3 · What is their position in the company today?
+            </span>
+            <p className="mt-1 text-[11px] text-muted-foreground">
+              A résumé lists where someone has been, not where they are now. This is what a
+              hiring manager reads to judge whether the move is a step up or a sideways repeat.
+            </p>
+
+            <div className="mt-3 grid gap-3 sm:grid-cols-[minmax(0,1fr)_minmax(0,1.6fr)]">
+              <label className="block space-y-1">
+                <span className="text-xs font-medium">Current position</span>
+                <input
+                  value={currentPosition}
+                  onChange={(e) => setCurrentPosition(e.target.value)}
+                  placeholder="Senior Data Engineer, Payments"
+                  className="w-full rounded-xl border border-input bg-background px-3 py-2 text-xs"
+                />
+              </label>
+
+              <label className="block space-y-1">
+                <span className="text-xs font-medium">
+                  Duties in that role{" "}
+                  <span className="font-normal text-muted-foreground">(optional)</span>
+                </span>
+                <textarea
+                  value={currentDuties}
+                  onChange={(e) => setCurrentDuties(e.target.value)}
+                  rows={3}
+                  placeholder="Owns the ingestion pipeline, on-call for the payments data path, mentors two juniors."
+                  className="w-full resize-y rounded-xl border border-input bg-background px-3 py-2 text-xs leading-relaxed"
+                />
+              </label>
+            </div>
+
+            <p className="mt-2 text-[11px] text-muted-foreground">
+              Applies to every résumé in this batch — upload one person at a time if their
+              positions differ.
+            </p>
+          </div>
+        )}
+      </div>
 
       {job && (
         <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl bg-primary-soft px-4 py-2.5 text-sm text-primary-soft-foreground">
@@ -166,24 +389,42 @@ export function UploadPage() {
         className={cn(
           "card-surface flex flex-col items-center justify-center gap-4 border-2 border-dashed px-6 py-14 text-center transition-colors",
           dragging ? "border-primary bg-primary-soft/50" : "border-border",
+          !readyToUpload() && "opacity-60",
         )}
       >
         <span className="grid h-14 w-14 place-items-center rounded-2xl bg-primary-soft text-primary-soft-foreground">
           <UploadCloud className="h-7 w-7" />
         </span>
         <div>
-          <p className="text-lg font-bold">Drop resumes here</p>
+          <p className="text-lg font-bold">
+            {readyToUpload() ? "Drop resumes here" : "Choose a role first"}
+          </p>
           <p className="mt-1 text-sm text-muted-foreground">
-            PDF, DOCX or scanned images · up to 500 files per batch
+            {readyToUpload() ? (
+              <>
+                {intakeSource === "internal" ? "Internal employees" : "External applicants"} for{" "}
+                <strong>
+                  {allJobs.find((j) => j.id === targetJobId)?.title ?? "the selected role"}
+                </strong>{" "}
+                · PDF, DOCX or scanned images
+              </>
+            ) : (
+              "Pick who these people are and which role they are for, above."
+            )}
           </p>
         </div>
         <div className="flex flex-wrap justify-center gap-2">
-          <Button className="rounded-xl" onClick={() => fileRef.current?.click()}>
+          <Button
+            className="rounded-xl"
+            disabled={!readyToUpload()}
+            onClick={() => fileRef.current?.click()}
+          >
             Select files
           </Button>
           <Button
             variant="outline"
             className="rounded-xl"
+            disabled={!readyToUpload()}
             onClick={() => folderRef.current?.click()}
           >
             <FolderUp className="mr-2 h-4 w-4" /> Select folder
@@ -294,7 +535,7 @@ export function UploadPage() {
                     <p className="truncate text-sm font-semibold">{f.name}</p>
                     <span
                       className={cn(
-                        "shrink-0 rounded-full px-2 py-0.5 text-[11px] font-semibold",
+                        "shrink-0 rounded-full px-2 py-0.5 text-xs font-semibold",
                         STAGE_CLASS[f.stage],
                       )}
                     >
@@ -350,7 +591,30 @@ export function UploadPage() {
                       </Button>
                     </>
                   )}
-                  {f.stage === "complete" && <CheckCircle2 className="h-5 w-5 text-success" />}
+                  {f.stage === "complete" && (
+                    <div className="flex items-center gap-2">
+                      <CheckCircle2 className="h-5 w-5 text-success" />
+                      {f.candidateId && (
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="rounded-xl text-xs flex items-center gap-1"
+                          onClick={() => {
+                            const targetId = jobParam || job?.id || (job as any)?.job_id;
+                            if (targetId) {
+                              void navigate({ to: "/jobs/$jobId", params: { jobId: String(targetId) } });
+                            } else {
+                              window.location.href = `/candidates?candidate=${f.candidateId}`;
+                            }
+                          }}
+                        >
+                          View Candidate →
+                        </Button>
+                      )}
+
+                    </div>
+                  )}
+
                 </div>
               </div>
             ))}

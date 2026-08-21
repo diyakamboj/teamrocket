@@ -11,18 +11,25 @@
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as ActionsRouteImport } from './routes/actions'
+import { Route as BenchRouteImport } from './routes/bench'
 import { Route as CandidatesRouteImport } from './routes/candidates'
 import { Route as CompareRouteImport } from './routes/compare'
 import { Route as ExternalHiringRouteImport } from './routes/external-hiring'
+import { Route as ForgotPasswordRouteImport } from './routes/forgot-password'
 import { Route as FraudDetectionRouteImport } from './routes/fraud-detection'
 import { Route as InsightsRouteImport } from './routes/insights'
 import { Route as InternalHiringRouteImport } from './routes/internal-hiring'
 import { Route as JobAnalysisRouteImport } from './routes/job-analysis'
 import { Route as LoginRouteImport } from './routes/login'
+import { Route as NetworkRouteImport } from './routes/network'
 import { Route as OpsRouteImport } from './routes/ops'
+import { Route as PeopleRouteImport } from './routes/people'
+import { Route as RegisterRouteImport } from './routes/register'
+import { Route as ResetPasswordRouteImport } from './routes/reset-password'
 import { Route as ScreeningRouteImport } from './routes/screening'
 import { Route as SettingsRouteImport } from './routes/settings'
 import { Route as UploadRouteImport } from './routes/upload'
+import { Route as WelcomeRouteImport } from './routes/welcome'
 import { Route as AtsBenchmarkIndexRouteImport } from './routes/ats-benchmark/index'
 import { Route as HandoffIndexRouteImport } from './routes/handoff/index'
 import { Route as HandoffHandoffIdRouteImport } from './routes/handoff/$handoffId'
@@ -39,6 +46,11 @@ const ActionsRoute = ActionsRouteImport.update({
   path: '/actions',
   getParentRoute: () => rootRouteImport,
 } as any)
+const BenchRoute = BenchRouteImport.update({
+  id: '/bench',
+  path: '/bench',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const CandidatesRoute = CandidatesRouteImport.update({
   id: '/candidates',
   path: '/candidates',
@@ -52,6 +64,11 @@ const CompareRoute = CompareRouteImport.update({
 const ExternalHiringRoute = ExternalHiringRouteImport.update({
   id: '/external-hiring',
   path: '/external-hiring',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ForgotPasswordRoute = ForgotPasswordRouteImport.update({
+  id: '/forgot-password',
+  path: '/forgot-password',
   getParentRoute: () => rootRouteImport,
 } as any)
 const FraudDetectionRoute = FraudDetectionRouteImport.update({
@@ -79,9 +96,29 @@ const LoginRoute = LoginRouteImport.update({
   path: '/login',
   getParentRoute: () => rootRouteImport,
 } as any)
+const NetworkRoute = NetworkRouteImport.update({
+  id: '/network',
+  path: '/network',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const OpsRoute = OpsRouteImport.update({
   id: '/ops',
   path: '/ops',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const PeopleRoute = PeopleRouteImport.update({
+  id: '/people',
+  path: '/people',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const RegisterRoute = RegisterRouteImport.update({
+  id: '/register',
+  path: '/register',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ResetPasswordRoute = ResetPasswordRouteImport.update({
+  id: '/reset-password',
+  path: '/reset-password',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ScreeningRoute = ScreeningRouteImport.update({
@@ -97,6 +134,11 @@ const SettingsRoute = SettingsRouteImport.update({
 const UploadRoute = UploadRouteImport.update({
   id: '/upload',
   path: '/upload',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const WelcomeRoute = WelcomeRouteImport.update({
+  id: '/welcome',
+  path: '/welcome',
   getParentRoute: () => rootRouteImport,
 } as any)
 const AtsBenchmarkIndexRoute = AtsBenchmarkIndexRouteImport.update({
@@ -128,18 +170,25 @@ const TalentMarketplaceIndexRoute = TalentMarketplaceIndexRouteImport.update({
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/actions': typeof ActionsRoute
+  '/bench': typeof BenchRoute
   '/candidates': typeof CandidatesRoute
   '/compare': typeof CompareRoute
   '/external-hiring': typeof ExternalHiringRoute
+  '/forgot-password': typeof ForgotPasswordRoute
   '/fraud-detection': typeof FraudDetectionRoute
   '/insights': typeof InsightsRoute
   '/internal-hiring': typeof InternalHiringRoute
   '/job-analysis': typeof JobAnalysisRoute
   '/login': typeof LoginRoute
+  '/network': typeof NetworkRoute
   '/ops': typeof OpsRoute
+  '/people': typeof PeopleRoute
+  '/register': typeof RegisterRoute
+  '/reset-password': typeof ResetPasswordRoute
   '/screening': typeof ScreeningRoute
   '/settings': typeof SettingsRoute
   '/upload': typeof UploadRoute
+  '/welcome': typeof WelcomeRoute
   '/handoff/$handoffId': typeof HandoffHandoffIdRoute
   '/jobs/$jobId': typeof JobsJobIdRoute
   '/ats-benchmark/': typeof AtsBenchmarkIndexRoute
@@ -149,18 +198,25 @@ export interface FileRoutesByFullPath {
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/actions': typeof ActionsRoute
+  '/bench': typeof BenchRoute
   '/candidates': typeof CandidatesRoute
   '/compare': typeof CompareRoute
   '/external-hiring': typeof ExternalHiringRoute
+  '/forgot-password': typeof ForgotPasswordRoute
   '/fraud-detection': typeof FraudDetectionRoute
   '/insights': typeof InsightsRoute
   '/internal-hiring': typeof InternalHiringRoute
   '/job-analysis': typeof JobAnalysisRoute
   '/login': typeof LoginRoute
+  '/network': typeof NetworkRoute
   '/ops': typeof OpsRoute
+  '/people': typeof PeopleRoute
+  '/register': typeof RegisterRoute
+  '/reset-password': typeof ResetPasswordRoute
   '/screening': typeof ScreeningRoute
   '/settings': typeof SettingsRoute
   '/upload': typeof UploadRoute
+  '/welcome': typeof WelcomeRoute
   '/handoff/$handoffId': typeof HandoffHandoffIdRoute
   '/jobs/$jobId': typeof JobsJobIdRoute
   '/ats-benchmark': typeof AtsBenchmarkIndexRoute
@@ -171,18 +227,25 @@ export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/actions': typeof ActionsRoute
+  '/bench': typeof BenchRoute
   '/candidates': typeof CandidatesRoute
   '/compare': typeof CompareRoute
   '/external-hiring': typeof ExternalHiringRoute
+  '/forgot-password': typeof ForgotPasswordRoute
   '/fraud-detection': typeof FraudDetectionRoute
   '/insights': typeof InsightsRoute
   '/internal-hiring': typeof InternalHiringRoute
   '/job-analysis': typeof JobAnalysisRoute
   '/login': typeof LoginRoute
+  '/network': typeof NetworkRoute
   '/ops': typeof OpsRoute
+  '/people': typeof PeopleRoute
+  '/register': typeof RegisterRoute
+  '/reset-password': typeof ResetPasswordRoute
   '/screening': typeof ScreeningRoute
   '/settings': typeof SettingsRoute
   '/upload': typeof UploadRoute
+  '/welcome': typeof WelcomeRoute
   '/handoff/$handoffId': typeof HandoffHandoffIdRoute
   '/jobs/$jobId': typeof JobsJobIdRoute
   '/ats-benchmark/': typeof AtsBenchmarkIndexRoute
@@ -194,18 +257,25 @@ export interface FileRouteTypes {
   fullPaths:
     | '/'
     | '/actions'
+    | '/bench'
     | '/candidates'
     | '/compare'
     | '/external-hiring'
+    | '/forgot-password'
     | '/fraud-detection'
     | '/insights'
     | '/internal-hiring'
     | '/job-analysis'
     | '/login'
+    | '/network'
     | '/ops'
+    | '/people'
+    | '/register'
+    | '/reset-password'
     | '/screening'
     | '/settings'
     | '/upload'
+    | '/welcome'
     | '/handoff/$handoffId'
     | '/jobs/$jobId'
     | '/ats-benchmark/'
@@ -215,18 +285,25 @@ export interface FileRouteTypes {
   to:
     | '/'
     | '/actions'
+    | '/bench'
     | '/candidates'
     | '/compare'
     | '/external-hiring'
+    | '/forgot-password'
     | '/fraud-detection'
     | '/insights'
     | '/internal-hiring'
     | '/job-analysis'
     | '/login'
+    | '/network'
     | '/ops'
+    | '/people'
+    | '/register'
+    | '/reset-password'
     | '/screening'
     | '/settings'
     | '/upload'
+    | '/welcome'
     | '/handoff/$handoffId'
     | '/jobs/$jobId'
     | '/ats-benchmark'
@@ -236,18 +313,25 @@ export interface FileRouteTypes {
     | '__root__'
     | '/'
     | '/actions'
+    | '/bench'
     | '/candidates'
     | '/compare'
     | '/external-hiring'
+    | '/forgot-password'
     | '/fraud-detection'
     | '/insights'
     | '/internal-hiring'
     | '/job-analysis'
     | '/login'
+    | '/network'
     | '/ops'
+    | '/people'
+    | '/register'
+    | '/reset-password'
     | '/screening'
     | '/settings'
     | '/upload'
+    | '/welcome'
     | '/handoff/$handoffId'
     | '/jobs/$jobId'
     | '/ats-benchmark/'
@@ -258,18 +342,25 @@ export interface FileRouteTypes {
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   ActionsRoute: typeof ActionsRoute
+  BenchRoute: typeof BenchRoute
   CandidatesRoute: typeof CandidatesRoute
   CompareRoute: typeof CompareRoute
   ExternalHiringRoute: typeof ExternalHiringRoute
+  ForgotPasswordRoute: typeof ForgotPasswordRoute
   FraudDetectionRoute: typeof FraudDetectionRoute
   InsightsRoute: typeof InsightsRoute
   InternalHiringRoute: typeof InternalHiringRoute
   JobAnalysisRoute: typeof JobAnalysisRoute
   LoginRoute: typeof LoginRoute
+  NetworkRoute: typeof NetworkRoute
   OpsRoute: typeof OpsRoute
+  PeopleRoute: typeof PeopleRoute
+  RegisterRoute: typeof RegisterRoute
+  ResetPasswordRoute: typeof ResetPasswordRoute
   ScreeningRoute: typeof ScreeningRoute
   SettingsRoute: typeof SettingsRoute
   UploadRoute: typeof UploadRoute
+  WelcomeRoute: typeof WelcomeRoute
   HandoffHandoffIdRoute: typeof HandoffHandoffIdRoute
   JobsJobIdRoute: typeof JobsJobIdRoute
   AtsBenchmarkIndexRoute: typeof AtsBenchmarkIndexRoute
@@ -293,6 +384,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ActionsRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/bench': {
+      id: '/bench'
+      path: '/bench'
+      fullPath: '/bench'
+      preLoaderRoute: typeof BenchRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/candidates': {
       id: '/candidates'
       path: '/candidates'
@@ -312,6 +410,13 @@ declare module '@tanstack/react-router' {
       path: '/external-hiring'
       fullPath: '/external-hiring'
       preLoaderRoute: typeof ExternalHiringRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/forgot-password': {
+      id: '/forgot-password'
+      path: '/forgot-password'
+      fullPath: '/forgot-password'
+      preLoaderRoute: typeof ForgotPasswordRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/fraud-detection': {
@@ -349,11 +454,39 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof LoginRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/network': {
+      id: '/network'
+      path: '/network'
+      fullPath: '/network'
+      preLoaderRoute: typeof NetworkRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/ops': {
       id: '/ops'
       path: '/ops'
       fullPath: '/ops'
       preLoaderRoute: typeof OpsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/people': {
+      id: '/people'
+      path: '/people'
+      fullPath: '/people'
+      preLoaderRoute: typeof PeopleRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/register': {
+      id: '/register'
+      path: '/register'
+      fullPath: '/register'
+      preLoaderRoute: typeof RegisterRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/reset-password': {
+      id: '/reset-password'
+      path: '/reset-password'
+      fullPath: '/reset-password'
+      preLoaderRoute: typeof ResetPasswordRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/screening': {
@@ -375,6 +508,13 @@ declare module '@tanstack/react-router' {
       path: '/upload'
       fullPath: '/upload'
       preLoaderRoute: typeof UploadRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/welcome': {
+      id: '/welcome'
+      path: '/welcome'
+      fullPath: '/welcome'
+      preLoaderRoute: typeof WelcomeRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/ats-benchmark/': {
@@ -418,18 +558,25 @@ declare module '@tanstack/react-router' {
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   ActionsRoute: ActionsRoute,
+  BenchRoute: BenchRoute,
   CandidatesRoute: CandidatesRoute,
   CompareRoute: CompareRoute,
   ExternalHiringRoute: ExternalHiringRoute,
+  ForgotPasswordRoute: ForgotPasswordRoute,
   FraudDetectionRoute: FraudDetectionRoute,
   InsightsRoute: InsightsRoute,
   InternalHiringRoute: InternalHiringRoute,
   JobAnalysisRoute: JobAnalysisRoute,
   LoginRoute: LoginRoute,
+  NetworkRoute: NetworkRoute,
   OpsRoute: OpsRoute,
+  PeopleRoute: PeopleRoute,
+  RegisterRoute: RegisterRoute,
+  ResetPasswordRoute: ResetPasswordRoute,
   ScreeningRoute: ScreeningRoute,
   SettingsRoute: SettingsRoute,
   UploadRoute: UploadRoute,
+  WelcomeRoute: WelcomeRoute,
   HandoffHandoffIdRoute: HandoffHandoffIdRoute,
   JobsJobIdRoute: JobsJobIdRoute,
   AtsBenchmarkIndexRoute: AtsBenchmarkIndexRoute,

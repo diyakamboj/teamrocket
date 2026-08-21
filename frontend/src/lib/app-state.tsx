@@ -11,12 +11,16 @@ import {
 import { toast } from "sonner";
 import {
   ensureActiveJob,
+  getBackendHealth,
   getResumeStatus,
   reparseResume,
   uploadResumesToBackend,
   type ResumeDetail,
 } from "./api";
 import { DEFAULT_WEIGHTS, type Weights } from "./candidates";
+
+//: Persisted scoring weights.
+const WEIGHTS_KEY = "resumeiq_weights";
 
 export type UploadStage =
   "queued" | "uploading" | "ocr" | "parsing" | "complete" | "failed" | "duplicate" | "skipped";
@@ -55,7 +59,14 @@ export type UploadFile = {
 
 type Ctx = {
   files: UploadFile[];
-  addFiles: (files: File[]) => Promise<void>;
+  /** `jobId` attaches the résumés to a role, so the candidates land on that
+   *  job's board and no other. Omitted, they join the general pool. */
+  addFiles: (
+    files: File[],
+    jobId?: string | null,
+    source?: "internal" | "external",
+    internalRole?: { position?: string | null; duties?: string | null },
+  ) => Promise<void>;
   retry: (id: string) => void;
   retryAllFailed: () => void;
   cancelRemaining: () => void;
@@ -66,6 +77,10 @@ type Ctx = {
   overallProgress: number;
   weights: Weights;
   setWeights: (w: Weights) => void;
+  /** Persist the current weights so every ATS score on the site uses them. */
+  saveWeights: (w: Weights) => void;
+  /** What was last persisted — lets the UI show unsaved changes. */
+  savedWeights: Weights;
   resetWeights: () => void;
   blindMode: boolean;
   setBlindMode: (v: boolean) => void;
@@ -89,8 +104,30 @@ const AppCtx = createContext<Ctx | null>(null);
 
 export function AppStateProvider({ children }: { children: ReactNode }) {
   const [files, setFiles] = useState<UploadFile[]>([]);
-  const [weights, setWeights] = useState<Weights>(DEFAULT_WEIGHTS);
-  const [blindMode, setBlindMode] = useState(false);
+  // Weights decide every ATS score on the site, so they outlive the tab.
+  // Held in memory only, they reset on reload and silently disagreed with
+  // the scores the backend had already computed.
+  const [weights, setWeights] = useState<Weights>(() => {
+    try {
+      const stored = localStorage.getItem(WEIGHTS_KEY);
+      return stored ? { ...DEFAULT_WEIGHTS, ...(JSON.parse(stored) as Weights) } : DEFAULT_WEIGHTS;
+    } catch {
+      return DEFAULT_WEIGHTS;
+    }
+  });
+  const [savedWeights, setSavedWeights] = useState<Weights>(weights);
+
+  const saveWeights = useCallback((next: Weights) => {
+    try {
+      localStorage.setItem(WEIGHTS_KEY, JSON.stringify(next));
+    } catch {
+      // A full or blocked storage quota must not stop the weights applying
+      // to this session.
+    }
+    setSavedWeights(next);
+  }, []);
+  const [blindMode, setBlindMode] = useState(true);
+
   const [compareIds, setCompareIds] = useState<string[]>([]);
   const [activeJobId, setActiveJobId] = useState<string | null>(null);
   const [backendReady, setBackendReady] = useState(false);
@@ -99,25 +136,73 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
   const [poolVersion, setPoolVersion] = useState(0);
   const wasActive = useRef(false);
   const seq = useRef(0);
+  //: Guards the one-time job seeding, so reconnect retries never create a
+  //: second job for an account that started with none.
+  const seededJob = useRef(false);
 
   const refreshPool = useCallback(() => setPoolVersion((v) => v + 1), []);
 
+  /**
+   * Whether the backend is reachable. The copilot header renders this as
+   * "Connected" / "Offline".
+   *
+   * This used to be a single call on mount with no retry, so one failed
+   * request — a backend still starting, a restart, a network blip — pinned
+   * the app to "Offline" for the rest of the session even after the backend
+   * was fine again, and the only cure was a page reload. It now retries with
+   * a backoff and re-checks when the tab is focused or the network returns.
+   */
   useEffect(() => {
     let cancelled = false;
-    ensureActiveJob()
-      .then((job) => {
-        if (!cancelled) {
-          setActiveJobId(job.id);
+    let timer: number | undefined;
+    let attempt = 0;
+
+    const check = () => {
+      // Health first: it is a plain read, so retrying it is free. Only once
+      // the backend answers do we touch `ensureActiveJob`, which creates a
+      // job when the account has none and must not run on every retry.
+      getBackendHealth()
+        .then(() => (seededJob.current ? null : ensureActiveJob()))
+        .then((job) => {
+          if (cancelled) return;
+          if (job) {
+            seededJob.current = true;
+            // Only seed the active job; never clobber one the user has since
+            // navigated to while this was retrying.
+            setActiveJobId((current) => current ?? job.id);
+          }
           setBackendReady(true);
-        }
-      })
-      .catch(() => {
-        if (!cancelled) {
+          attempt = 0;
+        })
+        .catch(() => {
+          if (cancelled) return;
           setBackendReady(false);
-        }
-      });
+          attempt += 1;
+          // 2s, 4s, 8s… capped at 30s, so a backend that comes back up is
+          // picked up on its own without hammering it while it is down.
+          const delay = Math.min(30_000, 2_000 * 2 ** (attempt - 1));
+          timer = window.setTimeout(check, delay);
+        });
+    };
+
+    check();
+
+    // A tab left open across a backend restart should recover on focus
+    // rather than waiting out the backoff.
+    const recheck = () => {
+      if (cancelled || document.visibilityState !== "visible") return;
+      window.clearTimeout(timer);
+      attempt = 0;
+      check();
+    };
+    window.addEventListener("online", recheck);
+    document.addEventListener("visibilitychange", recheck);
+
     return () => {
       cancelled = true;
+      window.clearTimeout(timer);
+      window.removeEventListener("online", recheck);
+      document.removeEventListener("visibilitychange", recheck);
     };
   }, []);
 
@@ -126,7 +211,13 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
    * kicks off OCR + AI parsing. Rows are seeded optimistically so the table
    * appears immediately, then reconciled with the ids the server assigns.
    */
-  const addFiles = useCallback(async (incoming: File[]) => {
+  const addFiles = useCallback(
+    async (
+      incoming: File[],
+      jobId?: string | null,
+      source: "internal" | "external" = "external",
+      internalRole?: { position?: string | null; duties?: string | null },
+    ) => {
     if (incoming.length === 0) return;
 
     const localIds = incoming.map(() => {
@@ -146,7 +237,7 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
     ]);
 
     try {
-      const res = await uploadResumesToBackend(incoming);
+      const res = await uploadResumesToBackend(incoming, jobId, source, internalRole);
       setFiles((prev) =>
         prev.map((row) => {
           const idx = localIds.indexOf(row.id);
@@ -163,6 +254,18 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
           };
         }),
       );
+
+      // Refusals are the whole point of the check, so say so out loud rather
+      // than leaving a "Duplicate" chip in a list the recruiter may not be
+      // looking at.
+      for (const item of res.files) {
+        if (item.duplicate || item.status === "duplicate") {
+          toast.error(`${item.filename} was not added`, {
+            description: item.error ?? "That candidate is already in your pool.",
+            duration: 8000,
+          });
+        }
+      }
     } catch (err) {
       const message = err instanceof Error ? err.message : "Upload failed";
       setFiles((prev) =>
@@ -201,6 +304,14 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
           prev.map((row) => {
             const update = updates.find((u) => u.row.id === row.id);
             if (!update) return row;
+            // Only on the transition, so the 1.2s poll does not repeat it.
+            if (update.detail.status === "duplicate" && row.stage !== "duplicate") {
+              toast.error(`${row.name} was not added`, {
+                description:
+                  update.detail.error ?? "That candidate is already in your pool.",
+                duration: 8000,
+              });
+            }
             return {
               ...row,
               stage: toStage(update.detail.status),
@@ -326,7 +437,12 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
     overallProgress,
     weights,
     setWeights,
-    resetWeights: () => setWeights(DEFAULT_WEIGHTS),
+    saveWeights,
+    savedWeights,
+    resetWeights: () => {
+      setWeights(DEFAULT_WEIGHTS);
+      saveWeights(DEFAULT_WEIGHTS);
+    },
     blindMode,
     setBlindMode,
     compareIds,

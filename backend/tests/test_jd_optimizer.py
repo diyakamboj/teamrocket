@@ -15,6 +15,7 @@ from app.utils.validators import has_normalized_skill, normalized_skill_set
 
 def _add_candidate(store, *, name, email, skills, source="external"):
     candidate = Candidate(
+        owner_email="recruiter@example.com",
         id=uuid.uuid4(),
         name=name,
         email=email,

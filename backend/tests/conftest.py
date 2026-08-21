@@ -21,12 +21,22 @@ from app.models.candidate import Candidate
 from app.models.job_posting import JobPosting
 from app.storage.store import Store, get_store
 
+#: The recruiter the sample job and candidates belong to. Ownership is
+#: enforced now, so fixtures have to agree on who owns what.
+RECRUITER_EMAIL = "recruiter@example.com"
+
 
 class InMemoryJsonBlobStore:
     """Dict-backed stand-in for `JsonBlobStore`, same interface (put/get/
-    delete/exists/list_prefix). Gives each test a trivially-reset,
-    fully-isolated backing store — no real disk I/O, no shared state between
-    tests, no need for the old drop-all/create-all SQLAlchemy dance.
+    get_many/put_many/delete/delete_many/exists/list_prefix). Gives each test
+    a trivially-reset, fully-isolated backing store — no real disk I/O, no
+    shared state between tests, no need for the old drop-all/create-all
+    SQLAlchemy dance.
+
+    The batch methods exist because the real store batches: they are what
+    the repositories call, so the double has to answer them too. `immutable`
+    and `strict` are accepted and ignored — they only affect how the real
+    store talks to Blob Storage, not what is stored.
     """
 
     def __init__(self) -> None:
@@ -35,22 +45,61 @@ class InMemoryJsonBlobStore:
     def put(self, key: str, doc: dict) -> None:
         self._data[key] = copy.deepcopy(doc)
 
+    def put_many(self, items: list[tuple[str, dict]], *, strict: bool = False) -> None:
+        for key, doc in items:
+            self.put(key, doc)
+
     def get(self, key: str) -> Optional[dict]:
         doc = self._data.get(key)
         return copy.deepcopy(doc) if doc is not None else None
 
+    def get_many(self, keys: list[str]) -> list[Optional[dict]]:
+        return [self.get(key) for key in keys]
+
     def delete(self, key: str) -> None:
         self._data.pop(key, None)
+
+    def delete_many(self, keys: list[str]) -> None:
+        for key in keys:
+            self.delete(key)
 
     def exists(self, key: str) -> bool:
         return key in self._data
 
-    def list_prefix(self, prefix: str) -> list[str]:
+    def list_prefix(self, prefix: str, *, immutable: bool = False) -> list[str]:
         prefix = prefix.strip("/")
         if not prefix:
             return sorted(self._data.keys())
         needle = f"{prefix}/"
         return sorted(key for key in self._data if key.startswith(needle))
+
+
+@pytest.fixture(autouse=True)
+def never_send_real_email(monkeypatch):
+    """No test may put a message on the wire.
+
+    Once real SMTP credentials landed in .env the suite started delivering
+    genuine mail to the fixtures' example.com addresses on every run --
+    bouncing messages from the operator's own mailbox, and a fast way to get
+    an account rate-limited. Tests that exercise the live send path build
+    their own EmailService with a stubbed transport instead.
+    """
+    from app.services.email_service import email_service
+
+    monkeypatch.setattr(email_service, "mock", True)
+
+
+@pytest.fixture(autouse=True)
+def no_external_vector_backend(monkeypatch):
+    """Keep tests off Azure Search and Qdrant.
+
+    Whichever backend .env selects, the suite uses the in-process blob index
+    so a test run neither depends on a network service nor writes into the
+    real one.
+    """
+    from app.config import settings
+
+    monkeypatch.setattr(settings, "VECTOR_BACKEND", "blob")
 
 
 @pytest.fixture()
@@ -101,7 +150,7 @@ def sample_job(store: Store) -> JobPosting:
         required_experience_years=3,
         education_requirements="Bachelor's in Computer Science",
         nice_to_have_skills=["Kubernetes"],
-        created_by="recruiter@example.com",
+        created_by=RECRUITER_EMAIL,
     )
     store.jobs.save(job)
     return job
@@ -111,6 +160,7 @@ def sample_job(store: Store) -> JobPosting:
 def sample_candidate(store: Store) -> Candidate:
     candidate = Candidate(
         id=uuid.uuid4(),
+        owner_email=RECRUITER_EMAIL,
         name="Alice Johnson",
         email="alice.johnson@example.com",
         phone="+1-555-1111",
