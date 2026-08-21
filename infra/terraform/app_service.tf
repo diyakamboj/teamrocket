@@ -88,6 +88,7 @@ resource "azurerm_linux_web_app" "backend" {
     CORS_ORIGINS                   = "[\"${trimsuffix(azurerm_storage_account.main.primary_web_endpoint, "/")}\",\"http://localhost:8080\"]"
     CHATBOT_ENABLED                = tostring(var.chatbot_enabled)
     CHATBOT_API_URL                = var.chatbot_api_url
+    GOOGLE_CLIENT_ID               = var.google_client_id
     SMTP_HOST                      = "smtp.gmail.com"
     SMTP_PORT                      = "587"
     SMTP_FROM_NAME                 = "ResumeIQ Recruiting"

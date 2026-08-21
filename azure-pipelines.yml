@@ -64,6 +64,11 @@ variables:
   # hardcoded — the deploy job below resolves it at runtime by prefix match.
   storageAccountPrefix: "stresumeiqdev"
   vmImageName: "ubuntu-latest"
+  # "Sign in with Google" Client ID — not a secret (it's public in the
+  # frontend bundle regardless), but must be the exact same value as
+  # infra/terraform/variables.tf's google_client_id default, since an ID
+  # token is only valid for the audience it was issued for.
+  googleClientId: "704845703885-s983jor0pui2juhfgg1e6d3m2pt4st2u.apps.googleusercontent.com"
 
 stages:
   # ---------------------------------------------------------------------
@@ -144,6 +149,7 @@ stages:
               # Backend URL is deterministic (no random suffix on the App
               # Service name) — see outputs.tf's backend_url output.
               VITE_API_BASE_URL: "https://$(backendAppName).azurewebsites.net"
+              VITE_GOOGLE_CLIENT_ID: $(googleClientId)
 
           - task: ArchiveFiles@2
             displayName: "Zip frontend dist for deploy"

@@ -155,6 +155,19 @@ variable "chatbot_api_url" {
   default     = ""
 }
 
+variable "google_client_id" {
+  description = <<-EOT
+    "Sign in with Google" OAuth 2.0 Web application Client ID, from
+    console.cloud.google.com/apis/credentials. Not a secret — it is public
+    in the frontend bundle regardless — but must be the *same* value the
+    frontend build embeds as VITE_GOOGLE_CLIENT_ID (azure-pipelines.yml's
+    googleClientId variable), since an ID token is only valid for the
+    audience it was issued for. Empty disables the backend endpoint.
+  EOT
+  type        = string
+  default     = "704845703885-s983jor0pui2juhfgg1e6d3m2pt4st2u.apps.googleusercontent.com"
+}
+
 # -----------------------------------------------------------------------------
 # Secrets not yet available — placeholders so `plan`/`apply` don't require
 # them up front. Supply real values via a gitignored *.auto.tfvars file
