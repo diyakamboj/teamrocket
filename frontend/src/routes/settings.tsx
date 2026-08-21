@@ -191,7 +191,13 @@ function SettingsPage() {
 
   // Identity is read from the account, not from browser storage, so it is
   // right for whoever is actually signed in.
-  const [identity, setIdentity] = useState({ name: "", email: "", department: "", role: "" });
+  const [identity, setIdentity] = useState({
+    name: "",
+    email: "",
+    department: "",
+    role: "",
+    authProvider: "password",
+  });
   const [identitySaving, setIdentitySaving] = useState(false);
 
   useEffect(() => {
@@ -204,6 +210,7 @@ function SettingsPage() {
           email: account.email ?? "",
           department: account.department ?? "",
           role: account.role ?? "",
+          authProvider: account.authProvider ?? "password",
         });
       })
       .catch(() => undefined);
@@ -478,7 +485,7 @@ function SettingsPage() {
             </div>
 
             <div className="mt-6 border-t border-border pt-5">
-              <DeleteAccount email={identity.email} />
+              <DeleteAccount email={identity.email} authProvider={identity.authProvider} />
             </div>
           </SectionCard>
 

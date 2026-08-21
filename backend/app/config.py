@@ -149,6 +149,13 @@ class Settings(BaseSettings):
     GITHUB_TOKEN: Optional[str] = None
     HACKERRANK_API_KEY: Optional[str] = None
 
+    # "Sign in with Google". The web OAuth client id from
+    # console.cloud.google.com/apis/credentials — must match the frontend's
+    # VITE_GOOGLE_CLIENT_ID, since an ID token is only accepted for the
+    # audience it was issued for. Unset disables the endpoint rather than
+    # accepting tokens from an untrusted audience.
+    GOOGLE_CLIENT_ID: Optional[str] = None
+
     # Azure Monitor / Application Insights (observability)
     # Unset by default — the Ops dashboard's own sre_events store works with
     # no Azure Monitor at all; this only enables the OpenTelemetry export.

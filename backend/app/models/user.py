@@ -40,6 +40,10 @@ class User(BaseModel):
         return normalise_role(value)
     password_hash: str
     password_salt: str
+    #: "password" for a normal signup, "google" for one created via "Sign in
+    #: with Google" — those hold a random, never-issued password hash, so
+    #: delete-account's password re-check has to be skipped for them.
+    auth_provider: str = "password"
     #: Active session tokens. A list so signing in on a second device does
     #: not silently sign you out of the first.
     session_tokens: list[str] = Field(default_factory=list)
@@ -63,6 +67,7 @@ class PublicUser(BaseModel):
     name: str
     role: Role
     department: str
+    auth_provider: str
 
     @classmethod
     def of(cls, user: User) -> "PublicUser":
@@ -72,4 +77,5 @@ class PublicUser(BaseModel):
             name=user.name,
             role=user.role,
             department=user.department,
+            auth_provider=user.auth_provider,
         )

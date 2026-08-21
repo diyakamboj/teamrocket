@@ -53,6 +53,37 @@ def email_problem(email: str) -> Optional[str]:
     return None
 
 
+class GoogleTokenError(Exception):
+    """The credential from Google Identity Services did not check out."""
+
+
+def verify_google_credential(credential: str, client_id: str) -> dict:
+    """Verify a Google Identity Services ID token and return its claims.
+
+    Verification (not a trust-the-client decode) matters here: the token is
+    signed by Google, and checking that signature plus the audience is what
+    stops anyone from posting a hand-crafted `{"email": "victim@x.com"}` at
+    this endpoint and being logged in as them.
+    """
+    # Imported lazily so a deployment without `google-auth` installed only
+    # fails when someone actually uses Google sign-in, not on every startup.
+    from google.auth.transport import requests as google_requests
+    from google.oauth2 import id_token as google_id_token
+
+    try:
+        claims = google_id_token.verify_oauth2_token(
+            credential, google_requests.Request(), audience=client_id
+        )
+    except Exception as exc:
+        raise GoogleTokenError(str(exc)) from exc
+
+    if claims.get("iss") not in ("accounts.google.com", "https://accounts.google.com"):
+        raise GoogleTokenError("Unexpected token issuer")
+    if not claims.get("email_verified"):
+        raise GoogleTokenError("Google account email is not verified")
+    return claims
+
+
 def find_by_email(store: Store, email: str) -> Optional[User]:
     target = normalize_email(email)
     return next(

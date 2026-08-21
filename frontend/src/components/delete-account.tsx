@@ -18,14 +18,24 @@ import { logoutSession } from "@/lib/auth";
  * go with the account — leaving them would strand real people's résumés and
  * contact details under an owner who no longer exists.
  */
-export function DeleteAccount({ email }: { email: string }) {
+export function DeleteAccount({
+  email,
+  authProvider,
+}: {
+  email: string;
+  /** "google" accounts never had a password issued — the server accepts the
+   *  bearer token alone as re-authentication for them, so the field is
+   *  skipped rather than asking for something that does not exist. */
+  authProvider?: string;
+}) {
   const [open, setOpen] = useState(false);
   const [password, setPassword] = useState("");
   const [confirmWord, setConfirmWord] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const armed = confirmWord.trim().toUpperCase() === "DELETE" && password.length > 0;
+  const isGoogle = authProvider === "google";
+  const armed = confirmWord.trim().toUpperCase() === "DELETE" && (isGoogle || password.length > 0);
 
   async function submit(event: React.FormEvent) {
     event.preventDefault();
@@ -75,16 +85,18 @@ export function DeleteAccount({ email }: { email: string }) {
           </p>
 
           <div className="mt-4 grid gap-3 sm:grid-cols-2">
-            <label className="block space-y-1">
-              <span className="text-[11px] font-medium">Your password</span>
-              <Input
-                type="password"
-                autoFocus
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                className="rounded-lg text-xs"
-              />
-            </label>
+            {!isGoogle && (
+              <label className="block space-y-1">
+                <span className="text-[11px] font-medium">Your password</span>
+                <Input
+                  type="password"
+                  autoFocus
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  className="rounded-lg text-xs"
+                />
+              </label>
+            )}
             <label className="block space-y-1">
               <span className="text-[11px] font-medium">
                 Type <span className="font-mono">DELETE</span> to confirm

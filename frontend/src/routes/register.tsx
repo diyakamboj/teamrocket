@@ -4,6 +4,7 @@ import { ArrowRight, Check, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { isSignedIn, register } from "@/lib/auth";
 import { AuthLayout } from "@/components/auth-layout";
+import { GoogleSignInButton } from "@/components/google-sign-in-button";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
@@ -47,6 +48,13 @@ function RegisterPage() {
   );
   const passwordOk = checks.every((c) => c.ok);
 
+  // Shared by the password form and Google sign-up: both end with a real
+  // session and land on the same "your workspace is ready" welcome.
+  function launch(name: string) {
+    toast.success(`Welcome, ${name.split(" ")[0]} — your workspace is ready.`);
+    void navigate({ to: "/", replace: true });
+  }
+
   async function handleSubmit(event: React.FormEvent) {
     event.preventDefault();
     if (busy || !passwordOk) return;
@@ -59,8 +67,7 @@ function RegisterPage() {
         name: name.trim(),
         role,
       });
-      toast.success(`Welcome, ${session.name.split(" ")[0]} — your workspace is ready.`);
-      void navigate({ to: "/", replace: true });
+      launch(session.name);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Could not create your account.");
     } finally {
@@ -187,6 +194,10 @@ function RegisterPage() {
           )}
         </Button>
       </form>
+
+      <div className="mt-5">
+        <GoogleSignInButton onSuccess={launch} />
+      </div>
     </AuthLayout>
   );
 }

@@ -4,6 +4,7 @@ import { ArrowRight, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { isSignedIn, login } from "@/lib/auth";
 import { AuthLayout } from "@/components/auth-layout";
+import { GoogleSignInButton } from "@/components/google-sign-in-button";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 
@@ -26,6 +27,16 @@ function LoginPage() {
     if (isSignedIn()) void navigate({ to: "/", replace: true });
   }, [navigate]);
 
+  // Shared by the password form and Google sign-in: both end with a real
+  // session, and should read as the same "moving into the app" moment.
+  function launch(name: string) {
+    toast.success(`Welcome back, ${name.split(" ")[0]}`);
+    setLeaving(true);
+    // Matches the .auth-launch duration; anyone on reduced motion sees the
+    // card hidden immediately and waits the same brief moment.
+    window.setTimeout(() => void navigate({ to: "/", replace: true }), 420);
+  }
+
   async function handleSubmit(event: React.FormEvent) {
     event.preventDefault();
     if (busy) return;
@@ -36,12 +47,8 @@ function LoginPage() {
     let launched = false;
     try {
       const session = await login(email.trim(), password);
-      toast.success(`Welcome back, ${session.name.split(" ")[0]}`);
       launched = true;
-      setLeaving(true);
-      // Matches the .auth-launch duration; anyone on reduced motion sees the
-      // card hidden immediately and waits the same brief moment.
-      window.setTimeout(() => void navigate({ to: "/", replace: true }), 420);
+      launch(session.name);
       return;
     } catch (err) {
       // The server deliberately gives one message for both an unknown
@@ -126,6 +133,10 @@ function LoginPage() {
           )}
         </Button>
       </form>
+
+      <div className="mt-5">
+        <GoogleSignInButton onSuccess={launch} />
+      </div>
     </AuthLayout>
   );
 }

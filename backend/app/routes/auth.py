@@ -132,6 +132,58 @@ def login(payload: LoginRequest, store: AppStore):
     return AuthResponse(token=token, user=PublicUser.of(user))
 
 
+class GoogleAuthRequest(BaseModel):
+    #: The ID token Google Identity Services hands the frontend's callback —
+    #: a signed JWT, not an OAuth access token, so the backend can verify it
+    #: itself without a further round-trip to Google.
+    credential: str
+
+
+@router.post("/google", response_model=AuthResponse)
+def google_login(payload: GoogleAuthRequest, store: AppStore):
+    if not settings.GOOGLE_CLIENT_ID:
+        raise ValidationAppError("Google sign-in is not configured on this server.")
+
+    try:
+        claims = auth_service.verify_google_credential(
+            payload.credential, settings.GOOGLE_CLIENT_ID
+        )
+    except auth_service.GoogleTokenError:
+        raise ValidationAppError("Could not verify that Google sign-in. Try again.")
+
+    email = normalize_email(claims["email"])
+    name = (claims.get("name") or email.split("@")[0]).strip()
+
+    user = auth_service.find_by_email(store, email)
+    if user is None:
+        # A password is never issued for this account — random and
+        # discarded, it exists only to satisfy the field, never to sign in
+        # with. See auth_provider on the model for how the rest of the API
+        # knows not to expect one.
+        password_hash, salt = auth_service.hash_password(auth_service.new_session_token())
+        user = User(
+            email=email,
+            name=name,
+            password_hash=password_hash,
+            password_salt=salt,
+            auth_provider="google",
+        )
+
+    token = auth_service.new_session_token()
+    user.session_tokens = [*user.session_tokens[-4:], token]
+    user.last_login_at = datetime.now(timezone.utc).replace(tzinfo=None)
+    store.users.save(user)
+
+    _audit(
+        store,
+        recruiter_email=user.email,
+        action="auth_google_login",
+        resource_type="user",
+        resource_id=user.id,
+    )
+    return AuthResponse(token=token, user=PublicUser.of(user))
+
+
 @router.get("/me", response_model=PublicUser)
 def me(store: AppStore, authorization: Optional[str] = Header(None)):
     user = auth_service.find_by_token(store, _bearer(authorization))
@@ -295,7 +347,9 @@ def delete_account(
     if not user:
         raise UnauthorizedError()
 
-    if not auth_service.verify_password(
+    # A Google account never had a password issued to it — the bearer token
+    # already proves who is asking, so there is nothing to re-check.
+    if user.auth_provider != "google" and not auth_service.verify_password(
         payload.password, user.password_hash, user.password_salt
     ):
         raise ValidationAppError("That password is not correct.")

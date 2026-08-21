@@ -21,11 +21,19 @@ export type UserSession = {
   name: string;
   role: string;
   department: string;
+  authProvider: string;
 };
 
 type AuthPayload = {
   token: string;
-  user: { id: string; email: string; name: string; role: string; department: string };
+  user: {
+    id: string;
+    email: string;
+    name: string;
+    role: string;
+    department: string;
+    auth_provider: string;
+  };
 };
 
 function store(payload: AuthPayload): UserSession {
@@ -35,6 +43,7 @@ function store(payload: AuthPayload): UserSession {
     name: payload.user.name,
     role: payload.user.role,
     department: payload.user.department,
+    authProvider: payload.user.auth_provider,
   };
   if (typeof window !== "undefined") {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(session));
@@ -103,6 +112,16 @@ export async function register(input: {
 
 export async function login(email: string, password: string): Promise<UserSession> {
   return store(await post("/api/auth/login", { email, password }));
+}
+
+/**
+ * Finish "Sign in with Google": exchange the ID token Google Identity
+ * Services handed the frontend for a real session. Works for both sign-in
+ * and account creation — the backend links or creates the account by email,
+ * so the same call serves the login and register pages.
+ */
+export async function loginWithGoogle(credential: string): Promise<UserSession> {
+  return store(await post("/api/auth/google", { credential }));
 }
 
 /**
