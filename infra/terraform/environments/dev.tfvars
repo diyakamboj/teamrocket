@@ -11,7 +11,7 @@ environment         = "dev"
 
 openai_chat_deployment_name      = "gpt-5"
 openai_embedding_deployment_name = "text-embedding-3-small"
-search_index_name                = "candidates-index"
+search_index_name                = "resumeiq-candidates" # was "candidates-index" - confirmed 2026-08-21 this is not the real index; the wrong value was live here too, not just a local-copy drift
 blob_container_name              = "resumes"
 
 app_service_sku = "B1"
