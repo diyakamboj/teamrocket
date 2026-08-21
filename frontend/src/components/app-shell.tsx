@@ -1,6 +1,7 @@
 import { Link, useNavigate, useRouterState } from "@tanstack/react-router";
 import {
 
+  Activity,
   Bell,
   ChevronsLeft,
   Command,
@@ -70,6 +71,12 @@ const NAV_GROUPS = [
       { to: "/candidates", label: "Candidates", icon: UserSearch },
       { to: "/bench", label: "Bench", icon: Armchair },
       { to: "/network", label: "Recruiter network", icon: Network },
+    ],
+  },
+  {
+    heading: "System",
+    items: [
+      { to: "/ops", label: "Ops Health", icon: Activity },
     ],
   },
 ] as const;

@@ -22,6 +22,7 @@ import { Route as InternalHiringRouteImport } from './routes/internal-hiring'
 import { Route as JobAnalysisRouteImport } from './routes/job-analysis'
 import { Route as LoginRouteImport } from './routes/login'
 import { Route as NetworkRouteImport } from './routes/network'
+import { Route as OpsRouteImport } from './routes/ops'
 import { Route as PeopleRouteImport } from './routes/people'
 import { Route as RegisterRouteImport } from './routes/register'
 import { Route as ResetPasswordRouteImport } from './routes/reset-password'
@@ -100,6 +101,11 @@ const NetworkRoute = NetworkRouteImport.update({
   path: '/network',
   getParentRoute: () => rootRouteImport,
 } as any)
+const OpsRoute = OpsRouteImport.update({
+  id: '/ops',
+  path: '/ops',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const PeopleRoute = PeopleRouteImport.update({
   id: '/people',
   path: '/people',
@@ -175,6 +181,7 @@ export interface FileRoutesByFullPath {
   '/job-analysis': typeof JobAnalysisRoute
   '/login': typeof LoginRoute
   '/network': typeof NetworkRoute
+  '/ops': typeof OpsRoute
   '/people': typeof PeopleRoute
   '/register': typeof RegisterRoute
   '/reset-password': typeof ResetPasswordRoute
@@ -202,6 +209,7 @@ export interface FileRoutesByTo {
   '/job-analysis': typeof JobAnalysisRoute
   '/login': typeof LoginRoute
   '/network': typeof NetworkRoute
+  '/ops': typeof OpsRoute
   '/people': typeof PeopleRoute
   '/register': typeof RegisterRoute
   '/reset-password': typeof ResetPasswordRoute
@@ -230,6 +238,7 @@ export interface FileRoutesById {
   '/job-analysis': typeof JobAnalysisRoute
   '/login': typeof LoginRoute
   '/network': typeof NetworkRoute
+  '/ops': typeof OpsRoute
   '/people': typeof PeopleRoute
   '/register': typeof RegisterRoute
   '/reset-password': typeof ResetPasswordRoute
@@ -259,6 +268,7 @@ export interface FileRouteTypes {
     | '/job-analysis'
     | '/login'
     | '/network'
+    | '/ops'
     | '/people'
     | '/register'
     | '/reset-password'
@@ -286,6 +296,7 @@ export interface FileRouteTypes {
     | '/job-analysis'
     | '/login'
     | '/network'
+    | '/ops'
     | '/people'
     | '/register'
     | '/reset-password'
@@ -313,6 +324,7 @@ export interface FileRouteTypes {
     | '/job-analysis'
     | '/login'
     | '/network'
+    | '/ops'
     | '/people'
     | '/register'
     | '/reset-password'
@@ -341,6 +353,7 @@ export interface RootRouteChildren {
   JobAnalysisRoute: typeof JobAnalysisRoute
   LoginRoute: typeof LoginRoute
   NetworkRoute: typeof NetworkRoute
+  OpsRoute: typeof OpsRoute
   PeopleRoute: typeof PeopleRoute
   RegisterRoute: typeof RegisterRoute
   ResetPasswordRoute: typeof ResetPasswordRoute
@@ -448,6 +461,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof NetworkRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/ops': {
+      id: '/ops'
+      path: '/ops'
+      fullPath: '/ops'
+      preLoaderRoute: typeof OpsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/people': {
       id: '/people'
       path: '/people'
@@ -549,6 +569,7 @@ const rootRouteChildren: RootRouteChildren = {
   JobAnalysisRoute: JobAnalysisRoute,
   LoginRoute: LoginRoute,
   NetworkRoute: NetworkRoute,
+  OpsRoute: OpsRoute,
   PeopleRoute: PeopleRoute,
   RegisterRoute: RegisterRoute,
   ResetPasswordRoute: ResetPasswordRoute,

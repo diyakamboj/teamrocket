@@ -36,6 +36,8 @@ import {
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { StatCard } from "@/components/stat-card";
+import { ChartCard } from "@/components/chart-card";
 import {
   experienceBreakdown,
   rankCandidates,
@@ -76,55 +78,6 @@ const SOURCE_LABELS: Record<string, string> = {
   internal: "Internal",
   external: "External",
 };
-
-function StatCard({
-  icon: Icon,
-  label,
-  value,
-  delta,
-}: {
-  icon: typeof Users;
-  label: string;
-  value: string;
-  /** Short qualifier for the figure. Omitted when there is nothing true to say
-   * — this app stores no historical snapshots, so it cannot show a trend. */
-  delta?: string | undefined;
-}) {
-  return (
-    <div className="card-surface p-5 transition-shadow duration-300 hover:shadow-[var(--shadow-lift)]">
-      <div className="flex items-start justify-between gap-3">
-        <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-primary-soft text-primary-soft-foreground">
-          <Icon className="h-5 w-5" />
-        </span>
-        {delta && (
-          <span className="inline-flex items-center gap-0.5 rounded-full bg-secondary px-2 py-0.5 text-xs font-semibold text-muted-foreground">
-            {delta}
-          </span>
-        )}
-      </div>
-      <p className="mt-4 text-3xl font-extrabold tabular-nums tracking-tight">{value}</p>
-      <p className="mt-1 text-sm text-muted-foreground">{label}</p>
-    </div>
-  );
-}
-
-function ChartCard({
-  title,
-  subtitle,
-  children,
-}: {
-  title: string;
-  subtitle: string;
-  children: React.ReactNode;
-}) {
-  return (
-    <div className="card-surface p-5">
-      <h2 className="text-base font-bold">{title}</h2>
-      <p className="mb-4 text-xs text-muted-foreground">{subtitle}</p>
-      <div className="h-[240px] w-full">{children}</div>
-    </div>
-  );
-}
 
 const tooltipStyle = {
   borderRadius: 14,

@@ -26,6 +26,31 @@ from app.utils.logger import get_logger
 logger = get_logger(__name__)
 
 
+def _record_ai_event(
+    service: str,
+    status: str,
+    start: float,
+    *,
+    mock: bool,
+    error_message: Optional[str] = None,
+) -> None:
+    """Records an `ai_call` SRE event. Local import of `sre_events` — that
+    module imports `document_store` from this file, so importing it at
+    module level here would create a circular import. See
+    `app/services/sre_events.py`'s module docstring for the full reasoning.
+    Never let this import move to the top of the file."""
+    from app.services import sre_events
+
+    sre_events.record_event(
+        event_type="ai_call",
+        service=service,
+        status=status,
+        duration_ms=(time.monotonic() - start) * 1000,
+        error_message=error_message,
+        details={"mock": mock},
+    )
+
+
 def _looks_like_connection_string(value: str) -> bool:
     return "AccountName=" in value and "AccountKey=" in value
 
@@ -673,10 +698,13 @@ class AzureOpenAIService:
         deployment: Optional[str] = None,
         response_format: Optional[dict[str, str]] = None,
     ) -> str:
+        start = time.monotonic()
         if self.mock:
+            _record_ai_event("azure_openai_chat", "success", start, mock=True)
             return self._mock_response(prompt)
 
         if self._breaker_is_open():
+            _record_ai_event("azure_openai_chat", "fallback", start, mock=False)
             raise AzureServiceError(
                 "Azure OpenAI unavailable (circuit breaker open)",
                 {"consecutive_failures": self._consecutive_failures},
@@ -706,10 +734,12 @@ class AzureOpenAIService:
             )
         except Exception as exc:
             self._record_failure()
+            _record_ai_event("azure_openai_chat", "failure", start, mock=False, error_message=str(exc))
             logger.warning("Azure OpenAI call failed: %s", exc)
             raise AzureServiceError("Azure OpenAI request failed", {"reason": str(exc)}) from exc
 
         self._record_success()
+        _record_ai_event("azure_openai_chat", "success", start, mock=False)
         return response.choices[0].message.content or ""
 
     # ---------- circuit breaker ----------
@@ -724,6 +754,26 @@ class AzureOpenAIService:
         self._breaker_opened_at = None
         self._consecutive_failures = settings.AZURE_OPENAI_FAILURE_THRESHOLD - 1
         return False
+
+    @property
+    def breaker_state(self) -> dict[str, Any]:
+        """Side-effect-free breaker snapshot for the Ops dashboard.
+
+        Deliberately does NOT call `_breaker_is_open()` — that method
+        mutates state (clears `_breaker_opened_at` and pre-seeds
+        `_consecutive_failures` once the cooldown elapses, to let exactly
+        one recovery-probe request through). A dashboard polling this every
+        few seconds would otherwise silently consume that probe as a side
+        effect of a page load.
+        """
+        is_open = self._breaker_opened_at is not None and (
+            time.monotonic() - self._breaker_opened_at
+        ) < settings.AZURE_OPENAI_BREAKER_COOLDOWN_SECONDS
+        return {
+            "is_open": is_open,
+            "consecutive_failures": self._consecutive_failures,
+            "mock": self.mock,
+        }
 
     def _record_failure(self) -> None:
         self._consecutive_failures += 1
@@ -759,6 +809,7 @@ class AzureOpenAIService:
             # unreachable resource shouldn't be re-dialled once per candidate.
             if self._breaker_is_open():
                 return None
+            start = time.monotonic()
             try:
                 response = self._embedding_client.embeddings.create(
                     model=settings.AZURE_OPENAI_EMBEDDING_DEPLOYMENT_NAME,
@@ -769,11 +820,15 @@ class AzureOpenAIService:
                     self._embedding_cache[text] = item.embedding
             except Exception as exc:
                 self._record_failure()
+                _record_ai_event(
+                    "azure_openai_embeddings", "failure", start, mock=False, error_message=str(exc)
+                )
                 logger.warning(
                     "Embedding request failed, falling back to keyword overlap: %s", exc
                 )
                 return None
             self._record_success()
+            _record_ai_event("azure_openai_embeddings", "success", start, mock=False)
         return [self._embedding_cache[t] for t in texts]
 
     def _safe_json(self, content: str) -> dict[str, Any]:
@@ -1002,7 +1057,9 @@ class AzureDocumentIntelligenceService:
         if filename.lower().endswith(self.PLAIN_TEXT_SUFFIXES):
             return file_bytes.decode("utf-8", errors="ignore")
 
+        start = time.monotonic()
         if self.mock:
+            _record_ai_event("document_intelligence", "success", start, mock=True)
             extracted = self._extract_pdf_or_docx_fallback(file_bytes, filename)
             if extracted and len(extracted.strip()) > 30:
                 return extracted
@@ -1026,8 +1083,10 @@ class AzureDocumentIntelligenceService:
             )
             result = poller.result()
             if result.content:
+                _record_ai_event("document_intelligence", "success", start, mock=False)
                 return result.content
         except Exception as exc:
+            _record_ai_event("document_intelligence", "failure", start, mock=False, error_message=str(exc))
             logger.warning("Document Intelligence failed for %s: %s", filename, exc)
 
         # Local extraction as a fallback: a readable PDF or Word file should

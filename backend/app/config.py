@@ -149,6 +149,11 @@ class Settings(BaseSettings):
     GITHUB_TOKEN: Optional[str] = None
     HACKERRANK_API_KEY: Optional[str] = None
 
+    # Azure Monitor / Application Insights (observability)
+    # Unset by default — the Ops dashboard's own sre_events store works with
+    # no Azure Monitor at all; this only enables the OpenTelemetry export.
+    APPLICATIONINSIGHTS_CONNECTION_STRING: Optional[str] = None
+
     # Public URL of the recruiter frontend (used to build interview handoff
 
     # briefing links included in interviewer notification emails).

@@ -34,16 +34,8 @@ resource "azurerm_application_insights" "main" {
   tags = var.tags
 }
 
-# Connection string is provider-marked sensitive (same treatment as an API
-# key), so it goes through Key Vault like every other real secret in this
-# config, rather than being inlined directly the way plain computed values
-# (e.g. FRONTEND_URL) are in app_service.tf.
-resource "azurerm_key_vault_secret" "app_insights_connection_string" {
-  name         = "APPLICATIONINSIGHTS-CONNECTION-STRING"
-  value        = azurerm_application_insights.main.connection_string
-  key_vault_id = azurerm_key_vault.main.id
-  depends_on   = [azurerm_role_assignment.terraform_secrets_officer]
-}
+# APPLICATIONINSIGHTS-CONNECTION-STRING secret lives in keyvault.tf, grouped
+# with the project's other Key Vault secrets rather than here.
 
 # Platform-level logs (HTTP requests, console/app stdout+stderr, deploy
 # platform events) — independent of Application Insights, and catches things
@@ -196,6 +188,38 @@ resource "azurerm_monitor_metric_alert" "backend_cpu" {
     aggregation      = "Average"
     operator         = "GreaterThan"
     threshold        = 80
+  }
+
+  action {
+    action_group_id = azurerm_monitor_action_group.main.id
+  }
+
+  tags = var.tags
+}
+
+# Additive on top of the app-service-level alerts above: Application
+# Insights' own "failed requests" metric captures SDK-tracked
+# exceptions/failures at the application layer, not just HTTP 5xx at the
+# platform layer — a request can fail in a way the app still returns 200
+# for (e.g. a caught exception logged as a failure) that Http5xx above
+# wouldn't see. Merged in from the Ops/SRE dashboard branch (PR #8); kept
+# because it's a genuinely different signal, not a duplicate of the alerts
+# above.
+resource "azurerm_monitor_metric_alert" "app_insights_failed_requests" {
+  name                = "alert-${var.project_name}-failed-requests-${var.environment}"
+  resource_group_name = data.azurerm_resource_group.main.name
+  scopes              = [azurerm_application_insights.main.id]
+  description         = "Application Insights is reporting failed requests."
+  severity            = 2
+  frequency           = "PT5M"
+  window_size         = "PT15M"
+
+  criteria {
+    metric_namespace = "microsoft.insights/components"
+    metric_name      = "requests/failed"
+    aggregation      = "Count"
+    operator         = "GreaterThan"
+    threshold        = 5
   }
 
   action {

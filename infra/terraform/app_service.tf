@@ -105,8 +105,7 @@ resource "azurerm_linux_web_app" "backend" {
     SMTP_USERNAME                        = "@Microsoft.KeyVault(SecretUri=${azurerm_key_vault_secret.smtp_username.versionless_id})"
     SMTP_PASSWORD                        = "@Microsoft.KeyVault(SecretUri=${azurerm_key_vault_secret.smtp_password.versionless_id})"
     GITHUB_TOKEN                         = "@Microsoft.KeyVault(SecretUri=${azurerm_key_vault_secret.github_token.versionless_id})"
-    # Enables full Azure Monitor telemetry in backend/app/config.py (PR #8) —
-    # produced by monitoring.tf, which previously didn't exist.
+    # Enables full Azure Monitor telemetry in backend/app/config.py.
     APPLICATIONINSIGHTS_CONNECTION_STRING = "@Microsoft.KeyVault(SecretUri=${azurerm_key_vault_secret.app_insights_connection_string.versionless_id})"
 
     # HACKERRANK_API_KEY intentionally omitted — confirmed dead code, see
